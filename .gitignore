@@ -1,0 +1,9 @@
+# Dependencias y compilados
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+
+# Archivos de configuración local de agentes o entornos
+.gemini/
