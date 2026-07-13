@@ -90,6 +90,8 @@ interface MonitorResponse extends MonitorStatusSummary {
   target: string;
   port?: number;
   interval: number;
+  retries: number;
+  retryInterval: number;
   tags: string[];
   isActive: boolean;
   createdAt: string; // ISO-8601
@@ -146,6 +148,8 @@ interface CreateMonitorRequest {
   target: string;           // Zod: URL si http; host/IP si ping/port
   port?: number;            // Zod: requerido si type==="port"; 1..65535
   interval: number;         // Zod: entero, mínimo 20 (segundos)
+  retries?: number;         // Zod: entero ≥ 0; por defecto 0
+  retryInterval?: number;   // Zod: entero, mínimo 20; por defecto 60
   tags?: string[];          // por defecto []
 }
 ```
@@ -161,6 +165,8 @@ interface UpdateMonitorRequest {
   target?: string;
   port?: number;
   interval?: number;
+  retries?: number;
+  retryInterval?: number;
   tags?: string[];
   isActive?: boolean; // pausa (false) / reanuda (true) el monitoreo
 }

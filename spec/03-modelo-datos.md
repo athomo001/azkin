@@ -37,6 +37,8 @@ El repositorio (infraestructura) traduce documento Mongoose ↔ entidad de domin
 └──────────┘         │ target        │         │ msg     (string | null)    │
                      │ port?         │         │ ── TTL 30d (expireAfter) ──│
                      │ interval      │         └────────────────────────────┘
+                     │ retries       │
+                     │ retryInterval │
                      │ tags: [String]│
                      │ isActive      │
                      │ ts            │
@@ -87,7 +89,9 @@ export interface IMonitor {
   type: MonitorType;
   target: string;    // URL (http) | host/IP (ping, port)
   port?: number;     // requerido SOLO cuando type === "port"
-  interval: number;  // segundos (mínimo 20)
+  interval: number;      // segundos entre checks (mínimo 20)
+  retries: number;       // reintentos antes de marcar DOWN (0 = inmediato)
+  retryInterval: number; // segundos entre reintentos, en estado PENDING (mínimo 20)
   tags: string[];
   isActive: boolean; // pausa/reanuda el monitoreo
   createdAt: Date;
@@ -153,6 +157,8 @@ const monitorSchema = new Schema(
       },
     },
     interval: { type: Number, required: true, min: 20, default: 60 },
+    retries: { type: Number, required: true, min: 0, default: 0 },
+    retryInterval: { type: Number, required: true, min: 20, default: 60 },
     tags: { type: [String], default: [] },
     isActive: { type: Boolean, default: true },
   },
@@ -237,6 +243,7 @@ Regla: **ningún dato de un usuario es alcanzable por otro**. Se aplica en tres 
 | Purga de históricos | `expireAfterSeconds` (TTL nativo) | Corrige la deuda de I/O de Uptime Kuma (DELETE en caliente) |
 | `tags` | `[String]` embebido | Consultas rápidas sin colección adicional (fiel al spec) |
 | `interval` | mínimo 20 s, default 60 s | Evita saturar red/CPU; alineado con límites razonables |
+| `retries` / `retryInterval` | reintentos antes de DOWN (añadido en Fase 5) | Reduce falsos positivos por fallos de red puntuales; durante los reintentos el estado es PENDING |
 
 ---
 
