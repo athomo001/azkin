@@ -34,7 +34,7 @@ como ya se fijó en la Fase 1. Es exactamente la lección del análisis de Uptim
 | `CheckerRegistry` + `ICheckStrategy` | infra / puerto | Resuelve el checker por `type` (`http`/`ping`/`port`) |
 | `IHeartbeatRepository` | puerto | Persiste el heartbeat en la time-series |
 | `IRealtimePublisher` | puerto | Emite el heartbeat a `io.to(userId)` |
-| `INotifier` | puerto (*seam*) | Hook de alerta en transición confirmada (no-op/log en esta fase) |
+| `INotifier` + `INotificationStrategy` | puerto / infra | Orquesta y envía alertas concurrentes mediante múltiples proveedores (Email, Slack, Discord, Telegram, Webhook) |
 | Limitador `pLimit(N)` | infraestructura | Cerrojo de concurrencia global compartido |
 
 ### 2.1 Contrato del checker (puerto)
@@ -51,6 +51,13 @@ export interface ICheckStrategy {
   readonly type: MonitorType;
   check(monitor: IMonitor): Promise<CheckResult>;
 }
+```
+
+> **Soporte robusto para Cloudflare (Estrategia HTTP):**
+> Para evitar falsos DOWN causados por el firewall de Cloudflare (WAF), la estrategia `HttpChecker` debe:
+> 1. Inyectar un `User-Agent` de navegador de escritorio común por defecto si no se especifica uno personalizado.
+> 2. Adjuntar las cabeceras personalizadas configuradas en el monitor (ej. `Host`, cookies, `Accept`).
+> 3. Configurar la librería HTTP subyacente para ignorar los errores de validación de certificados SSL/TLS si `ignoreTls` está activado (útil cuando se usan túneles o SSL flexible).
 ```
 
 Añadir un tipo nuevo = una clase nueva registrada en el `CheckerRegistry`. **Cero modificación**
@@ -118,12 +125,14 @@ beat(sm):
 
   beatDoc = { monitorId, timestamp: now(), status, ping: result.ping, msg: result.msg }
   await heartbeatRepo.save(beatDoc)                          # (1) persistir
-  realtime.publishHeartbeat(sm.monitor.userId, beatDoc)      # (2) emitir a la room del dueño
+  realtime.publishHeartbeat(sm.monitor.id, beatDoc)          # (2) emitir a la sala del monitor (para viewers con acceso)
 
   # (3) detección de transición SOLO sobre estados confirmados (PENDING no alerta)
   if status in {UP, DOWN}:
       if sm.lastStatus !== null and sm.lastStatus !== status:
-          notifier.notify({ monitor: sm.monitor, from: sm.lastStatus, to: status, beat: beatDoc })
+          # Se consultan las notificaciones asociadas y se disparan en paralelo de forma asíncrona
+          for notifId in sm.monitor.notificationIds:
+              notifier.sendAlert(notifId, sm.monitor, sm.lastStatus, status, beatDoc)
       sm.lastStatus = status
 ```
 
@@ -143,6 +152,7 @@ beat(sm):
   puntuales de red (razón de ser de los reintentos).
 - Cada intento (incluido `PENDING`) **sí** se persiste y emite → el historial y el dashboard
   reflejan lo que ocurre en vivo.
+- **Resiliencia en ejecución de red:** Cada checker (`HttpChecker`, `PingChecker`, `PortChecker`) debe implementar un `timeout` estricto (máximo 15 segundos) para evitar colgar la cola de ejecución. Cualquier excepción no controlada dentro del checker de red debe ser capturada en su propia estrategia de ejecución y devuelta como un `CheckResult` con `ok: false` y el mensaje de error correspondiente, asegurando que el planificador principal nunca falle.
 
 ---
 
@@ -208,5 +218,5 @@ usuarios). El aislamiento se preserva en el **momento de emitir**: cada heartbea
 | 1 — Arquitectura y stack | [`02-arquitectura.md`](02-arquitectura.md) | ✅ Aprobada |
 | 2 — Modelado de datos | [`03-modelo-datos.md`](03-modelo-datos.md) | ✅ Aprobada (+ `retries`/`retryInterval`) |
 | 3 — Contratos de API REST | [`04-contratos-api.md`](04-contratos-api.md) | ✅ Aprobada (+ `retries`/`retryInterval`) |
-| 4 — UI/UX y frontend | Diferida por decisión del usuario | ⏸️ Aparcada |
-| 5 — Motor de monitoreo | Este documento | ✅ Aprobada |
+| 4 — UI/UX y frontend | Vistas (incluyendo respaldos de configuración y métricas), componentes, estado con Signals | ⏳ Pendiente |
+| 5 — Motor de monitoreo | Este documento (soportando Cloudflare) | ✅ Aprobada |

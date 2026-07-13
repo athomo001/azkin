@@ -15,10 +15,10 @@ corrige una de ellas o preserva uno de sus aciertos:
 
 | Aprendizaje de Uptime Kuma | Decisión en Azkin |
 |---|---|
-| ✅ Su sistema de plugins de tipos de monitor es limpio y extensible | **Strategy Pattern** para los *checkers* (`http`/`ping`/`port`) |
+| ✅ Su sistema de plugins de tipos de monitor es limpio y extensible | **Strategy Pattern** para los *checkers* (`http`/`ping`/`port`) preparado para Cloudflare (User-Agent configurable, cabeceras personalizadas y bypass opcional de validación SSL/TLS para evitar bloqueos del WAF o falsos DOWN) |
 | ❌ `monitor.js` mezcla red + SQL + sockets + alertas (~2069 líneas, viola SRP) | **Clean Architecture**: el dominio no conoce Mongoose, Express ni Socket.io |
 | ❌ Purga de históricos en caliente (`DELETE` en cada heartbeat, bloqueo de I/O) | **Time Series Collection** de MongoDB con `expireAfterSeconds` (purga automática) |
-| ❌ CRUD de recursos exclusivamente por WebSocket (no automatizable por terceros) | **REST para mutar estado; Socket.io solo lectura** (broadcast a la *room* del usuario) |
+| ❌ CRUD de recursos exclusivamente por WebSocket (no automatizable por terceros) | **REST para mutar estado; Socket.io solo lectura** filtrado dinámicamente según permisos de visualización (Admin/Viewer) |
 
 Filosofía transversal (heredada de `01-general.md`): **ligero, moderno y sin sobreingeniería**.
 Se aplican como filtro de calidad inquebrantable: **SOLID, KISS, DRY, YAGNI, Fail Fast**.
@@ -41,11 +41,11 @@ Fronteras explícitas de YAGNI (lo que **NO** haremos en este alcance):
 | Planificador | Event Loop nativo + `p-limit` | `setTimeout` recursivo por monitor |
 | Tiempo real | Socket.io | *Rooms* por `user_id` (aislamiento estricto) |
 | Validación | Zod | En el borde HTTP (fail-fast) |
-| Auth | JWT (`jsonwebtoken`) + `bcrypt` | Middleware extrae `user_id` del token |
-| Frontend | Angular 17+ Standalone + **Signals** | Sin `NgModules` |
+| Auth | JWT (`jsonwebtoken`) + `bcrypt` + Cookies (`HttpOnly`) | Access Token (vida corta) + Refresh Token en cookie segura (7 días) para evitar logins recurrentes |
+| Frontend | Angular en su última versión estable (Angular 19+) Standalone + **Signals** | Sin `NgModules` |
 | Estilos | Tailwind CSS | Dark mode nativo (esmeralda=UP, carmesí=DOWN) |
 | Gráficos | Apache ECharts | Wrapper reactivo |
-| Despliegue | Docker + Docker Compose | 3 servicios: mongodb, backend, frontend |
+| Despliegue | Docker + Docker Compose (Orquestación resiliente) | 3 servicios robustecidos: mongodb, backend, frontend |
 
 ---
 
@@ -97,7 +97,7 @@ azkin/
 │       │   ├── value-objects/     MonitorStatus.ts · MonitorType.ts · Interval.ts
 │       │   └── errors/            DomainError.ts (base para fail-fast)
 │       ├── application/
-│       │   ├── use-cases/         create-monitor.usecase.ts · execute-check.usecase.ts · …
+│       │   ├── use-cases/         create-monitor.usecase.ts · execute-check.usecase.ts · export-backup.usecase.ts · import-backup.usecase.ts · …
 │       │   ├── ports/
 │       │   │   ├── repositories/  monitor.repository.ts · heartbeat.repository.ts · user.repository.ts
 │       │   │   └── services/      check-strategy.ts · realtime-publisher.ts · scheduler.ts · notifier.ts
@@ -107,6 +107,7 @@ azkin/
 │       │   ├── realtime/          socketio.gateway.ts
 │       │   ├── persistence/       mongoose/schemas/ · mongoose/repositories/
 │       │   ├── checkers/          http.checker.ts · ping.checker.ts · port.checker.ts · registry.ts
+│       │   ├── notifier/          providers/ (slack.ts · telegram.ts · email.ts · discord.ts · webhook.ts) · registry.ts
 │       │   ├── scheduler/         in-memory-scheduler.ts
 │       │   └── config/            env.ts
 │       ├── composition-root.ts    ← DI manual (KISS)
@@ -137,19 +138,24 @@ se detallan en la Fase 2/3.
   `CheckerRegistry`. Agregar un tipo nuevo = una clase nueva, **cero modificación** del núcleo
   (Open/Closed). Este es el patrón que reemplaza al God Object de Uptime Kuma.
 
-- **`IMonitorRepository` / `IHeartbeatRepository`** — toda operación recibe `userId` como
-  parámetro obligatorio. El aislamiento multiusuario se garantiza en el borde del repositorio;
-  jamás se confía en un `userId` provisto por el cliente (fail-fast).
+- **`IMonitorRepository` / `IHeartbeatRepository`** — las operaciones de lectura filtran los recursos basándose en la identidad del usuario (`userId`) y sus permisos asignados (por monitor o grupo de monitores - `group`). Las operaciones de escritura requieren que el usuario tenga rol `Admin` sobre el recurso. El control de acceso se garantiza en el repositorio y la capa de aplicación.
 
 - **`IScheduler`** — `schedule(monitor)` / `unschedule(monitorId)`. Implementación in-memory con
   `Map<monitorId, NodeJS.Timeout>` y `setTimeout` recursivo (patrón `safeBeat`: evita solapamiento
   de checks), envuelto en `p-limit(N)` para no saturar red/CPU.
 
-- **`IRealtimePublisher`** — `publishHeartbeat(userId, beat)`. La implementación Socket.io emite a
-  `io.to(userId)`. Canal **unidireccional de solo lectura**.
+- **`IRealtimePublisher`** — `publishHeartbeat(monitorId, beat)`. La implementación Socket.io emite el evento a una sala del monitor (`io.to(monitorId)`); los clientes se unen únicamente a salas de monitores para los que tienen permisos de visualización explícitos. Canal **unidireccional de solo lectura**.
 
-- **`INotifier`** *(seam, no se construye en Fase 1)* — punto de extensión para alertas cuando un
-  monitor cambia de estado. Se deja la interfaz preparada, sin proveedores (YAGNI).
+- **`INotifier`** — `sendAlert(notification, monitor, from, to, beat): Promise<void>`.
+  Servicio que implementa un **Strategy Pattern** para disparar alertas concurrentes a través de múltiples canales activos (`EmailNotifier`, `SlackNotifier`, `TelegramNotifier`, `DiscordNotifier`, `WebhookNotifier`) según los `notificationIds` configurados en el monitor. El motor ejecuta los envíos de forma asíncrona y no bloqueante.
+  Cada canal de notificación implementa la interfaz **`INotificationStrategy`**:
+  ```ts
+  interface INotificationStrategy {
+    readonly type: NotificationType;
+    send(config: Record<string, any>, monitor: IMonitor, from: MonitorStatus, to: MonitorStatus, beat: IHeartbeat): Promise<void>;
+  }
+  ```
+  Esto permite que añadir un proveedor nuevo sea una clase aislada registrada en el `NotifierRegistry`, sin modificar el orquestador principal.
 
 ---
 
@@ -168,18 +174,18 @@ InMemoryScheduler (setTimeout) ──▶ ExecuteCheckUseCase
         │                                │
    p-limit(N)                    CheckerRegistry.resolve(type).check()
                                          │
-                          persiste Heartbeat (Time Series)
+                           persiste Heartbeat (Time Series)
                                          │
-                          IRealtimePublisher.publishHeartbeat(userId, beat)
+                           IRealtimePublisher.publishHeartbeat(monitor.id, beat)
                                          │
-                          ¿cambió UP↔DOWN? ──▶ INotifier (futuro)
+                           ¿cambió UP↔DOWN? ──▶ INotifier (Multicanal en paralelo)
 ```
 
 ### 6.3 Tiempo real (solo lectura)
 ```
-Backend ──io.to(userId).emit("heartbeat", beat)──▶ SocketService (Angular)
-                                                          │
-                                          MonitorStateService actualiza signal<>
+Backend ──io.to(monitorId).emit("heartbeat", beat)──▶ SocketService (Angular)
+                                                            │
+                                            MonitorStateService actualiza signal<>
 ```
 
 ---
@@ -200,11 +206,11 @@ directo de la regla de dependencia.
 
 ## 8. Despliegue (Docker Compose)
 
-Tres servicios en `compose.yaml`:
+Tres servicios en `compose.yaml` estructurados para máxima **robustez y resiliencia**:
 
-- **`mongodb`** — persistencia; se inicializa la colección `Heartbeat` como Time Series.
-- **`backend`** — imagen Node multi-stage (build TS → runtime slim).
-- **`frontend`** — build de Angular servido por nginx.
+- **`mongodb`** — persistencia; se inicializa la colección `Heartbeat` como Time Series. Incluye un `healthcheck` que verifica la disponibilidad antes de permitir que otros servicios interactúen con él.
+- **`backend`** — imagen Node multi-stage (build TS → runtime slim) con política `restart: unless-stopped` y límites de memoria/CPU. Utiliza un mecanismo de espera inteligente (`depends_on` con condición `service_healthy`) y reintentos automáticos en la conexión de Mongoose para asegurar que el servicio no falle si la base de datos tarda en iniciar.
+- **`frontend`** — build de Angular servido por nginx con políticas de reinicio automático y reconexión automática en el cliente de Socket.io ante caídas del servidor.
 
 ---
 
@@ -215,5 +221,5 @@ Tres servicios en `compose.yaml`:
 | 1 — Arquitectura y stack | Este documento | ✅ Aprobada |
 | 2 — Modelado de datos (Mongoose) | Interfaces + Schemas + Time Series | ⏳ Pendiente |
 | 3 — Contratos de API REST | Endpoints, DTOs, middleware de aislamiento | ⏳ Pendiente |
-| 4 — UI/UX y frontend | Vistas, componentes, estado con Signals | ⏳ Pendiente |
-| 5 — Motor de monitoreo | Scheduler, concurrencia, flujo del ping | ⏳ Pendiente |
+| 4 — UI/UX y frontend | Vistas (incluyendo respaldos de configuración y métricas), componentes, estado con Signals | ⏳ Pendiente |
+| 5 — Motor de monitoreo | Scheduler, concurrencia, flujo del ping (soportando Cloudflare) | ⏳ Pendiente |

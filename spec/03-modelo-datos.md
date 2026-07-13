@@ -69,10 +69,23 @@ export type MonitorType = "http" | "ping" | "port";
 
 ```ts
 // domain/entities/User.ts
+export type UserRole = "admin" | "viewer";
+
+export interface IUserPermission {
+  type: "all" | "group" | "monitor";
+  value?: string; // nombre del grupo (Monitor Group) o ID del monitor
+}
+
 export interface IUser {
   id: string;
   email: string;
-  passwordHash: string; // nunca se expone hacia afuera del dominio
+  passwordHash: string;           // nunca se expone hacia afuera del dominio
+  role: UserRole;
+  permissions: IUserPermission[]; // permisos de visualización granulares (solo para viewers)
+  isTvSessionEnabled?: boolean;   // permite logins prolongados (ej. 1 año) para pantallas fijas (TV)
+  preferences: {
+    nyanCatMode: boolean;         // activa el easter egg de Nyan Cat en los gráficos
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -92,8 +105,14 @@ export interface IMonitor {
   interval: number;      // segundos entre checks (mínimo 20)
   retries: number;       // reintentos antes de marcar DOWN (0 = inmediato)
   retryInterval: number; // segundos entre reintentos, en estado PENDING (mínimo 20)
+  group: string | null;  // grupo de monitores al que pertenece (ej. "Netics"; null si sin grupo)
   tags: string[];
   isActive: boolean; // pausa/reanuda el monitoreo
+  notificationIds: string[]; // listado de canales de alertas asignados (INotification)
+  // Soporte para Cloudflare y peticiones avanzadas
+  headers?: Record<string, string>; // cabeceras HTTP personalizadas (ej. Host, cookies, etc.)
+  userAgent?: string;               // User-Agent configurable para evitar bloqueos por WAF
+  ignoreTls?: boolean;              // si es true, no aborta ante fallos de certificados TLS/SSL
   createdAt: Date;
   updatedAt: Date;
 }
@@ -111,6 +130,20 @@ export interface IHeartbeat {
   ping: number | null; // latencia ms; null cuando DOWN o no medible
   msg: string | null;  // mensaje de estado (ej. "200 - OK", "timeout")
 }
+
+// domain/entities/Notification.ts
+export type NotificationType = "email" | "slack" | "telegram" | "discord" | "webhook";
+
+export interface INotification {
+  id: string;
+  userId: string;
+  name: string;
+  type: NotificationType;
+  config: Record<string, unknown>; // parámetros del proveedor (ej. webhookUrl, smtp, etc.)
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
 ```
 
 ---
@@ -126,8 +159,18 @@ import { Schema, model } from "mongoose";
 const userSchema = new Schema(
   {
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    // select:false → el hash nunca vuelve en queries por defecto (seguridad).
     passwordHash: { type: String, required: true, select: false },
+    role: { type: String, enum: ["admin", "viewer"], default: "viewer", required: true },
+    permissions: [
+      {
+        type: { type: String, enum: ["all", "group", "monitor"], required: true },
+        value: { type: String } // nombre del grupo o ID del monitor asignado
+      }
+    ],
+    isTvSessionEnabled: { type: Boolean, default: false },
+    preferences: {
+      nyanCatMode: { type: Boolean, default: false }
+    }
   },
   { timestamps: true, versionKey: false }
 );
@@ -159,16 +202,36 @@ const monitorSchema = new Schema(
     interval: { type: Number, required: true, min: 20, default: 60 },
     retries: { type: Number, required: true, min: 0, default: 0 },
     retryInterval: { type: Number, required: true, min: 20, default: 60 },
+    group: { type: String, default: null, trim: true, index: true }, // índice para consultas rápidas de grupo
     tags: { type: [String], default: [] },
     isActive: { type: Boolean, default: true },
+    notificationIds: [{ type: Schema.Types.ObjectId, ref: "Notification", default: [] }],
+    // Campos de robustez y compatibilidad con Cloudflare
+    headers: { type: Map, of: String, default: {} },
+    userAgent: { type: String, default: "" },
+    ignoreTls: { type: Boolean, default: false },
   },
   { timestamps: true, versionKey: false }
 );
 
-// Índice multikey para GET /tags/:tagName/overview y listados por usuario.
-monitorSchema.index({ userId: 1, tags: 1 });
+// Índice multikey para consultas y listados
+monitorSchema.index({ userId: 1, group: 1 });
 
 export const MonitorModel = model("Monitor", monitorSchema);
+
+// infrastructure/persistence/mongoose/schemas/notification.schema.ts
+const notificationSchema = new Schema(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    name: { type: String, required: true, trim: true },
+    type: { type: String, enum: ["email", "slack", "telegram", "discord", "webhook"], required: true },
+    config: { type: Schema.Types.Mixed, default: {} }, // guarda tokens, urls, host, etc.
+    isActive: { type: Boolean, default: true }
+  },
+  { timestamps: true, versionKey: false }
+);
+
+export const NotificationModel = model("Notification", notificationSchema);
 ```
 
 > Nota TS: el validador `required` usa `function () {}` (no arrow) para acceder a `this` como
@@ -242,8 +305,9 @@ Regla: **ningún dato de un usuario es alcanzable por otro**. Se aplica en tres 
 | Aislamiento heartbeat | `metaField: monitorId` + check de propiedad | Time-series liviana, sin denormalizar un dato inmutable |
 | Purga de históricos | `expireAfterSeconds` (TTL nativo) | Corrige la deuda de I/O de Uptime Kuma (DELETE en caliente) |
 | `tags` | `[String]` embebido | Consultas rápidas sin colección adicional (fiel al spec) |
-| `interval` | mínimo 20 s, default 60 s | Evita saturar red/CPU; alineado con límites razonables |
+| `interval` | mínimo 20 s, default 60 s | Evita saturar red/CPU; alinado con límites razonables |
 | `retries` / `retryInterval` | reintentos antes de DOWN (añadido en Fase 5) | Reduce falsos positivos por fallos de red puntuales; durante los reintentos el estado es PENDING |
+| Cuota de monitores | Máximo 50 por usuario | Previene abusos de recursos y denegación de servicio en el motor de monitoreo global |
 
 ---
 
