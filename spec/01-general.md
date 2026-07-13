@@ -64,6 +64,10 @@ Todos los endpoints (excepto Auth) deben ser protegidos por un Middleware que ex
 El diseño debe tener una estética premium, inspirada en herramientas modernas (como Vercel o Supabase), evitando verse como una plantilla genérica.
 
 - **Estilo General:** Usa **Tailwind CSS**. Soporte nativo a Dark Mode (grises oscuros, acentos verde esmeralda para "UP" y rojo carmesí para "DOWN"). Layout limpio, alto contraste, tipografía sans-serif moderna.
+- **Estructura Limpia y Semántica (Anti-Divitis):** Queda estrictamente prohibido el abuso de contenedores `div` redundantes u hojas de estilos con divs anidados innecesariamente (práctica común en código generado por IA). Se establecen las siguientes reglas de maquetación:
+  * **HTML5 Semántico Obligatorio:** Uso de etiquetas estructurales (`<header>`, `<main>`, `<nav>`, `<aside>`, `<section>`, `<article>`, `<footer>`) en lugar de divs genéricos.
+  * **Jerarquía DOM Plana (Flat DOM):** Evitar wrappers o divs contenedores cuya única función sea alinear elementos. Se deben aprovechar las propiedades Flexbox y CSS Grid directamente en los contenedores padres semánticos.
+  * **Interacción Semántica y Accesible:** Cualquier elemento clickeable debe ser un botón nativo (`<button>`) o enlace (`<a>`), prohibiendo colocar eventos click sobre elementos `div` o `span` sin roles interactivos (`role="button"`, `tabindex`).
 - **Vistas Principales:**
   - `GlobalDashboardView`: Grilla de tarjetas de resumen y métricas globales con listado jerárquico colapsable por **Monitor Group** (Grupo de Monitores, ej. Netics).
   - `GroupDashboardView` **[Feature Core]**: Vista consolidada `/dashboard/group/:groupName`.
