@@ -24,12 +24,17 @@ export class MonitorController {
   };
 
   update = async (req: Request, res: Response): Promise<void> => {
-    const monitor = await this.updateUseCase.execute(req.userId!, req.params.id, req.body);
+    // Se realiza un cast explícito de req.params.id a string debido a que en Express 5
+    // los parámetros de ruta pueden resolverse como string | string[].
+    const id = req.params.id as string;
+    const monitor = await this.updateUseCase.execute(req.userId!, id, req.body);
     res.status(200).json(toMonitorResponse(monitor));
   };
 
   remove = async (req: Request, res: Response): Promise<void> => {
-    await this.deleteUseCase.execute(req.userId!, req.params.id);
+    // Se realiza un cast explícito de req.params.id a string por compatibilidad de tipos con Express 5.
+    const id = req.params.id as string;
+    await this.deleteUseCase.execute(req.userId!, id);
     res.status(204).send();
   };
 }

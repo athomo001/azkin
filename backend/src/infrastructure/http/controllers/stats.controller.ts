@@ -12,8 +12,10 @@ export class StatsController {
   ) {}
 
   history = async (req: Request, res: Response): Promise<void> => {
-    const beats = await this.historyUseCase.execute(req.userId!, req.params.id);
-    res.status(200).json(toHistoryResponse(req.params.id, beats));
+    // Se extrae req.params.id forzando a string ya que en Express 5 el tipo puede resolverse como string | string[].
+    const id = req.params.id as string;
+    const beats = await this.historyUseCase.execute(req.userId!, id);
+    res.status(200).json(toHistoryResponse(id, beats));
   };
 
   tags = async (req: Request, res: Response): Promise<void> => {
@@ -22,7 +24,9 @@ export class StatsController {
   };
 
   tagOverview = async (req: Request, res: Response): Promise<void> => {
-    const overview = await this.tagOverviewUseCase.execute(req.userId!, req.params.tagName);
+    // Se realiza un cast de req.params.tagName a string debido al cambio de firmas en Express 5.
+    const tagName = req.params.tagName as string;
+    const overview = await this.tagOverviewUseCase.execute(req.userId!, tagName);
     res.status(200).json(toTagOverviewResponse(overview));
   };
 }
