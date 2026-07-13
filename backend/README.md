@@ -33,10 +33,43 @@ npm run build               # compila a dist/
 
 ## Docker
 
-Desde la raíz del repo:
+Desde la **raíz del repo**.
+
+### Desarrollo local (hot-reload)
+
+Usa `compose.dev.yaml` — monta el código y recarga con `tsx watch`; los cambios
+en `backend/src` se aplican sin reconstruir la imagen:
+
+```bash
+docker compose -f compose.dev.yaml up --build
+```
+
+- Backend en `http://localhost:3000` · MongoDB en `localhost:27017`.
+- Smoke test: `curl http://localhost:3000/health` → `{"status":"ok"}`.
+- Detener: `Ctrl+C` y `docker compose -f compose.dev.yaml down` (añade `-v` para
+  borrar también los datos de Mongo).
+- En Windows/macOS el hot-reload usa polling (`CHOKIDAR_USEPOLLING`), ya activado.
+
+### Producción local
+
+Usa el `compose.yaml` por defecto (imagen multi-stage optimizada):
 
 ```bash
 docker compose up --build   # levanta mongodb + backend
+```
+
+### Prueba rápida de la API
+
+```bash
+# Registro (devuelve un JWT)
+curl -sX POST http://localhost:3000/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"dev@azkin.local","password":"password123"}'
+
+# Crear un monitor (usa el token del paso anterior)
+curl -sX POST http://localhost:3000/api/v1/monitors \
+  -H 'Content-Type: application/json' -H "Authorization: Bearer <TOKEN>" \
+  -d '{"name":"Google","type":"http","target":"https://google.com","interval":30}'
 ```
 
 ## API

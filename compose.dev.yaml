@@ -1,0 +1,46 @@
+# Azkin — entorno de DESARROLLO local.
+# Levanta MongoDB + backend con hot-reload (tsx watch) y el código montado
+# como volumen: los cambios en ./backend/src se recargan sin reconstruir.
+#
+# Uso:
+#   docker compose -f compose.dev.yaml up --build
+#
+# Para producción local usa el compose por defecto:
+#   docker compose up --build
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-dev-data:/data/db
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    ports:
+      - "3000:3000"
+    environment:
+      AZKIN_PORT: 3000
+      AZKIN_MONGO_URI: mongodb://mongodb:27017/azkin
+      AZKIN_JWT_SECRET: dev-secret-change-me
+      AZKIN_JWT_EXPIRES_IN: 7200
+      AZKIN_CHECK_CONCURRENCY: 50
+      AZKIN_FIRST_CHECK_DELAY_MS: 1000
+      AZKIN_CORS_ORIGIN: "*"
+      # Activa polling de ficheros: el watch sobre bind-mounts (Windows/macOS)
+      # puede no detectar cambios sin esto.
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      # Código fuente montado para hot-reload...
+      - ./backend:/app
+      # ...pero preservando el node_modules (linux) del contenedor.
+      - /app/node_modules
+
+volumes:
+  mongo-dev-data:
