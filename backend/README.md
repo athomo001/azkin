@@ -1,4 +1,6 @@
-# Azkin — Backend
+# <p align="center"><img src="../assets/logo.png" alt="Azkin Logo" width="150"/></p>
+
+# <p align="center">Azkin — Backend</p>
 
 Plataforma de monitoreo multiusuario. Node + Express + TypeScript estricto,
 MongoDB/Mongoose, Socket.io, con **Clean Architecture**.
@@ -20,15 +22,15 @@ src/
 
 ```bash
 cp .env.example .env        # ajusta AZKIN_JWT_SECRET
-npm install
-npm run dev                 # requiere MongoDB local (>= 5.0)
+pnpm install
+pnpm run dev                 # requiere MongoDB local (>= 5.0)
 ```
 
 ## Verificación
 
 ```bash
-npm run typecheck           # tsc --noEmit
-npm run build               # compila a dist/
+pnpm run typecheck           # tsc --noEmit
+pnpm run build               # compila a dist/
 ```
 
 ## Docker
