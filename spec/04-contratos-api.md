@@ -5,7 +5,7 @@
 > [`02-arquitectura.md`](02-arquitectura.md) y el modelo de [`03-modelo-datos.md`](03-modelo-datos.md).
 
 Define el contrato HTTP de Azkin: rutas, DTOs de request/response, códigos de estado y el
-middleware de aislamiento. Sigue el principio de Fase 1: **REST muta el estado, Socket.io solo
+middleware de autorización por rol/permisos. Sigue el principio de Fase 1: **REST muta el estado, Socket.io solo
 transmite** (lectura). Aún es **spec, no implementación cableada**.
 
 ---
@@ -17,7 +17,7 @@ transmite** (lectura). Aún es **spec, no implementación cableada**.
 | **Prefijo/versión** | Todas las rutas bajo `/api/v1/` |
 | **Autenticación** | Header `Authorization: Bearer <JWT>` |
 | **Content-Type** | `application/json` en request y response |
-| **Aislamiento** | El `userId` proviene **siempre** del JWT (`req.userId`), nunca del body/query/params |
+| **Autorización** | El `userId` proviene **siempre** del JWT (`req.userId`), nunca del body/query/params |
 | **Validación** | Zod en el borde (body/params). Fallo → `400` con detalles |
 | **Errores** | Envelope único (ver §2) |
 | **Paginación** | No aplica — la lista de monitores es por usuario y acotada (YAGNI) |
@@ -27,15 +27,18 @@ transmite** (lectura). Aún es **spec, no implementación cableada**.
 
 ```ts
 interface JwtPayload {
-  sub: string;  // userId (ObjectId en string)
-  role: string; // "admin" | "viewer"
+  sub: string;       // userId (ObjectId en string)
+  role: string;      // "admin" | "viewer"
+  adminId?: string;  // opcional en viewers: referencia de creación/auditoría (no aislamiento por tenant)
   iat: number;
   exp: number;
 }
 ```
 
-El `authGuard` verifica la firma y `exp`; si es válido inyecta `req.userId = payload.sub` y `req.userRole = payload.role`, si no
-responde `401`. **Nunca** se incluye información sensible (email/hash) en el token.
+El `authGuard` verifica la firma y `exp`; si es válido inyecta `req.userId = payload.sub`,
+`req.userRole = payload.role` y `req.adminId = payload.adminId ?? payload.sub`, si no responde
+`401`. **Nunca** se incluye información
+sensible (email/hash) en el token.
 
 ---
 
@@ -76,11 +79,17 @@ interface UserResponse {
   id: string;
   email: string;
   role: string;
+  adminId?: string;  // solo presente en viewers
   permissions: { type: string; value?: string }[];
   isTvSessionEnabled: boolean;
   preferences: {
     nyanCatMode: boolean;
   };
+}
+
+interface AuthResponse {
+  accessToken: string;
+  user: UserResponse;
 }
 
 // Resumen de estado ligero embebido en la lista (NO el historial completo).
@@ -100,14 +109,27 @@ interface MonitorResponse extends MonitorStatusSummary {
   interval: number;
   retries: number;
   retryInterval: number;
-  group: string | null;
-  tags: string[];
+  group: string | null;  // Monitor Group jerárquico (permisos + dashboard)
+  tags: string[];        // etiquetas libres (filtrado UI; NO permisos)
   isActive: boolean;
   notificationIds: string[]; // IDs de notificaciones configuradas
+  // Campos específicos Uptime Kuma
+  pushToken?: string;
+  keyword?: string;
+  keywordMethod?: "presence" | "absence";
+  dnsResolver?: string;
+  dnsRecordType?: "A" | "AAAA" | "CNAME" | "MX" | "TXT";
   // Soporte para Cloudflare y peticiones avanzadas
   headers?: Record<string, string>;
   userAgent?: string;
   ignoreTls?: boolean;
+  // Módulo de Integridad Visual y Estructural (Detección de Defacement)
+  integrityEnabled?: boolean;
+  integrityProfile?: "static" | "dynamic";
+  integrityIgnoredCssSelectors?: string[];
+  integrityVisualMasks?: { x: number; y: number; width: number; height: number }[];
+  integrityAllowedScripts?: string[];
+  integrityThreshold?: number;
   createdAt: string; // ISO-8601
   updatedAt: string; // ISO-8601
 }
@@ -119,6 +141,9 @@ interface MonitorResponse extends MonitorStatusSummary {
 
 ### 4.1 `POST /register`
 - **Auth:** no.
+- **Descripción:** Crea una cuenta **Admin** nueva con privilegios globales de administración.
+  Los Viewers **no** se registran
+  por esta vía; los crea un Admin con `POST /users`.
 - **Request:**
 ```ts
 interface RegisterRequest {
@@ -153,8 +178,10 @@ interface RegisterRequest {
 
 ### 5.1 `GET /monitors`
 - **Respuesta `200`:** `MonitorResponse[]`.
-  - Si el rol es `admin`, retorna todos los monitores bajo su cuenta.
-  - Si el rol es `viewer`, retorna únicamente los monitores del admin que coincidan con sus reglas de permisos (por ID del monitor o pertenecientes a tags asignados).
+  - Si el rol es `admin`, retorna todos los monitores bajo su cuenta (`userId === req.userId`).
+  - Si el rol es `viewer`, retorna monitores del Admin (`userId === req.adminId`) filtrados por
+    permisos granulares: `all`, Monitor Group específico (`permission.type === "group"`) o monitor
+    individual (`permission.type === "monitor"`). **Las `tags` no intervienen en autorización.**
 - **Errores:** `401`.
 
 > El `uptime24h` y `lastStatus` se resuelven con **una sola agregación** sobre la colección
@@ -165,23 +192,35 @@ interface RegisterRequest {
 ```ts
 interface CreateMonitorRequest {
   name: string;             // Zod: no vacío, máx 255 caracteres
-  type: MonitorType;        // "http" | "ping" | "port"
-  target: string;           // Zod: URL si http (máx 512), host/IP si ping/port (máx 255)
+  type: "http" | "ping" | "port" | "dns" | "push";
+  target?: string;          // Zod: requerido si type!=='push'. URL si http (máx 512), host/IP si ping/port/dns
   port?: number;            // Zod: requerido si type==="port"; 1..65535
   interval: number;         // Zod: entero, mínimo 20 (segundos)
   retries?: number;         // Zod: entero ≥ 0; por defecto 0
   retryInterval?: number;   // Zod: entero, mínimo 20; por defecto 60
-  group?: string | null;    // Zod: string o null, máx 100 caracteres (Monitor Group, ej. "Netics")
-  tags?: string[];          // por defecto []; Zod: strings individuales máx 50 caracteres, máx 10 tags
+  group?: string | null;    // Zod: Monitor Group jerárquico (ej. "Netics/Web"), máx 100 chars
+  tags?: string[];          // etiquetas libres; máx 10 tags, 50 chars c/u; NO afectan permisos
   notificationIds?: string[]; // Zod: array de ObjectId strings válidos (opcional)
   // Soporte Cloudflare
   headers?: Record<string, string>; // cabeceras HTTP personalizadas
   userAgent?: string;               // User-Agent configurable
   ignoreTls?: boolean;              // omitir validación SSL
+  // Opciones específicas adicionales
+  keyword?: string;         // Zod: string opcional, palabra clave a validar en HTTP
+  keywordMethod?: "presence" | "absence"; // por defecto "presence"
+  dnsResolver?: string;     // Zod: IP o Host de resolver DNS
+  dnsRecordType?: "A" | "AAAA" | "CNAME" | "MX" | "TXT"; // por defecto "A"
+  // Módulo de Integridad Visual y Estructural (Detección de Defacement)
+  integrityEnabled?: boolean;                      // Zod: boolean opcional, por defecto false
+  integrityProfile?: "static" | "dynamic";          // Zod: enum opcional, por defecto "static"
+  integrityIgnoredCssSelectors?: string[];         // Zod: array de strings (selectores CSS), por defecto []
+  integrityVisualMasks?: { x: number; y: number; width: number; height: number }[]; // Zod: array de objetos con coordenadas de máscara
+  integrityAllowedScripts?: string[];              // Zod: array de URLs de scripts autorizados
+  integrityThreshold?: number;                     // Zod: número entre 0 y 1, por defecto 0.10
 }
 ```
 - **Respuesta `201`:** `MonitorResponse`.
-- **Efecto lateral:** el caso de uso verifica que el usuario no supere la **cuota máxima de 50 monitores** totales, e inyecta el monitor en el `IScheduler` si `isActive` (Fase 5).
+- **Efecto lateral:** el caso de uso verifica que el usuario no supere la **cuota máxima de 50 monitores** totales, e inyecta el monitor en el `IScheduler` si `isActive` (Fase 5). Para tipo `push`, genera un token criptográfico único (`pushToken`).
 - **Errores:** `400` (validación / cuota superada), `401`.
 
 ### 5.3 `PUT /monitors/:id`
@@ -201,6 +240,17 @@ interface UpdateMonitorRequest {
   headers?: Record<string, string>;
   userAgent?: string;
   ignoreTls?: boolean;
+  keyword?: string;
+  keywordMethod?: "presence" | "absence";
+  dnsResolver?: string;
+  dnsRecordType?: "A" | "AAAA" | "CNAME" | "MX" | "TXT";
+  // Módulo de Integridad Visual y Estructural (Detección de Defacement)
+  integrityEnabled?: boolean;
+  integrityProfile?: "static" | "dynamic";
+  integrityIgnoredCssSelectors?: string[];
+  integrityVisualMasks?: { x: number; y: number; width: number; height: number }[];
+  integrityAllowedScripts?: string[];
+  integrityThreshold?: number;
 }
 ```
 - **Respuesta `200`:** `MonitorResponse` actualizado.
@@ -221,7 +271,8 @@ interface UpdateMonitorRequest {
 - **Descripción:** historial de heartbeats de las últimas 24 h de un monitor.
 - **Aislamiento/Permisos:**
   - Si es `admin`, verifica propiedad del monitor.
-  - Si es `viewer`, verifica que el monitor específico o su grupo (`group`) asociado esté listado en sus permisos de lectura.
+  - Si es `viewer`, verifica que el monitor específico o su **Monitor Group** (`group`) esté
+    listado en sus permisos de lectura.
   - Si no tiene permisos → `404` (para no revelar existencia).
 - **Respuesta `200`:**
 ```ts
@@ -244,7 +295,8 @@ interface HistoryResponse {
 
 ### 6.3 `GET /stats/groups/:groupName/overview` *(feature core)*
 - **Descripción:** consolidado de todos los monitores bajo un Monitor Group autorizado.
-- **Autorización:** el usuario (viewer) debe tener permiso explícito sobre el grupo `:groupName` o sobre al menos uno de los monitores que lo contienen.
+- **Autorización:** el viewer debe tener permiso explícito sobre el Monitor Group `:groupName`
+  (`permission.type === "group"`) o sobre al menos uno de los monitores que lo contienen.
 - **Respuesta `200`:**
 ```ts
 interface MonitorHistoryPoints {
@@ -333,23 +385,63 @@ interface BackupImportResponse {
 
 ---
 
-## 9. Administración de Usuarios y Permisos — `/api/v1/users` *(requieren JWT con rol `admin`)*
+## 9. Administración de Usuarios y Permisos — `/api/v1/users`
 
-### 9.1 `PUT /users/:id/permissions`
-- **Descripción:** Modifica el rol y las reglas de visibilidad granulares asignadas a un usuario específico (ej. restringir a ciertos tags o monitores individuales).
+Un Admin puede gestionar usuarios normales (Viewers) de forma global.
+No hay separación por tenant entre cuentas Admin.
+
+### 9.1 `GET /users` *(requiere JWT con rol `admin`)*
+- **Descripción:** Lista todos los Viewers del sistema.
+- **Respuesta `200`:** `UserResponse[]`.
+- **Errores:** `401`, `403`.
+
+### 9.2 `POST /users` *(requiere JWT con rol `admin`)*
+- **Descripción:** Crea un Viewer (usuario normal). El servidor asigna `role: "viewer"`
+  automáticamente.
+- **Request:**
+```ts
+interface CreateViewerRequest {
+  email: string;    // Zod: email válido, único en el sistema
+  password: string; // Zod: mínimo 8 caracteres
+  permissions?: {
+    type: "all" | "group" | "monitor";
+    value?: string; // nombre exacto del Monitor Group o ID del monitor
+  }[];
+  isTvSessionEnabled?: boolean;
+}
+```
+- **Respuesta `201`:** `UserResponse`.
+- **Errores:** `400`, `401`, `403`, `409` (`EMAIL_TAKEN`).
+
+### 9.3 `PUT /users/:id/permissions` *(requiere JWT con rol `admin`)*
+- **Descripción:** Modifica permisos granulares de un Viewer.
 - **Request:**
 ```ts
 interface UpdatePermissionsRequest {
-  role?: "admin" | "viewer";
   permissions: {
     type: "all" | "group" | "monitor";
-    value?: string; // nombre del grupo (Monitor Group) o ID del monitor
+    value?: string; // nombre exacto del Monitor Group (campo `group`) o ID del monitor
   }[];
-  isTvSessionEnabled?: boolean; // si es true, prolonga la sesión del usuario a 1 año
+  isTvSessionEnabled?: boolean;
 }
 ```
 - **Respuesta `200`:** `UserResponse` actualizado.
-- **Errores:** `400` (validación), `401` (sin auth), `403` (si el solicitante no es `admin`), `404` (usuario destino no encontrado).
+- **Errores:** `400`, `401`, `403`, `404`.
+
+**Ejemplos de permisos granulares:**
+
+| Permiso | Efecto |
+|---|---|
+| `{ type: "all" }` | Ve todos los monitores del Admin |
+| `{ type: "group", value: "Netics/Web" }` | Ve monitores cuyo `group === "Netics/Web"` |
+| `{ type: "monitor", value: "<monitorId>" }` | Ve solo ese monitor (página) específico |
+
+> Un Viewer puede tener **varios** permisos combinados (unión lógica OR).
+
+### 9.4 `DELETE /users/:id` *(requiere JWT con rol `admin`)*
+- **Descripción:** Elimina un Viewer del sistema. Este endpoint no elimina cuentas Admin.
+- **Respuesta `204`:** sin body.
+- **Errores:** `401`, `403`, `404`.
 
 ---
 
@@ -410,7 +502,92 @@ interface CreateNotificationRequest {
 
 ---
 
-## 12. Trazabilidad de fases (SDD)
+## 12. Monitoreo Pasivo — `/api/v1/push` *(público, no requiere JWT)*
+
+### 12.1 `GET /push/:pushToken`
+- **Descripción:** Invocado por cronjobs, backups y sistemas externos de manera periódica. Registra un heartbeat para el monitor asignado.
+- **Query Params:**
+  * `status`: `"up" | "down"` (defecto: `"up"`). Permite al servicio reportar fallos internos explícitamente.
+  * `msg`: `string` opcional (mensaje descriptivo, ej. "Copia de seguridad exitosa").
+  * `ping`: `number` opcional (latencia del proceso externo en ms).
+- **Respuesta `200`:**
+```ts
+interface PushHeartbeatResponse {
+  success: boolean;
+  message: string; // "Heartbeat registered"
+}
+```
+- **Efecto lateral:** El caso de uso persiste el heartbeat y reinicia el timer del planificador para evitar que expire y dispare alertas de caída.
+- **Errores:** `404` (token no encontrado o monitor inactivo).
+
+---
+
+## 13. Tiempo real — Socket.io *(contrato unificado)*
+
+Canal **unidireccional de solo lectura**. REST muta estado; Socket.io transmite heartbeats en vivo.
+
+### 13.1 Conexión
+
+```
+Cliente Angular                    Backend (Socket.io Gateway)
+      │                                    │
+      │── connect({ auth: { token: JWT }}) ──▶│
+      │                                    │ verifica JWT
+      │                                    │ resuelve ownerRoom:
+      │                                    │   admin  → room = sub
+      │                                    │   viewer → room = adminId
+      │◀── join room automático ───────────│
+      │                                    │
+      │◀── evento "heartbeat" ─────────────│ io.to(ownerRoom).emit(...)
+```
+
+- **Autenticación:** JWT en `handshake.auth.token` o header `Authorization: Bearer`.
+- **Room:** nombre = `ownerId` (ID del Admin propietario de los monitores).
+  - Admin se une a su propia room (`sub`).
+  - Viewer se une a la room de su `adminId`.
+- **Reconexión:** el cliente Angular debe re-autenticar y re-unirse tras desconexión.
+
+### 13.2 Evento emitido por el servidor
+
+```ts
+// Nombre del evento: "heartbeat" (NO "ping_result")
+interface HeartbeatEvent {
+  monitorId: string;
+  timestamp: string;   // ISO-8601
+  status: MonitorStatus;
+  ping: number | null;
+  msg: string | null;
+}
+```
+
+El backend emite con:
+
+```ts
+io.to(monitor.userId).emit("heartbeat", payload);
+```
+
+Donde `monitor.userId` es el Admin propietario.
+
+### 13.3 Filtrado en el cliente (Viewers)
+
+Los Viewers reciben heartbeats de **todos** los monitores de su Admin (misma room), pero el
+`MonitorStateService` **solo actualiza** monitores para los que el Viewer tiene permiso
+(`all` | `group` | `monitor`). Los demás eventos se descartan silenciosamente.
+
+### 13.4 Puertos de aplicación
+
+```ts
+interface IRealtimePublisher {
+  publishHeartbeat(ownerId: string, beat: IHeartbeat): void;
+}
+```
+
+`ownerId` = `monitor.userId` (Admin propietario). La implementación Socket.io vive en
+`infrastructure/realtime/socketio.gateway.ts`.
+
+---
+
+## 14. Trazabilidad de fases (SDD)
 
 | Fase | Entregable | Estado |
 |---|---|---|
@@ -418,4 +595,4 @@ interface CreateNotificationRequest {
 | 2 — Modelado de datos | [`03-modelo-datos.md`](03-modelo-datos.md) | ✅ Aprobada |
 | 3 — Contratos de API REST | Este documento | ✅ Aprobada |
 | 4 — UI/UX y frontend | Vistas (incluyendo respaldos de configuración y métricas), componentes, estado con Signals | ⏳ Pendiente |
-| 5 — Motor de monitoreo | Scheduler, concurrencia, flujo del ping (soportando Cloudflare) | ⏳ Pendiente |
+| 5 — Motor de monitoreo | Scheduler, concurrencia, flujo del ping (soportando Cloudflare, DNS y Push) | ⏳ Pendiente |

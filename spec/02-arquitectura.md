@@ -63,7 +63,7 @@ nunca al revés. El dominio es TypeScript puro, testeable sin levantar Mongo ni 
                                  │ implementa puertos ▲
 ┌───────────────────────────────▼──────────────────────────────┐
 │  APPLICATION  (casos de uso — orquestación)                    │
-│  CreateMonitor · ExecuteCheck · GetTagOverview · LoginUser     │
+│  CreateMonitor · ExecuteCheck · GetGroupOverview · LoginUser     │
 │  Puertos (interfaces): IMonitorRepository · ICheckStrategy     │
 │                        IRealtimePublisher · IScheduler         │
 └───────────────────────────────┬──────────────────────────────┘
@@ -97,7 +97,7 @@ azkin/
 │       │   ├── value-objects/     MonitorStatus.ts · MonitorType.ts · Interval.ts
 │       │   └── errors/            DomainError.ts (base para fail-fast)
 │       ├── application/
-│       │   ├── use-cases/         create-monitor.usecase.ts · execute-check.usecase.ts · export-backup.usecase.ts · import-backup.usecase.ts · …
+│       │   ├── use-cases/         create-monitor.usecase.ts · execute-check.usecase.ts · execute-push-heartbeat.usecase.ts · export-backup.usecase.ts · import-backup.usecase.ts · …
 │       │   ├── ports/
 │       │   │   ├── repositories/  monitor.repository.ts · heartbeat.repository.ts · user.repository.ts
 │       │   │   └── services/      check-strategy.ts · realtime-publisher.ts · scheduler.ts · notifier.ts
@@ -106,7 +106,7 @@ azkin/
 │       │   ├── http/              controllers/ · routes/ · middlewares/ (auth · error · validation)
 │       │   ├── realtime/          socketio.gateway.ts
 │       │   ├── persistence/       mongoose/schemas/ · mongoose/repositories/
-│       │   ├── checkers/          http.checker.ts · ping.checker.ts · port.checker.ts · registry.ts
+│       │   ├── checkers/          http.checker.ts · ping.checker.ts · port.checker.ts · dns.checker.ts · push.checker.ts · registry.ts
 │       │   ├── notifier/          providers/ (slack.ts · telegram.ts · email.ts · discord.ts · webhook.ts) · registry.ts
 │       │   ├── scheduler/         in-memory-scheduler.ts
 │       │   └── config/            env.ts
@@ -117,7 +117,7 @@ azkin/
     ├── package.json
     └── src/app/
         ├── core/        auth.service.ts · socket.service.ts · jwt.interceptor.ts · auth.guard.ts
-        ├── features/    dashboard/ · tag-dashboard/ · monitor-detail/ · auth/  (standalone)
+        ├── features/    dashboard/ · group-dashboard/ · monitor-detail/ · auth/ · settings/  (standalone)
         ├── shared/      status-badge.component.ts · latency-chart.component.ts
         └── state/       monitor-state.service.ts  (signal<IMonitor[]>)
 ```
@@ -134,17 +134,23 @@ Definen la arquitectura. Se especifican aquí a nivel conceptual; las firmas exa
 se detallan en la Fase 2/3.
 
 - **`ICheckStrategy`** — `check(monitor): Promise<CheckResult>`.
-  Una implementación por tipo (`HttpChecker`, `PingChecker`, `PortChecker`), resueltas por un
+  Una implementación por tipo (`HttpChecker`, `PingChecker`, `PortChecker`, `DnsChecker`, `PushChecker`), resueltas por un
   `CheckerRegistry`. Agregar un tipo nuevo = una clase nueva, **cero modificación** del núcleo
   (Open/Closed). Este es el patrón que reemplaza al God Object de Uptime Kuma.
 
-- **`IMonitorRepository` / `IHeartbeatRepository`** — las operaciones de lectura filtran los recursos basándose en la identidad del usuario (`userId`) y sus permisos asignados (por monitor o grupo de monitores - `group`). Las operaciones de escritura requieren que el usuario tenga rol `Admin` sobre el recurso. El control de acceso se garantiza en el repositorio y la capa de aplicación.
+- **`IMonitorRepository` / `IHeartbeatRepository`** — las operaciones de lectura resuelven
+  `ownerId` (Admin propietario) y, si el actor es Viewer, filtran por `permissions` granulares
+  (`all` | Monitor Group `group` | monitor individual). Las operaciones de escritura requieren rol
+  `admin`. Ver modelo multiusuario en [`03-modelo-datos.md`](03-modelo-datos.md) §2–§3.
 
 - **`IScheduler`** — `schedule(monitor)` / `unschedule(monitorId)`. Implementación in-memory con
   `Map<monitorId, NodeJS.Timeout>` y `setTimeout` recursivo (patrón `safeBeat`: evita solapamiento
   de checks), envuelto en `p-limit(N)` para no saturar red/CPU.
 
-- **`IRealtimePublisher`** — `publishHeartbeat(monitorId, beat)`. La implementación Socket.io emite el evento a una sala del monitor (`io.to(monitorId)`); los clientes se unen únicamente a salas de monitores para los que tienen permisos de visualización explícitos. Canal **unidireccional de solo lectura**.
+- **`IRealtimePublisher`** — `publishHeartbeat(ownerId, beat)`. La implementación Socket.io emite
+  el evento `"heartbeat"` a la room del Admin propietario (`io.to(ownerId)`). Admin y Viewers se
+  unen a esa room al conectar; los Viewers filtran en cliente por permisos. Contrato completo en
+  [`04-contratos-api.md`](04-contratos-api.md) §13. Canal **unidireccional de solo lectura**.
 
 - **`INotifier`** — `sendAlert(notification, monitor, from, to, beat): Promise<void>`.
   Servicio que implementa un **Strategy Pattern** para disparar alertas concurrentes a través de múltiples canales activos (`EmailNotifier`, `SlackNotifier`, `TelegramNotifier`, `DiscordNotifier`, `WebhookNotifier`) según los `notificationIds` configurados en el monitor. El motor ejecuta los envíos de forma asíncrona y no bloqueante.
@@ -176,14 +182,20 @@ InMemoryScheduler (setTimeout) ──▶ ExecuteCheckUseCase
                                          │
                            persiste Heartbeat (Time Series)
                                          │
-                           IRealtimePublisher.publishHeartbeat(monitor.id, beat)
+                           IRealtimePublisher.publishHeartbeat(monitor.userId, beat)
                                          │
                            ¿cambió UP↔DOWN? ──▶ INotifier (Multicanal en paralelo)
 ```
 
 ### 6.3 Tiempo real (solo lectura)
+
+Contrato unificado — ver [`04-contratos-api.md`](04-contratos-api.md) §13.
+
 ```
-Backend ──io.to(monitorId).emit("heartbeat", beat)──▶ SocketService (Angular)
+Backend ──io.to(ownerId).emit("heartbeat", payload)──▶ SocketService (Angular)
+              │                                              │
+         ownerId = monitor.userId              Admin: actualiza todos sus monitores
+         (Admin propietario)                   Viewer: filtra por permissions → signal<>
                                                             │
                                             MonitorStateService actualiza signal<>
 ```
@@ -220,6 +232,6 @@ Tres servicios en `compose.yaml` estructurados para máxima **robustez y resilie
 |---|---|---|
 | 1 — Arquitectura y stack | Este documento | ✅ Aprobada |
 | 2 — Modelado de datos (Mongoose) | Interfaces + Schemas + Time Series | ⏳ Pendiente |
-| 3 — Contratos de API REST | Endpoints, DTOs, middleware de aislamiento | ⏳ Pendiente |
-| 4 — UI/UX y frontend | Vistas (incluyendo respaldos de configuración y métricas), componentes, estado con Signals | ⏳ Pendiente |
-| 5 — Motor de monitoreo | Scheduler, concurrencia, flujo del ping (soportando Cloudflare) | ⏳ Pendiente |
+| 3 — Contratos de API REST | [`04-contratos-api.md`](04-contratos-api.md) | ✅ Aprobada |
+| 4 — UI/UX y frontend | Vistas, componentes, estado con Signals | ⏳ Pendiente |
+| 5 — Motor de monitoreo | [`05-motor-monitoreo.md`](05-motor-monitoreo.md) | ✅ Aprobada |
