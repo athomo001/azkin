@@ -32,6 +32,21 @@ Fronteras explícitas de YAGNI (lo que **NO** haremos en este alcance):
 
 ---
 
+### Restricciones de Código, Comentarios y Aislamiento de Marca
+
+#### Aislamiento de Marca (Ingeniería Inversa)
+Con el fin de mantener la total independencia legal y técnica del proyecto:
+- Queda **estrictamente prohibido** incluir referencias directas (cadenas de texto, comentarios, variables, rutas, nombres de archivos, base de datos) a "Uptime Kuma" en todo el código base de Azkin.
+- Los conceptos y aprendizajes se implementan bajo nuestra propia nomenclatura y arquitectura de forma 100 % limpia.
+
+#### Política de Comentarios y Documentación
+Para garantizar la legibilidad, mantenimiento y claridad del sistema:
+- **Idioma**: El 100 % de los comentarios en el código fuente (tanto en backend como en frontend) deben estar redactados en **español**.
+- **Explicación funcional**: Cada función, método, clase, interfaz y caso de uso debe contar con comentarios descriptivos que expliquen claramente cuál es su propósito y responsabilidad.
+- **Lectura guiada**: Los bloques de código complejos deben contener comentarios que guíen la lectura del código paso a paso, permitiendo entender el flujo lógico y la razón de ser de cada función sin dificultad.
+
+---
+
 ## 2. Stack tecnológico
 
 | Capa | Tecnología | Notas |
@@ -233,5 +248,5 @@ Tres servicios en `compose.yaml` estructurados para máxima **robustez y resilie
 | 1 — Arquitectura y stack | Este documento | ✅ Aprobada |
 | 2 — Modelado de datos (Mongoose) | Interfaces + Schemas + Time Series | ⏳ Pendiente |
 | 3 — Contratos de API REST | [`04-contratos-api.md`](04-contratos-api.md) | ✅ Aprobada |
-| 4 — UI/UX y frontend | Vistas, componentes, estado con Signals | ⏳ Pendiente |
+| 4 — UI/UX y frontend | [`06-ui-ux.md`](06-ui-ux.md) | ✅ Aprobada |
 | 5 — Motor de monitoreo | [`05-motor-monitoreo.md`](05-motor-monitoreo.md) | ✅ Aprobada |

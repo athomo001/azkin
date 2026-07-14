@@ -441,5 +441,5 @@ Admin con acceso global y Viewer con permisos granulares. Se aplica en cuatro ni
 | 1 — Arquitectura y stack | [`02-arquitectura.md`](02-arquitectura.md) | ✅ Aprobada |
 | 2 — Modelado de datos | Este documento | ✅ Aprobada |
 | 3 — Contratos de API REST | [`04-contratos-api.md`](04-contratos-api.md) | ✅ Aprobada |
-| 4 — UI/UX y frontend | Vistas, componentes, estado con Signals | ⏳ Pendiente |
+| 4 — UI/UX y frontend | [`06-ui-ux.md`](06-ui-ux.md) | ✅ Aprobada |
 | 5 — Motor de monitoreo | [`05-motor-monitoreo.md`](05-motor-monitoreo.md) | ✅ Aprobada |

@@ -54,7 +54,7 @@ Detalle completo: [`02-arquitectura.md`](02-arquitectura.md).
 | 1 — Arquitectura y stack | [`02-arquitectura.md`](02-arquitectura.md) | ✅ Aprobada |
 | 2 — Modelo de datos | [`03-modelo-datos.md`](03-modelo-datos.md) | ✅ Aprobada |
 | 3 — Contratos API REST + Socket.io | [`04-contratos-api.md`](04-contratos-api.md) | ✅ Aprobada |
-| 4 — UI/UX y frontend | *(pendiente: `06-ui-ux.md`)* | ⏳ Pendiente |
+| 4 — UI/UX y frontend | [`06-ui-ux.md`](06-ui-ux.md) | ✅ Aprobada |
 | 5 — Motor de monitoreo | [`05-motor-monitoreo.md`](05-motor-monitoreo.md) | ✅ Aprobada |
 
 ---
@@ -93,4 +93,13 @@ Contrato: [`04-contratos-api.md`](04-contratos-api.md) §13.
   Monitor Group + panel de fallos con mensaje descriptivo (ej. `GLPI - DOWN: 502 Bad Gateway`).
 - Solo Admins editan; Viewers ven según permisos.
 
-Detalle UI pendiente en Fase 4.
+Detalle visual completo en [`06-ui-ux.md`](06-ui-ux.md).
+
+---
+
+## Restricciones de Código, Comentarios y Aislamiento de Marca
+
+- **Cero referencias directas**: En el código fuente, comentarios, nombres de variables, bases de datos o documentación técnica del sistema no debe existir ninguna referencia directa al programa "Uptime Kuma".
+- **Aislamiento de marca**: Azkin debe ser implementado de manera independiente. Aunque se utilicen conceptos derivados de la ingeniería inversa de su comportamiento, no se debe incluir texto, comentarios, marcas ni fragmentos de código que lo mencionen explícitamente.
+- **Idioma de comentarios**: El 100 % de los comentarios en el código (backend y frontend) deben estar escritos en **español**.
+- **Comentarios descriptivos y de lectura fluida**: Cada función, clase y método complejo debe estar comentado detalladamente para explicar claramente su propósito y lógica de negocio. El objetivo es que al leer secuencialmente el código, se comprenda perfectamente el flujo sin esfuerzo.

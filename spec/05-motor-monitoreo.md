@@ -327,5 +327,5 @@ Contrato completo: [`04-contratos-api.md`](04-contratos-api.md) §13.
 | 1 — Arquitectura y stack | [`02-arquitectura.md`](02-arquitectura.md) | ✅ Aprobada |
 | 2 — Modelado de datos | [`03-modelo-datos.md`](03-modelo-datos.md) | ✅ Aprobada (+ `retries`/`retryInterval`) |
 | 3 — Contratos de API REST | [`04-contratos-api.md`](04-contratos-api.md) | ✅ Aprobada (+ `retries`/`retryInterval`) |
-| 4 — UI/UX y frontend | Vistas (incluyendo respaldos de configuración y métricas), componentes, estado con Signals | ⏳ Pendiente |
+| 4 — UI/UX y frontend | [`06-ui-ux.md`](06-ui-ux.md) | ✅ Aprobada |
 | 5 — Motor de monitoreo | Este documento (soportando Cloudflare) | ✅ Aprobada |

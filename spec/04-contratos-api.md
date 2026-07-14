@@ -594,5 +594,5 @@ interface IRealtimePublisher {
 | 1 — Arquitectura y stack | [`02-arquitectura.md`](02-arquitectura.md) | ✅ Aprobada |
 | 2 — Modelado de datos | [`03-modelo-datos.md`](03-modelo-datos.md) | ✅ Aprobada |
 | 3 — Contratos de API REST | Este documento | ✅ Aprobada |
-| 4 — UI/UX y frontend | Vistas (incluyendo respaldos de configuración y métricas), componentes, estado con Signals | ⏳ Pendiente |
+| 4 — UI/UX y frontend | [`06-ui-ux.md`](06-ui-ux.md) | ✅ Aprobada |
 | 5 — Motor de monitoreo | Scheduler, concurrencia, flujo del ping (soportando Cloudflare, DNS y Push) | ⏳ Pendiente |

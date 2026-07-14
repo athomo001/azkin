@@ -8,7 +8,7 @@
 | 1 | [`02-arquitectura.md`](02-arquitectura.md) | Stack, capas, puertos, layout del repo | ✅ Aprobada |
 | 2 | [`03-modelo-datos.md`](03-modelo-datos.md) | Entidades, schemas, multiusuario, group vs tags | ✅ Aprobada |
 | 3 | [`04-contratos-api.md`](04-contratos-api.md) | REST, DTOs, errores, Socket.io §13 | ✅ Aprobada |
-| 4 | *(pendiente)* `06-ui-ux.md` | Vistas Angular, componentes, rutas | ⏳ Pendiente |
+| 4 | [`06-ui-ux.md`](06-ui-ux.md) | Diseño Premium, Dark Mode, Signals, Componentes | ✅ Aprobada |
 | 5 | [`05-motor-monitoreo.md`](05-motor-monitoreo.md) | Scheduler, checkers, reintentos, push | ✅ Aprobada |
 
 ## Regla de precedencia
