@@ -1,0 +1,29 @@
+# Azkin — orquestación de servicios.
+# El servicio `frontend` (Angular) se añadirá cuando se retome la Fase 4.
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    ports:
+      - "3000:3000"
+    environment:
+      AZKIN_PORT: 3000
+      AZKIN_MONGO_URI: mongodb://mongodb:27017/azkin
+      AZKIN_JWT_SECRET: change-me-in-production
+      AZKIN_JWT_EXPIRES_IN: 7200
+      AZKIN_CHECK_CONCURRENCY: 50
+      AZKIN_FIRST_CHECK_DELAY_MS: 1000
+      AZKIN_CORS_ORIGIN: "*"
+
+volumes:
+  mongo-data:

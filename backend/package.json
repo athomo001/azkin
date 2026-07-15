@@ -1,0 +1,38 @@
+{
+  "name": "azkin-backend",
+  "version": "0.1.0",
+  "description": "Azkin — plataforma de monitoreo multiusuario (backend)",
+  "license": "MIT",
+  "engines": {
+    "node": ">= 24.13.0",
+    "pnpm": ">= 11.2.0"
+  },
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^5.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.12.0",
+    "p-limit": "^3.1.0",
+    "ping": "^0.4.4",
+    "socket.io": "^4.8.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
