@@ -9,6 +9,7 @@ dist/
 .gemini/
 .agents/AGENTS.md
 spec/*
+.agents/*
 
 # Datos persistentes de MongoDB (bind mount local — no versionar)
 data/
