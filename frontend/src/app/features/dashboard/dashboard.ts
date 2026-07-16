@@ -1506,11 +1506,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (!this.chart) return;
 
     const data = this.historyPoints();
-    const times = data.map(d => new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    const rangeEnd = Date.now();
+    const rangeStart = rangeEnd - this.selectedHistoryDurationMs();
+    const isWideRange = this.selectedHistoryDurationMs() >= 24 * 60 * 60 * 1000;
 
     // Inyectar el símbolo de NyanCat y calcular rotación y tamaño proporcional no aplanado
     const latencies = data.map((d, index) => {
+      const ts = new Date(d.timestamp).getTime();
       const val = d.latency ?? 0;
+      const point: any = {
+        value: [ts, val],
+        isLocalNetworkDown: d.isLocalNetworkDown ?? false,
+      };
+
       if (this.isNyanCatMode() && index === data.length - 1) {
         let angle = 0;
         if (data.length > 1) {
@@ -1520,18 +1528,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
           // Si el valor sube (diff > 0), el gato apunta hacia arriba. ECharts rota antihorario.
           angle = Math.max(-30, Math.min(30, diff * 0.4));
         }
-        return {
-          value: val,
-          symbol: 'image:///nyan-cat.gif',
-          symbolSize: [95, 58], // Aumentado y con relación de aspecto correcta para evitar aplanarse
-          symbolRotate: angle
-        };
+        point.symbol = 'image:///nyan-cat.gif';
+        point.symbolSize = [95, 58]; // Aumentado y con relación de aspecto correcta para evitar aplanarse
+        point.symbolRotate = angle;
+        return point;
       }
-      return {
-        value: val,
-        symbol: 'none',
-        symbolSize: 0
-      };
+
+      point.symbol = 'none';
+      point.symbolSize = 0;
+      return point;
     });
 
     const option = {
@@ -1543,14 +1548,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
         textStyle: { color: '#e4e4e7', fontSize: 11 },
         formatter: (params: any[]) => {
           const p = params[0];
-          const point = data[p.dataIndex];
-          const time = p.axisValue ?? '';
-          let valueStr = `${p.value} ms`;
-          if (point?.isLocalNetworkDown) {
+          const rawValue = Array.isArray(p.value) ? p.value[1] : p.value;
+          const ts = Array.isArray(p.value) ? p.value[0] : p.axisValue;
+          const time = new Date(ts).toLocaleString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            ...(isWideRange ? { day: '2-digit', month: '2-digit' } : {}),
+          });
+          const isLocalDown = !!p.data?.isLocalNetworkDown;
+
+          let valueStr = `${rawValue} ms`;
+          if (isLocalDown) {
             valueStr = `<span style="color:#f59e0b;font-weight:bold">${this.lang.t('monitor.detail.statusLocalDown')}</span>`;
-          } else if (p.value === 0) {
+          } else if (rawValue === 0) {
             valueStr = `<span style="color:#ef4444;font-weight:bold">DOWN</span>`;
           }
+
           return `<div style="font-size:10px;color:#9ca3af;margin-bottom:4px">${time}</div>
             <div style="display:flex;align-items:center;gap:6px">
               <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color}"></span>
@@ -1561,10 +1574,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
       },
       grid: { left: '3%', right: '3%', top: '8%', bottom: '8%', containLabel: true },
       xAxis: {
-        type: 'category',
-        data: times,
+        type: 'time',
+        min: rangeStart,
+        max: rangeEnd,
         axisLine: { lineStyle: { color: '#27272a' } },
-        axisLabel: { color: '#71717a', fontSize: 11 }
+        axisLabel: {
+          color: '#71717a',
+          fontSize: 11,
+          formatter: (value: number) => new Date(value).toLocaleString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            ...(isWideRange ? { day: '2-digit', month: '2-digit' } : {}),
+          }),
+        }
       },
       yAxis: {
         type: 'value',
@@ -1599,14 +1621,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
         if (!this.chart) return;
         try {
           const lastIndex = data.length - 1;
+          if (lastIndex < 0) return;
           const lastVal = data[lastIndex].latency ?? 0;
-          const pt = this.chart.convertToPixel({ seriesIndex: 0 }, [lastIndex, lastVal]);
+          const lastTs = new Date(data[lastIndex].timestamp).getTime();
+          const pt = this.chart.convertToPixel({ seriesIndex: 0 }, [lastTs, lastVal]);
           if (pt && !isNaN(pt[0]) && !isNaN(pt[1])) {
             let angle = 0;
             if (data.length > 1) {
               const prevIndex = lastIndex - 1;
               const prevVal = data[prevIndex].latency ?? 0;
-              const prevPt = this.chart.convertToPixel({ seriesIndex: 0 }, [prevIndex, prevVal]);
+              const prevTs = new Date(data[prevIndex].timestamp).getTime();
+              const prevPt = this.chart.convertToPixel({ seriesIndex: 0 }, [prevTs, prevVal]);
               if (prevPt) {
                 const dx = pt[0] - prevPt[0];
                 const dy = pt[1] - prevPt[1]; // dy en pixeles va hacia abajo (eje Y invertido en HTML vs plano cartesiano)
@@ -1634,13 +1659,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private updateGroupChart(): void {
     if (!this.groupChart) return;
 
-    // Encontrar todos los timestamps únicos y ordenados para el eje X
-    const allTimestampsSet = new Set<string>();
-    for (const [_, data] of this.groupHistoryMap.entries()) {
-      data.points.forEach(p => allTimestampsSet.add(p.timestamp));
-    }
-    const sortedTimestamps = Array.from(allTimestampsSet).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-    const times = sortedTimestamps.map(t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    const rangeEnd = Date.now();
+    const rangeStart = rangeEnd - this.selectedHistoryDurationMs();
+    const isWideRange = this.selectedHistoryDurationMs() >= 24 * 60 * 60 * 1000;
 
     // Crear una serie para cada monitor — paleta sin rojo (rojo solo para caídas)
     const series: any[] = [];
@@ -1668,32 +1689,41 @@ export class DashboardComponent implements OnInit, OnDestroy {
     };
 
     for (const [monitorId, data] of this.groupHistoryMap.entries()) {
-      const latencies = sortedTimestamps.map((ts, index) => {
-        const point = data.points.find(p => p.timestamp === ts);
-        const val = point ? point.latency : null;
+      const pointsInRange = data.points
+        .map((p) => ({
+          ...p,
+          ts: new Date(p.timestamp).getTime(),
+        }))
+        .filter((p) => p.ts >= rangeStart && p.ts <= rangeEnd)
+        .sort((a, b) => a.ts - b.ts);
+
+      const latencies = pointsInRange.map((point, index) => {
+        const val = point.latency;
+        const item: any = {
+          value: [point.ts, val],
+          isLocalNetworkDown: point.isLocalNetworkDown ?? false,
+        };
+
         // Si el modo NyanCat está activo, inyectar el GIF de NyanCat en el último punto
-        if (this.isNyanCatMode() && index === sortedTimestamps.length - 1 && val !== null) {
+        if (this.isNyanCatMode() && index === pointsInRange.length - 1) {
           let angle = 0;
-          if (data.points.length > 1) {
-            const prevPoint = data.points[data.points.length - 2];
+          if (pointsInRange.length > 1) {
+            const prevPoint = pointsInRange[pointsInRange.length - 2];
             const prevVal = prevPoint ? prevPoint.latency : null;
             if (prevVal !== null && prevVal !== undefined) {
               const diff = val - prevVal;
               angle = Math.max(-30, Math.min(30, diff * 0.4));
             }
           }
-          return {
-            value: val,
-            symbol: 'image:///nyan-cat.gif',
-            symbolSize: [95, 58],
-            symbolRotate: angle
-          };
+          item.symbol = 'image:///nyan-cat.gif';
+          item.symbolSize = [95, 58];
+          item.symbolRotate = angle;
+          return item;
         }
-        return {
-          value: val,
-          symbol: 'none',
-          symbolSize: 0
-        };
+
+        item.symbol = 'none';
+        item.symbolSize = 0;
+        return item;
       });
 
       const lineColor = getColorForId(monitorId);
@@ -1719,8 +1749,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
           // Marcar los puntos donde el valor es 0 (posible caída) con un símbolo distinto
           data: latencies
             .map((v: any, idx) => {
-              const val = typeof v === 'object' && v !== null ? v.value : v;
-              return val === 0 ? { coord: [idx, 0] } : null;
+              const val = Array.isArray(v?.value) ? v.value[1] : v?.value;
+              const ts = Array.isArray(v?.value) ? v.value[0] : null;
+              return val === 0 && ts !== null ? { coord: [ts, 0] } : null;
             })
             .filter(Boolean)
             .slice(0, 5) as any[]
@@ -1738,14 +1769,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
         padding: [8, 12],
         textStyle: { color: '#e4e4e7', fontSize: 11 },
         formatter: (params: any[]) => {
-          const time = params[0]?.axisValue ?? '';
+          const firstTs = Array.isArray(params[0]?.value) ? params[0].value[0] : params[0]?.axisValue;
+          const time = new Date(firstTs).toLocaleString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            ...(isWideRange ? { day: '2-digit', month: '2-digit' } : {}),
+          });
           const rows = params.map(p => {
-            const rawVal = typeof p.value === 'object' && p.value !== null ? p.value.value : p.value;
-
-            // Buscar el punto para ver si es un fallo de red local
-            const monitorData = Array.from(this.groupHistoryMap.values()).find(x => x.name === p.seriesName);
-            const pt = monitorData?.points[p.dataIndex];
-            const isLocalDown = pt?.isLocalNetworkDown;
+            const rawVal = Array.isArray(p.value) ? p.value[1] : p.value;
+            const isLocalDown = !!p.data?.isLocalNetworkDown;
 
             const val = isLocalDown ? `<span style="color:#f59e0b;font-weight:bold">${this.lang.t('monitor.detail.statusLocalDown')}</span>` :
               (rawVal == null ? '<span style="color:#6b7280">Sin datos</span>' :
@@ -1771,10 +1803,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
       },
       grid: { left: '3%', right: '3%', top: '8%', bottom: '15%', containLabel: true },
       xAxis: {
-        type: 'category',
-        data: times,
+        type: 'time',
+        min: rangeStart,
+        max: rangeEnd,
         axisLine: { lineStyle: { color: '#27272a' } },
-        axisLabel: { color: '#71717a', fontSize: 12 },
+        axisLabel: {
+          color: '#71717a',
+          fontSize: 12,
+          formatter: (value: number) => new Date(value).toLocaleString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            ...(isWideRange ? { day: '2-digit', month: '2-digit' } : {}),
+          }),
+        },
         boundaryGap: false
       },
       yAxis: {
