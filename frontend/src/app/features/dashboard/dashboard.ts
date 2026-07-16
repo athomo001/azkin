@@ -90,7 +90,7 @@ type HistoryRangeOption = {
 
       <!-- Main Layout: Estilo Uptime Kuma de Dos Columnas -->
       <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
-        
+
         <!-- COLUMNA IZQUIERDA: Panel Lateral (Monitores en Árbol Colapsable) -->
         <aside class="w-full md:w-[350px] border-r border-zinc-900 bg-zinc-900/10 flex flex-col h-auto md:h-[calc(100vh-57px)] flex-shrink-0">
           <!-- Búsqueda y Botón Añadir -->
@@ -147,8 +147,8 @@ type HistoryRangeOption = {
                       <span class="text-xs font-black text-zinc-300 tracking-tight truncate">{{ g.name }}</span>
                     </div>
                     <span class="text-[9px] font-mono font-black px-1.5 py-0.5 rounded-md transition-colors"
-                      [class]="g.uptime >= 1.0 
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                      [class]="g.uptime >= 1.0
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         : (g.uptime < 0.95 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30')">
                       {{ (g.uptime * 100).toFixed(1) }}%
                     </span>
@@ -509,7 +509,7 @@ type HistoryRangeOption = {
               <!-- Lista Grid de Monitores en el Grupo -->
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 @for (m of selectedGroup()?.monitors; track m.id) {
-                  <div (click)="selectMonitor(m)" 
+                  <div (click)="selectMonitor(m)"
                     class="bg-zinc-900/30 border border-zinc-900 p-4 rounded-2xl cursor-pointer hover:bg-zinc-900/60 transition-colors flex items-center justify-between border border-transparent hover:border-zinc-800">
                     <div class="space-y-1 truncate pr-4">
                       <span class="text-xs font-black text-zinc-200 block truncate">{{ m.name }}</span>
@@ -637,7 +637,7 @@ type HistoryRangeOption = {
               </div>
             </div>
           }
-          
+
           <!-- Branding Footer -->
           <footer class="mt-6 pt-4 border-t border-zinc-900 flex items-center justify-between text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
             <span>© 2026 AZKIN LABS</span>
@@ -682,7 +682,7 @@ type HistoryRangeOption = {
               <!-- Datos Básicos -->
               <div class="space-y-4">
                 <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec1') }}</h4>
-                
+
                 <div class="grid grid-cols-2 gap-4">
                   <div class="col-span-2">
                     <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.name') }}</label>
@@ -757,7 +757,7 @@ type HistoryRangeOption = {
                       <input type="text" [(ngModel)]="formModel.snmpOid" placeholder="Ej. 1.3.6.1.2.1.1.5.0"
                         class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white font-mono">
                     </div>
-                    
+
                     @if (formModel.snmpVersion !== 'v3') {
                       <div class="col-span-2 animate-fade-in">
                         <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpCommunity') }}</label>
@@ -837,10 +837,10 @@ type HistoryRangeOption = {
                   } @else {
                     @for (ch of notificationChannels(); track ch.id) {
                       <div class="flex items-center gap-3 p-1.5 hover:bg-zinc-900/60 rounded transition-colors">
-                        <input type="checkbox" 
+                        <input type="checkbox"
                           [checked]="formModel.notificationIds.includes(ch.id)"
                           (change)="toggleNotificationChannel(ch.id)"
-                          [id]="'ch-' + ch.id" 
+                          [id]="'ch-' + ch.id"
                           class="rounded border-zinc-850 text-orange-500 focus:ring-0 cursor-pointer">
                         <label [for]="'ch-' + ch.id" class="text-xs text-zinc-300 font-bold cursor-pointer flex-1 flex items-center justify-between">
                           <span>{{ ch.name }}</span>
@@ -1065,7 +1065,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       // Registrar dependencias reactivas
       this.isNyanCatMode();
       this.isLightTheme();
-      
+
       // Re-renderizar gráficos en tiempo real
       setTimeout(() => {
         if (this.chart) this.updateChart();
@@ -1082,7 +1082,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly uptimeBlocks = computed(() => {
     const points = this.historyPoints();
     const blocks: { status: 'UP' | 'DOWN' | 'PENDING'; isLocalNetworkDown?: boolean }[] = [];
-    
+
     if (points.length === 0) {
       const monitor = this.selectedMonitor();
       const defaultStatus = monitor?.status || 'PENDING';
@@ -1190,7 +1190,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         // Calcular uptime promedio consolidado
         const active = monitors.filter(x => x.uptime24h !== null && x.uptime24h !== undefined);
         const uptime = active.length === 0 ? 1.0 : active.reduce((sum, x) => sum + (x.uptime24h ?? 1), 0) / active.length;
-        
+
         // Determinar peor estado consolidado
         let status: 'UP' | 'DOWN' | 'PENDING' = 'UP';
         if (monitors.some(x => x.status === 'DOWN')) status = 'DOWN';
@@ -1220,7 +1220,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.realtimeService.connect();
     this.realtimeService.onHeartbeat((hb: any) => {
       this.monitorService.applyHeartbeat(hb);
-      
+
       // Si estamos en la vista de Quick Stats consolidada, recargar incidentes recientes
       if (!this.selectedMonitorId()) {
         this.loadRecentIncidents();
@@ -1507,7 +1507,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     const data = this.historyPoints();
     const times = data.map(d => new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    
+
     // Inyectar el símbolo de NyanCat y calcular rotación y tamaño proporcional no aplanado
     const latencies = data.map((d, index) => {
       const val = d.latency ?? 0;
@@ -1578,8 +1578,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
         smooth: true,
         showSymbol: true, // Permitir símbolos dinámicos de los puntos
         symbol: 'none',   // No poner símbolo por defecto a nivel de serie
-        lineStyle: { 
-          width: this.isNyanCatMode() ? 5 : 2, 
+        lineStyle: {
+          width: this.isNyanCatMode() ? 5 : 2,
           color: this.isNyanCatMode() ? '#ec4899' : '#f97316'
         },
         areaStyle: {
@@ -1741,7 +1741,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
           const time = params[0]?.axisValue ?? '';
           const rows = params.map(p => {
             const rawVal = typeof p.value === 'object' && p.value !== null ? p.value.value : p.value;
-            
+
             // Buscar el punto para ver si es un fallo de red local
             const monitorData = Array.from(this.groupHistoryMap.values()).find(x => x.name === p.seriesName);
             const pt = monitorData?.points[p.dataIndex];
@@ -1830,7 +1830,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       keywordMethod: 'presence' as 'presence' | 'absence',
       dnsResolver: '',
       dnsRecordType: 'A' as 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT',
-      
+
       // SNMP Fields
       snmpVersion: 'v2c' as 'v1' | 'v2c' | 'v3',
       snmpCommunity: 'public',

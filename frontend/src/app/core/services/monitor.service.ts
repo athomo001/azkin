@@ -24,7 +24,7 @@ export interface IMonitor {
   lastErrorMsg?: string;
   notificationIds?: string[];
   isLocalNetworkDown?: boolean;
-  
+
   // SNMP Fields
   snmpVersion?: 'v1' | 'v2c' | 'v3';
   snmpCommunity?: string;
