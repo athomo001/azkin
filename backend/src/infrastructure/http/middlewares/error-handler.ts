@@ -6,6 +6,10 @@ interface ErrorBody {
   error: { code: string; message: string; details?: unknown };
 }
 
+/**
+ * Middleware centralizado de Express para el manejo de errores.
+ * Intercepta excepciones de tipo DomainError y formatea la respuesta en un envelope estandarizado.
+ */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(
   err: unknown,
@@ -22,8 +26,8 @@ export function errorHandler(
     return;
   }
 
-  logger.error("Unhandled error", err);
+  logger.error("Error no controlado capturado por el middleware", err);
   res.status(500).json({
-    error: { code: "INTERNAL_ERROR", message: "Internal server error" },
+    error: { code: "INTERNAL_ERROR", message: "Error interno del servidor" },
   });
 }

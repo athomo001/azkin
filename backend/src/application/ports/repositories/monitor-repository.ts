@@ -10,18 +10,75 @@ export interface CreateMonitorData {
   interval: number;
   retries: number;
   retryInterval: number;
+  group: string | null;
   tags: string[];
+  notificationIds: string[];
+  pushToken?: string;
+  keyword?: string;
+  keywordMethod?: "presence" | "absence";
+  dnsResolver?: string;
+  dnsRecordType?: "A" | "AAAA" | "CNAME" | "MX" | "TXT";
+  
+  // SNMP Fields
+  snmpVersion?: "v1" | "v2c" | "v3";
+  snmpCommunity?: string;
+  snmpPort?: number;
+  snmpOid?: string;
+  snmpV3Username?: string;
+  snmpV3AuthProtocol?: "md5" | "sha";
+  snmpV3AuthKey?: string;
+  snmpV3PrivProtocol?: "des" | "aes";
+  snmpV3PrivKey?: string;
+
+  headers?: Record<string, string>;
+  userAgent?: string;
+  ignoreTls?: boolean;
+  integrityEnabled?: boolean;
+  integrityProfile?: "static" | "dynamic";
+  integrityIgnoredCssSelectors?: string[];
+  integrityVisualMasks?: { x: number; y: number; width: number; height: number }[];
+  integrityAllowedScripts?: string[];
+  integrityThreshold?: number;
 }
 
 export interface UpdateMonitorData {
   name?: string;
+  type?: MonitorType;
   target?: string;
   port?: number;
   interval?: number;
   retries?: number;
   retryInterval?: number;
+  group?: string | null;
   tags?: string[];
+  notificationIds?: string[];
   isActive?: boolean;
+  pushToken?: string;
+  keyword?: string;
+  keywordMethod?: "presence" | "absence";
+  dnsResolver?: string;
+  dnsRecordType?: "A" | "AAAA" | "CNAME" | "MX" | "TXT";
+
+  // SNMP Fields
+  snmpVersion?: "v1" | "v2c" | "v3";
+  snmpCommunity?: string;
+  snmpPort?: number;
+  snmpOid?: string;
+  snmpV3Username?: string;
+  snmpV3AuthProtocol?: "md5" | "sha";
+  snmpV3AuthKey?: string;
+  snmpV3PrivProtocol?: "des" | "aes";
+  snmpV3PrivKey?: string;
+
+  headers?: Record<string, string>;
+  userAgent?: string;
+  ignoreTls?: boolean;
+  integrityEnabled?: boolean;
+  integrityProfile?: "static" | "dynamic";
+  integrityIgnoredCssSelectors?: string[];
+  integrityVisualMasks?: { x: number; y: number; width: number; height: number }[];
+  integrityAllowedScripts?: string[];
+  integrityThreshold?: number;
 }
 
 export interface IMonitorRepository {

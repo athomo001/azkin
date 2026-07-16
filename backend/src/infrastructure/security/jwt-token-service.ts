@@ -8,20 +8,25 @@ export class JwtTokenService implements ITokenService {
     private readonly expiresInSeconds: number,
   ) {}
 
-  sign(userId: string): string {
-    return jwt.sign({ sub: userId }, this.secret, { expiresIn: this.expiresInSeconds });
+  sign(userId: string, role: string, adminId?: string, permissions?: any[]): string {
+    return jwt.sign({ sub: userId, role, adminId, permissions }, this.secret, { expiresIn: this.expiresInSeconds });
   }
 
-  verify(token: string): { userId: string } {
+  verify(token: string): { userId: string; role: string; adminId?: string; permissions?: any[] } {
     try {
       const payload = jwt.verify(token, this.secret) as jwt.JwtPayload;
-      if (!payload.sub || typeof payload.sub !== "string") {
-        throw new UnauthorizedError("Invalid token payload");
+      if (!payload.sub || typeof payload.sub !== "string" || !payload.role || typeof payload.role !== "string") {
+        throw new UnauthorizedError("Token no válido o corrupto");
       }
-      return { userId: payload.sub };
+      return {
+        userId: payload.sub,
+        role: payload.role,
+        adminId: payload.adminId,
+        permissions: payload.permissions,
+      };
     } catch (error) {
       if (error instanceof UnauthorizedError) throw error;
-      throw new UnauthorizedError("Invalid or expired token");
+      throw new UnauthorizedError("Token inválido o expirado");
     }
   }
 }

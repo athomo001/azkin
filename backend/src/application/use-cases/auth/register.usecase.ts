@@ -8,6 +8,10 @@ export interface RegisterInput {
   password: string;
 }
 
+/**
+ * Caso de uso para registrar un nuevo usuario administrador (Admin) en el sistema.
+ * El registro público está restringido a administradores.
+ */
 export class RegisterUseCase {
   constructor(
     private readonly users: IUserRepository,
@@ -23,8 +27,21 @@ export class RegisterUseCase {
 
     const passwordHash = await this.hasher.hash(input.password);
     const user = await this.users.create({ email: input.email, passwordHash });
-    const token = this.tokens.sign(user.id);
+    const token = this.tokens.sign(user.id, user.role, user.adminId);
 
-    return { token, user: { id: user.id, email: user.email } };
+    return {
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        adminId: user.adminId,
+        permissions: user.permissions,
+        isTvSessionEnabled: user.isTvSessionEnabled ?? false,
+        preferences: {
+          nyanCatMode: user.preferences?.nyanCatMode ?? false,
+        },
+      },
+    };
   }
 }

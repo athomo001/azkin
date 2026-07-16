@@ -3,6 +3,10 @@ import { IHeartbeatRepository } from "../../ports/repositories/heartbeat-reposit
 import { IScheduler } from "../../ports/services/scheduler";
 import { NotFoundError } from "../../../domain/errors/domain-error";
 
+/**
+ * Caso de uso para eliminar un monitor de red.
+ * Detiene su agendamiento en el programador, remueve la configuración e inicia el borrado en cascada de sus heartbeats.
+ */
 export class DeleteMonitorUseCase {
   constructor(
     private readonly monitors: IMonitorRepository,
@@ -13,11 +17,11 @@ export class DeleteMonitorUseCase {
   async execute(userId: string, id: string): Promise<void> {
     const monitor = await this.monitors.findById(userId, id);
     if (!monitor) {
-      throw new NotFoundError("Monitor not found");
+      throw new NotFoundError("Monitor no encontrado");
     }
 
     this.scheduler.unschedule(id);
     await this.monitors.delete(userId, id);
-    await this.heartbeats.deleteByMonitor(id); // borrado en cascada
+    await this.heartbeats.deleteByMonitor(id); // Borrado en cascada de series de tiempo
   }
 }

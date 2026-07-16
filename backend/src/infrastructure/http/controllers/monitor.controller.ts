@@ -14,7 +14,12 @@ export class MonitorController {
   ) {}
 
   list = async (req: Request, res: Response): Promise<void> => {
-    const monitors = await this.listUseCase.execute(req.userId!);
+    const monitors = await this.listUseCase.execute(
+      req.userId!,
+      req.userRole!,
+      req.adminId!,
+      req.permissions!,
+    );
     res.status(200).json(monitors.map(toMonitorResponse));
   };
 

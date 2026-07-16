@@ -1,0 +1,137 @@
+/* You can add global styles to this file, and also import other style files */
+
+@import 'tailwindcss';
+
+/* ==============================================================================
+   LIGHT THEME OVERRIDES (Estilo limpio cvereports.com)
+   ============================================================================== */
+body.light-theme {
+  background-color: #f9fafb !important;
+  color: #111827 !important;
+}
+
+/* Scrollbars */
+body.light-theme ::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+body.light-theme ::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+/* Fondos y bordes generales */
+body.light-theme .bg-zinc-950 {
+  background-color: #f9fafb !important;
+  color: #111827 !important;
+}
+body.light-theme .bg-zinc-900 {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #e5e7eb !important;
+}
+body.light-theme .bg-zinc-900\/50,
+body.light-theme .bg-zinc-900\/60,
+body.light-theme .bg-zinc-900\/80 {
+  background-color: #ffffff !important;
+  border-color: #e5e7eb !important;
+  color: #111827 !important;
+}
+body.light-theme .bg-zinc-900\/10,
+body.light-theme .bg-zinc-900\/20,
+body.light-theme .bg-zinc-900\/30,
+body.light-theme .bg-zinc-900\/40 {
+  background-color: #ffffff !important;
+  border-color: #e5e7eb !important;
+  color: #111827 !important;
+}
+body.light-theme .bg-zinc-950\/20,
+body.light-theme .bg-zinc-950\/40,
+body.light-theme .bg-zinc-950\/80 {
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+}
+body.light-theme .bg-zinc-800 {
+  background-color: #e5e7eb !important;
+}
+body.light-theme .border-zinc-800,
+body.light-theme .border-zinc-900,
+body.light-theme .border-zinc-850,
+body.light-theme .border-zinc-900\/60,
+body.light-theme .border-zinc-900\/80 {
+  border-color: #e5e7eb !important;
+}
+
+/* Textos */
+body.light-theme .text-white {
+  color: #111827 !important;
+}
+body.light-theme .text-zinc-100 {
+  color: #111827 !important;
+}
+body.light-theme .text-zinc-200 {
+  color: #1f2937 !important;
+}
+body.light-theme .text-zinc-300 {
+  color: #374151 !important;
+}
+body.light-theme .text-zinc-400 {
+  color: #4b5563 !important;
+}
+body.light-theme .text-zinc-500 {
+  color: #6b7280 !important;
+}
+body.light-theme .text-zinc-600 {
+  color: #9ca3af !important;
+}
+
+/* Inputs y Selects */
+body.light-theme input,
+body.light-theme select,
+body.light-theme textarea {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #d1d5db !important;
+}
+body.light-theme input::placeholder,
+body.light-theme textarea::placeholder {
+  color: #9ca3af !important;
+}
+body.light-theme input:focus,
+body.light-theme select:focus {
+  border-color: #f97316 !important;
+}
+
+/* Hovers y Selecciones */
+body.light-theme .hover\:bg-zinc-900\/40:hover {
+  background-color: #f3f4f6 !important;
+}
+body.light-theme .hover\:bg-zinc-900\/60:hover {
+  background-color: #e5e7eb !important;
+}
+body.light-theme .hover\:text-white:hover {
+  color: #111827 !important;
+}
+body.light-theme .bg-zinc-900.border-zinc-800 {
+  background-color: #ffedd5 !important;
+  border-color: #fed7aa !important;
+}
+
+/* Contenedor del acordeón y sidebar */
+body.light-theme .border-zinc-900\/60 {
+  border-color: #e5e7eb !important;
+}
+
+/* ==============================================================================
+   VIEW TRANSITIONS API (Efecto circular/envolvente cvereports)
+   ============================================================================== */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 9999;
+}

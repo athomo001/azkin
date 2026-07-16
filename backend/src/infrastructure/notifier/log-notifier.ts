@@ -2,11 +2,14 @@ import { INotifier, NotificationEvent } from "../../application/ports/services/n
 import { MonitorStatus } from "../../domain/value-objects/monitor-status";
 import { logger } from "../logger";
 
-/** Implementación seam: registra la alerta. Sustituible por proveedores reales. */
+/**
+ * Implementación de prueba que imprime logs de alertas.
+ * Mapeado temporal hasta integrar las estrategias multicanal finales.
+ */
 export class LogNotifier implements INotifier {
   async notify(event: NotificationEvent): Promise<void> {
     logger.warn(
-      `[ALERT] "${event.monitor.name}" ${MonitorStatus[event.from]} -> ${MonitorStatus[event.to]} (${event.beat.msg ?? "no message"})`,
+      `[ALERT] Canal ${event.notificationId} - "${event.monitor.name}" ${MonitorStatus[event.from]} -> ${MonitorStatus[event.to]} (${event.beat.msg ?? "sin mensaje"})`,
     );
   }
 }

@@ -16,23 +16,30 @@ export class SocketIoGateway implements IRealtimePublisher {
     this.io.use((socket, next) => {
       try {
         const token = this.extractToken(socket);
-        const { userId } = this.tokens.verify(token);
-        socket.data.userId = userId;
-        void socket.join(userId);
+        const payload = this.tokens.verify(token);
+        
+        // Si es viewer, se une a la room del Admin propietario; si no, a la propia. Forzar conversión a string.
+        const roomToJoin = (payload.role === "viewer" && payload.adminId ? payload.adminId : payload.userId).toString();
+        
+        socket.data.userId = payload.userId.toString();
+        socket.data.room = roomToJoin;
+        void socket.join(roomToJoin);
         next();
       } catch {
-        next(new Error("unauthorized"));
+        next(new Error("No autorizado"));
       }
     });
 
     this.io.on("connection", (socket) => {
       const userId = socket.data.userId as string;
-      logger.info(`Socket connected for user ${userId}`);
+      const room = socket.data.room as string;
+      logger.info(`Socket conectado para usuario ${userId} en sala ${room}`);
     });
   }
 
   publishHeartbeat(userId: string, beat: IHeartbeat): void {
-    this.io.to(userId).emit("heartbeat", {
+    // Forzar conversión del room/userId a string para evitar errores con ObjectId de Mongoose
+    this.io.to(userId.toString()).emit("heartbeat", {
       monitorId: beat.monitorId,
       timestamp: beat.timestamp.toISOString(),
       status: beat.status,
@@ -42,13 +49,20 @@ export class SocketIoGateway implements IRealtimePublisher {
   }
 
   private extractToken(socket: Socket): string {
+    // 1. Buscar en handshake.auth
     const fromAuth = socket.handshake.auth?.token;
     if (typeof fromAuth === "string" && fromAuth.length > 0) return fromAuth;
 
+    // 2. Buscar en headers.authorization
     const header = socket.handshake.headers.authorization;
     if (typeof header === "string" && header.startsWith("Bearer ")) {
       return header.slice("Bearer ".length);
     }
+
+    // 3. Buscar en query parameters (usado por el cliente de Angular)
+    const fromQuery = socket.handshake.query?.token;
+    if (typeof fromQuery === "string" && fromQuery.length > 0) return fromQuery;
+
     throw new Error("missing token");
   }
 }

@@ -1,0 +1,9 @@
+# Imagen de DESARROLLO local para Angular (soporta hot-reload y mapeo de volumen)
+FROM node:24-alpine
+RUN corepack enable && corepack prepare pnpm@11.13.1 --activate
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile
+COPY . .
+EXPOSE 4200
+CMD ["pnpm", "exec", "ng", "serve", "--host", "0.0.0.0"]

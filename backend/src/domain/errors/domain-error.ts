@@ -59,3 +59,12 @@ export class NotFoundError extends DomainError {
     super(message);
   }
 }
+
+export class QuotaExceededError extends DomainError {
+  readonly code = "VALIDATION_ERROR";
+  readonly httpStatus = 400;
+
+  constructor(message = "Se ha superado el límite máximo de 50 monitores por cuenta") {
+    super(message);
+  }
+}

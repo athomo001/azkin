@@ -2,40 +2,26 @@
 
 Todos los cambios notables de **Azkin** se documentan aquí.
 
-El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
-y el proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
+El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
-## [Unreleased]
+## [1.0.0] - 2026-07-16
 
 ### Added
+- **Monitoreo SNMP v1/v2c/v3:** Implementación básica para configuración y lectura de OIDs en equipos de red.
+- **Canales de Alerta (SMTP/SMTP Seguro):** Formulario avanzado en el panel de configuración para el envío de alertas de caída mediante servidor SMTP y notificaciones multicanal.
+- **Bypass de Cloudflare WAF:** Capacidad de detección inteligente de proxies de Cloudflare (estados 403/503 con firmas CF), marcando la conexión como `UP (CF WAF)` en lugar de reportar caídas falsas.
+- **Modo Nyan Cat (Easter Egg):** Activación visual en los gráficos de latencia. Un Nyan Cat animado de gran escala (`[85, 52]`) vuela en tiempo real siguiendo el último punto de latencia registrado.
+- **Efecto de Transición de Tema (Claro/Oscuro):** Implementación de View Transitions API con efecto de círculo envolvente que se propaga desde la posición del cursor en ambas direcciones.
 
-- **Entorno de desarrollo local con Docker**: `backend/Dockerfile.dev` (hot-reload
-  con `tsx watch`) y `compose.dev.yaml` (MongoDB + backend con el código montado
-  como volumen). Instrucciones en `backend/README.md`.
-- **Backend** (`backend/`) implementado con Clean Architecture (Node + Express +
-  TypeScript estricto):
-  - `domain`: entidades puras (`User`, `Monitor`, `Heartbeat`), value objects
-    (`MonitorStatus`, `MonitorType`) y jerarquía de `DomainError`.
-  - `application`: casos de uso (auth, monitores CRUD, stats, `ExecuteCheck` con
-    máquina de reintentos) y puertos (repositorios y servicios).
-  - `infrastructure`: repositorios Mongoose (`Heartbeat` como Time Series
-    Collection con TTL de 30 días), API REST Express (`/api/v1`) con guard JWT,
-    validación Zod y envelope de error único, checkers `http`/`ping`/`port`
-    (Strategy + registry con `p-limit`), scheduler in-memory (`setTimeout`
-    recursivo), gateway Socket.io por room de usuario, JWT/bcrypt y notifier seam.
-  - Composition root con DI manual y ciclo de vida con apagado ordenado.
-  - `Dockerfile` multi-stage (producción) y `compose.yaml` (MongoDB + backend).
-- **Especificaciones SDD** (`spec/`):
-  - Fase 1 — Arquitectura y stack (`02-arquitectura.md`).
-  - Fase 2 — Modelado de datos MongoDB/Mongoose (`03-modelo-datos.md`).
-  - Fase 3 — Contratos de la API REST (`04-contratos-api.md`).
-  - Fase 5 — Motor de monitoreo (`05-motor-monitoreo.md`).
-  - Análisis de arquitectura de referencia.
+### Changed
+- **Nombres de Contenedores Docker:** Modificados a nombres estáticos semánticos: `azkin-front`, `azkin-back` y `azkin-db`.
+- **MongoDB 8.x:** Actualización del motor de base de datos de la versión 7 a la 8 en todos los entornos Docker compose.
+- **pnpm 11.13.1:** Actualización global y del `packageManager` en el frontend para forzar el uso de la versión de pnpm más reciente.
+- **Panel de Configuración `/settings` Premium:** Rediseño estilo SaaS premium inspirado en Vercel, con sub-menús horizontales dinámicos y pie de acciones a la derecha.
+- **Visualización de Gráficos de Grupo:** Aumento de fuentes y tamaño de leyenda con bloques de color grandes y legibles, diseñado para su visualización en pantallas gigantes (TV).
+- **Eliminación de Alertas Nativas:** Reemplazo de los diálogos `alert()` del navegador por modales de confirmación personalizados y notificaciones interactivas (toasts).
 
-### Notes
-
-- La verificación end-to-end del backend contra MongoDB está **pendiente**
-  (validado hasta ahora: `tsc --noEmit` limpio y smoke test de cableado DI).
-- La **Fase 4 (UI/UX y frontend Angular)** está aparcada por decisión del proyecto.
-
-[Unreleased]: https://github.com/athomo001/azkin/compare/main...feature
+### Fixed
+- **Validación de URL:** Autocompletado automático de protocolos `http://` / `https://` y validación de sintaxis en el guardado de monitores.
+- **Renderizado Reactivo de Gráficos:** Vinculación de efectos de Angular (`effect()`) para forzar la actualización inmediata de los gráficos de ECharts al cambiar el tema o el modo Nyan Cat sin recargar la página (cero F5).
+- **Caché e Instantaneidad en SSL/WHOIS:** Optimización en las verificaciones periódicas de certificados y dominios para evitar tiempos de espera prolongados.

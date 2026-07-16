@@ -1,0 +1,2177 @@
+import { Component, OnInit, OnDestroy, ElementRef, ViewChild, signal, computed, inject, effect } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Router, RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import * as echarts from 'echarts';
+import { SVGRenderer } from 'echarts/renderers';
+
+echarts.use([SVGRenderer]);
+import { MonitorService, IMonitor, IHeartbeat } from '../../core/services/monitor.service';
+import { AuthService } from '../../core/services/auth.service';
+import { RealtimeService } from '../../core/services/realtime.service';
+import { NotificationService, INotificationChannel } from '../../core/services/notification.service';
+import { BadgeStatusComponent } from '../../shared/components/badge-status';
+import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader';
+import { HttpClient } from '@angular/common/http';
+import { LanguageService } from '../../core/services/language.service';
+
+type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
+
+type HistoryRangeOption = {
+  label: string;
+  durationMs: number;
+};
+
+@Component({
+  selector: 'app-dashboard',
+  standalone: true,
+  imports: [CommonModule, RouterModule, FormsModule, BadgeStatusComponent, SkeletonLoaderComponent],
+  template: `
+    <div class="min-h-screen bg-zinc-950 text-white flex flex-col font-sans transition-colors duration-300">
+      <!-- Navbar -->
+      <nav class="bg-zinc-900/50 backdrop-blur-md border-b border-zinc-800 px-6 py-3 flex items-center justify-between shadow-lg sticky top-0 z-40">
+        <div class="flex items-center space-x-3">
+          <img src="logo-azkin.png" alt="Azkin Logo" class="h-6 w-auto">
+          <h1 class="text-2xl font-black text-orange-500 tracking-tight cursor-pointer hover:opacity-85 transition-opacity" (click)="resetSelection()">Azkin</h1>
+          <span class="text-xs text-zinc-500 border border-zinc-800 px-2 py-0.5 rounded bg-zinc-900/80">PROD</span>
+        </div>
+        <div class="flex items-center space-x-6">
+          <button (click)="toggleTheme($event)" class="text-zinc-400 hover:text-orange-500 transition-colors p-1.5 rounded-lg border border-zinc-800 bg-zinc-950/40" title="Cambiar tema">
+            @if (isLightTheme()) {
+              <!-- Sun Icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-amber-500">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M3 12h2.25m-.386-6.364 1.591 1.591M12 7.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" />
+              </svg>
+            } @else {
+              <!-- Moon Icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+              </svg>
+            }
+          </button>
+          <button (click)="lang.toggleLanguage()" class="text-zinc-400 hover:text-orange-500 transition-colors px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-950/40 text-[10px] font-black uppercase tracking-wider" [title]="lang.currentLang() === 'es' ? 'Switch to English' : 'Cambiar a Español'">
+            {{ lang.currentLang() }}
+          </button>
+          <div class="flex flex-col text-right">
+            <span class="text-xs font-bold text-zinc-300">{{ authService.currentUser()?.email || authService.currentUser()?.username }}</span>
+            <span class="text-[10px] text-zinc-500 uppercase tracking-wider">{{ authService.currentUser()?.role }}</span>
+          </div>
+          <!-- Boton secreto de NyanCat (Easter Egg) — solo para admins -->
+          @if (authService.isAdmin()) {
+            <button (click)="toggleNyanCat()" [title]="isNyanCatMode() ? 'Desactivar Modo NyanCat' : 'Activar Modo NyanCat 🐱'"
+              class="flex items-center justify-center p-1.5 rounded-lg border transition-all text-xs"
+              [class]="isNyanCatMode() ? 'border-orange-500/40 bg-orange-500/10 text-orange-400' : 'border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-orange-400 hover:border-orange-500/30'">
+              🐱
+            </button>
+          }
+          <a routerLink="/settings" class="text-sm font-semibold hover:text-orange-500 transition-colors flex items-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            </svg>
+            {{ lang.t('nav.settings') }}
+          </a>
+          <button (click)="onLogout()" class="text-sm font-semibold text-rose-500 hover:text-rose-400 transition-colors flex items-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
+            </svg>
+            {{ lang.t('nav.logout') }}
+          </button>
+        </div>
+      </nav>
+
+      <!-- Toast para notificaciones del dashboard -->
+      @if (toast()) {
+        <div class="fixed bottom-6 right-6 z-50 flex items-start gap-3 px-4 py-3 rounded-xl border text-sm font-medium shadow-2xl bg-zinc-900 border-zinc-800 text-white animate-fade-in">
+          <span class="w-2 h-2 mt-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+          <span>{{ toast() }}</span>
+        </div>
+      }
+
+      <!-- Main Layout: Estilo Uptime Kuma de Dos Columnas -->
+      <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        
+        <!-- COLUMNA IZQUIERDA: Panel Lateral (Monitores en Árbol Colapsable) -->
+        <aside class="w-full md:w-[350px] border-r border-zinc-900 bg-zinc-900/10 flex flex-col h-auto md:h-[calc(100vh-57px)] flex-shrink-0">
+          <!-- Búsqueda y Botón Añadir -->
+          <div class="p-4 border-b border-zinc-900 space-y-3 bg-zinc-950/20">
+            <button (click)="openCreateForm()"
+              class="w-full py-2 rounded-xl bg-orange-600 hover:bg-orange-500 font-bold text-xs tracking-tight transition-all active:scale-98 shadow-md flex items-center justify-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              {{ lang.t('sidebar.newMonitor') }}
+            </button>
+
+            <div class="relative">
+              <input type="text" [(ngModel)]="searchQuery" [placeholder]="lang.currentLang() === 'es' ? 'Buscar por nombre o IP...' : 'Search by name or IP...'"
+                class="w-full bg-zinc-950 border border-zinc-900 rounded-lg pl-8 pr-3 py-1.5 text-xs placeholder-zinc-600 focus:outline-none focus:border-orange-500 text-white">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-zinc-600 absolute left-2.5 top-2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.637Z" />
+              </svg>
+            </div>
+          </div>
+
+          <!-- Filtros Rápidos de Estado -->
+          <div class="px-4 py-2 bg-zinc-950/40 border-b border-zinc-900 flex justify-between gap-1 text-[10px] font-bold text-zinc-400">
+            <button (click)="statusFilter = 'ALL'" [class.text-orange-500]="statusFilter === 'ALL'">{{ lang.t('sidebar.allMonitors') }} ({{ totalMonitors() }})</button>
+            <button (click)="statusFilter = 'UP'" [class.text-orange-500]="statusFilter === 'UP'">{{ lang.t('dashboard.active') }} ({{ activeCount() }})</button>
+            <button (click)="statusFilter = 'DOWN'" [class.text-orange-500]="statusFilter === 'DOWN'">{{ lang.t('dashboard.down') }} ({{ downCount() }})</button>
+            <button (click)="statusFilter = 'PENDING'" [class.text-orange-500]="statusFilter === 'PENDING'">{{ lang.t('dashboard.pending') }} ({{ pendingCount() }})</button>
+          </div>
+
+          <!-- Lista de Monitores Scrollable -->
+          <div class="flex-1 overflow-y-auto space-y-1 p-2">
+            @if (isLoading()) {
+              <div class="p-4"><app-skeleton-loader [count]="5" /></div>
+            } @else {
+              <!-- GRUPOS COLAPSABLES (ACORDEÓN FLAT) -->
+              @for (g of groupedMonitors().groups; track g.name) {
+                <div class="mb-2">
+                  <!-- Cabecera del Grupo (Compacta y sin cajas) -->
+                  <div (click)="selectGroup(g.name)"
+                    class="flex items-center justify-between p-1.5 hover:bg-zinc-900/30 cursor-pointer select-none transition-colors rounded-lg"
+                    [class.bg-zinc-900/50]="selectedGroupName() === g.name">
+                    <div class="flex items-center space-x-1.5 truncate">
+                      <!-- Chevron Colapsable -->
+                      <button (click)="toggleGroup(g.name, $event)" class="p-0.5 hover:bg-zinc-800 rounded transition-colors text-zinc-500 hover:text-white" title="Expandir/Contraer">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"
+                          [class.rotate-[-90deg]]="g.isCollapsed"
+                          class="w-3 h-3 transition-transform duration-200">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </button>
+                      <!-- Estado consolidado del grupo -->
+                      <span [class]="g.status === 'UP' ? 'bg-emerald-500' : (g.status === 'DOWN' ? 'bg-rose-500 animate-pulse' : 'bg-amber-500')"
+                        class="w-2 h-2 rounded-full flex-shrink-0 shadow"></span>
+                      <span class="text-xs font-black text-zinc-300 tracking-tight truncate">{{ g.name }}</span>
+                    </div>
+                    <span class="text-[9px] font-mono font-black px-1.5 py-0.5 rounded-md transition-colors"
+                      [class]="g.uptime >= 1.0 
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                        : (g.uptime < 0.95 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30')">
+                      {{ (g.uptime * 100).toFixed(1) }}%
+                    </span>
+                  </div>
+
+                  <!-- Hijos del Grupo (Indentación limpia, sin caja externa) -->
+                  @if (!g.isCollapsed) {
+                    <div class="pl-2 border-l border-zinc-800/60 ml-4.5 mt-1 space-y-0.5 animate-fade-in">
+                      @for (m of g.monitors; track m.id) {
+                        <div (click)="selectMonitor(m)"
+                          [class]="selectedMonitorId() === m.id ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'border-transparent hover:bg-zinc-900/20 text-zinc-300'"
+                          class="flex items-center justify-between p-1.5 rounded-lg border cursor-pointer transition-all duration-150 group">
+                          <div class="flex items-center space-x-2 truncate">
+                            @if (!m.isActive) {
+                              <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-zinc-400 bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 rounded">
+                                PAUSED
+                              </span>
+                            } @else if (m.status === 'UP') {
+                              <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-emerald-500/5">
+                                <span class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse"></span>
+                                UP
+                              </span>
+                            } @else if (m.status === 'DOWN') {
+                              <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-rose-500/5 animate-pulse">
+                                <span class="w-1 h-1 rounded-full bg-rose-400"></span>
+                                DOWN
+                              </span>
+                            } @else {
+                              <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                                <span class="w-1 h-1 rounded-full bg-amber-400 animate-pulse"></span>
+                                PEND
+                              </span>
+                            }
+                            <div class="truncate flex flex-col">
+                              <span class="text-xs font-bold text-zinc-300 group-hover:text-white transition-colors truncate">{{ m.name }}</span>
+                              <span class="text-[9px] text-zinc-600 truncate">{{ m.target || 'Push Activo' }}</span>
+                            </div>
+                          </div>
+                          <span class="text-[9px] font-mono text-zinc-500 pr-1">
+                            {{ m.lastPing ? m.lastPing + ' ms' : '--' }}
+                          </span>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- MONITORES SIN GRUPO (Flat y Compactos) -->
+              @for (m of groupedMonitors().ungrouped; track m.id) {
+                <div (click)="selectMonitor(m)"
+                  [class]="selectedMonitorId() === m.id ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'border-transparent hover:bg-zinc-900/20 text-zinc-300'"
+                  class="flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all duration-150 group mb-1">
+                  <div class="flex items-center space-x-3 truncate">
+                    @if (!m.isActive) {
+                      <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-zinc-400 bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 rounded">
+                        PAUSED
+                      </span>
+                    } @else if (m.status === 'UP') {
+                      <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-emerald-500/5">
+                        <span class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse"></span>
+                        UP
+                      </span>
+                    } @else if (m.status === 'DOWN') {
+                      <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-rose-500/5 animate-pulse">
+                        <span class="w-1 h-1 rounded-full bg-rose-400"></span>
+                        DOWN
+                      </span>
+                    } @else {
+                      <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                        <span class="w-1 h-1 rounded-full bg-amber-400 animate-pulse"></span>
+                        PEND
+                      </span>
+                    }
+                    <div class="truncate flex flex-col">
+                      <span class="text-xs font-black text-zinc-300 group-hover:text-orange-500 transition-colors truncate">{{ m.name }}</span>
+                      <span class="text-[10px] text-zinc-500 truncate">{{ m.target || 'Push Activo' }}</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <span class="text-[10px] font-mono text-zinc-400">
+                      {{ m.lastPing ? m.lastPing + ' ms' : '--' }}
+                    </span>
+                  </div>
+                </div>
+              }
+            }
+          </div>
+        </aside>
+
+         <!-- COLUMNA DERECHA: Detalle del Monitor Seleccionado o Panel de Quick Stats -->
+        <main class="flex-1 bg-zinc-950 p-6 overflow-y-auto flex flex-col justify-between">
+          @if (selectedMonitorId()) {
+            <!-- VISTA DETALLADA DEL MONITOR -->
+            <div class="space-y-6 flex-1">
+              <!-- Info Header -->
+              <div class="flex items-start justify-between border-b border-zinc-900 pb-5">
+                <div>
+                  <div class="flex items-center space-x-3">
+                    @if (!selectedMonitor()?.isActive) {
+                      <span class="px-3 py-1 rounded-full bg-zinc-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-lg shadow-zinc-700/20">
+                        <span class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span>
+                        Pausado
+                      </span>
+                    } @else if (selectedMonitor()?.status === 'UP') {
+                      <span class="px-3 py-1 rounded-full bg-emerald-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-lg shadow-emerald-500/20">
+                        <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                        Funcional
+                      </span>
+                    } @else if (selectedMonitor()?.status === 'DOWN') {
+                      <span class="px-3 py-1 rounded-full bg-rose-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-lg shadow-rose-500/20 animate-pulse">
+                        <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                        Caído
+                      </span>
+                    } @else {
+                      <span class="px-3 py-1 rounded-full bg-amber-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-lg shadow-amber-500/20">
+                        <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                        Verificando
+                      </span>
+                    }
+                    <h2 class="text-2xl font-black tracking-tight text-white">{{ selectedMonitor()?.name }}</h2>
+                  </div>
+                  <p class="text-xs text-zinc-500 mt-1">
+                    Objetivo: <span class="text-zinc-400 font-semibold">{{ selectedMonitor()?.target || 'Webhook URL pasivo' }}</span>
+                    @if (selectedMonitor()?.group) {
+                      | Grupo: <span class="text-zinc-400 font-semibold">{{ selectedMonitor()?.group }}</span>
+                    }
+                  </p>
+                </div>
+                <div class="flex space-x-2">
+                  <!-- Botón Pausar/Reanudar -->
+                  <button (click)="togglePause(selectedMonitor()!)"
+                    class="p-2 bg-zinc-900 border border-zinc-850 rounded-xl text-zinc-400 transition-all shadow-md hover:text-white"
+                    [class.hover:bg-amber-950/20]="selectedMonitor()?.isActive"
+                    [class.hover:border-amber-900]="selectedMonitor()?.isActive"
+                    [class.hover:bg-emerald-950/20]="!selectedMonitor()?.isActive"
+                    [class.hover:border-emerald-900]="!selectedMonitor()?.isActive"
+                    [title]="selectedMonitor()?.isActive ? 'Pausar Monitoreo' : 'Reanudar Monitoreo'">
+                    @if (selectedMonitor()?.isActive) {
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-amber-500">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+                      </svg>
+                    } @else {
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-emerald-500">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                      </svg>
+                    }
+                  </button>
+
+                  <button (click)="openEditForm(selectedMonitor()!)"
+                    class="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 rounded-xl text-zinc-400 hover:text-white transition-all shadow-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                    </svg>
+                  </button>
+                  <button (click)="onDelete(selectedMonitor()!.id)"
+                    class="p-2 bg-zinc-900 hover:bg-rose-950/20 border border-zinc-850 hover:border-rose-900 rounded-xl text-zinc-400 hover:text-rose-500 transition-all shadow-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Banner de Caída de Red Local (ISP Outage) -->
+              @if (selectedMonitor()?.isLocalNetworkDown) {
+                <div class="p-3.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs rounded-2xl flex items-center gap-3 animate-pulse shadow-lg shadow-amber-500/5">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 shrink-0 text-amber-500">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>
+                  <div>
+                    <span class="font-bold uppercase tracking-wider text-[10px] text-amber-500 block">Diagnóstico de Enlace</span>
+                    <span class="text-[11px] font-medium leading-relaxed block mt-0.5">{{ lang.t('dashboard.localOutageBanner') }}</span>
+                  </div>
+                </div>
+              }
+
+              <!-- Barra de Stats Compacta (Reemplaza las cajas individuales) -->
+              <div class="grid grid-cols-2 lg:grid-cols-4 divide-x divide-zinc-900 border border-zinc-900 rounded-2xl overflow-hidden bg-zinc-900/20">
+                <div class="p-4">
+                  <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">{{ lang.t('monitor.detail.latency') }}</span>
+                  <span class="text-2xl font-black text-orange-500 mt-0.5 block">
+                    {{ selectedMonitor()?.lastPing ? selectedMonitor()?.lastPing + ' ms' : '--' }}
+                  </span>
+                </div>
+                <div class="p-4">
+                  <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">{{ lang.t('monitor.detail.avgLatency') }}</span>
+                  <span class="text-2xl font-black text-orange-500 mt-0.5 block">
+                    {{ avgPing() ? avgPing() + ' ms' : '--' }}
+                  </span>
+                </div>
+                <div class="p-4">
+                  <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">{{ lang.t('monitor.detail.uptime24h') }}</span>
+                  <span class="text-2xl font-black text-orange-500 mt-0.5 block">
+                    {{ selectedMonitor()?.uptime24h !== null && selectedMonitor()?.uptime24h !== undefined ? (selectedMonitor()!.uptime24h! * 100).toFixed(2) + '%' : '--' }}
+                  </span>
+                </div>
+                <div class="p-4">
+                  <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">{{ lang.t('monitor.detail.lastCheck') }}</span>
+                  <span class="text-xs font-bold text-zinc-400 mt-1 block truncate">
+                    {{ selectedMonitor()?.lastCheckedAt ? (selectedMonitor()!.lastCheckedAt! | date:'HH:mm:ss dd/MM') : lang.t('monitor.detail.never') }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- SSL y Dominio — solo si aplica, integrados limpiamente -->
+              @if (selectedMonitor()?.target?.toLowerCase()?.startsWith('https://')) {
+                <div class="grid grid-cols-2 divide-x divide-zinc-900 border border-zinc-900 rounded-2xl overflow-hidden bg-zinc-900/20">
+                  <div class="p-4 flex items-center justify-between">
+                    <div>
+                      <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">{{ lang.t('monitor.detail.sslCert') }}</span>
+                      <span class="text-xl font-black mt-0.5 block"
+                        [class.text-rose-500]="(selectedMonitor()?.certExpiry ?? 999) < 15"
+                        [class.text-amber-500]="(selectedMonitor()?.certExpiry ?? 999) >= 15 && (selectedMonitor()?.certExpiry ?? 999) < 30"
+                        [class.text-emerald-500]="(selectedMonitor()?.certExpiry ?? 999) >= 30">
+                        {{ selectedMonitor()?.certExpiry !== null && selectedMonitor()?.certExpiry !== undefined ? selectedMonitor()!.certExpiry + ' ' + lang.t('monitor.detail.days') : (selectedMonitor()?.lastCheckedAt ? lang.t('monitor.detail.unavailable') : lang.t('monitor.detail.checking')) }}
+                      </span>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                      [class.text-rose-500]="(selectedMonitor()?.certExpiry ?? 999) < 15"
+                      [class.text-emerald-500]="(selectedMonitor()?.certExpiry ?? 999) >= 30"
+                      class="w-7 h-7 text-zinc-700">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                    </svg>
+                  </div>
+                  <div class="p-4 flex items-center justify-between">
+                    <div>
+                      <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">{{ lang.t('monitor.detail.domainWhois') }}</span>
+                      <span class="text-xl font-black mt-0.5 block"
+                        [class.text-rose-500]="(selectedMonitor()?.domainExpiry ?? 999) < 30"
+                        [class.text-amber-500]="(selectedMonitor()?.domainExpiry ?? 999) >= 30 && (selectedMonitor()?.domainExpiry ?? 999) < 60"
+                        [class.text-emerald-500]="(selectedMonitor()?.domainExpiry ?? 999) >= 60">
+                        {{ selectedMonitor()?.domainExpiry !== null && selectedMonitor()?.domainExpiry !== undefined ? selectedMonitor()!.domainExpiry + ' ' + lang.t('monitor.detail.days') : (selectedMonitor()?.lastCheckedAt ? lang.t('monitor.detail.unavailable') : lang.t('monitor.detail.querying')) }}
+                      </span>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                      [class.text-rose-500]="(selectedMonitor()?.domainExpiry ?? 999) < 30"
+                      [class.text-emerald-500]="(selectedMonitor()?.domainExpiry ?? 999) >= 60"
+                      class="w-7 h-7 text-zinc-700">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 3a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-.778.099-1.533.284-2.253" />
+                    </svg>
+                  </div>
+                </div>
+              }
+
+              <!-- Historial visual (Uptime Blocks Heatmap) -->
+              <div class="bg-zinc-900/20 border border-zinc-900/60 p-4 rounded-2xl space-y-3">
+                <div class="flex items-center justify-between text-xs text-zinc-400">
+                  <span class="font-bold">{{ lang.t('monitor.detail.historyTitle') }}</span>
+                  <span class="font-mono text-emerald-500">100% {{ lang.t('monitor.detail.statusUp') }}</span>
+                </div>
+                <div class="flex gap-1.5 justify-between py-2">
+                  @for (b of uptimeBlocks(); track $index) {
+                    @if (b.isLocalNetworkDown) {
+                      <div class="h-9 flex-1 rounded-md transition-all hover:scale-105 bg-zinc-700 border border-orange-500/40 shadow-sm shadow-orange-500/10 animate-pulse"
+                        [title]="lang.t('monitor.detail.statusLocalDown')">
+                      </div>
+                    } @else {
+                      <div [class]="b.status === 'UP' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/20' : (b.status === 'DOWN' ? 'bg-rose-500 animate-pulse shadow-sm shadow-rose-500/20' : 'bg-zinc-800')"
+                        class="h-9 flex-1 rounded-md transition-all hover:scale-105"
+                        [title]="b.status === 'UP' ? lang.t('monitor.detail.statusUp') : (b.status === 'DOWN' ? lang.t('monitor.detail.statusDown') : lang.t('monitor.detail.noData'))">
+                      </div>
+                    }
+                  }
+                </div>
+                <div class="flex justify-between text-[9px] text-zinc-600 font-bold uppercase tracking-wider">
+                  <span>{{ lang.t('monitor.detail.timeAgo30') }}</span>
+                  <span>{{ lang.t('monitor.detail.timeNow') }}</span>
+                </div>
+              </div>
+
+              <!-- Gráfico de Latencia -->
+              <div class="bg-zinc-900/20 border border-zinc-900 p-4 rounded-2xl">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <span class="text-xs font-bold text-zinc-400">{{ lang.t('monitor.detail.latencyHistory') }}</span>
+                  <div class="flex flex-wrap gap-1">
+                    @for (opt of historyRangeOptions; track opt.durationMs) {
+                      <button
+                        (click)="setHistoryRange(opt.durationMs)"
+                        class="px-2 py-1 rounded-md border text-[10px] font-black tracking-wide transition-colors"
+                        [class]="selectedHistoryDurationMs() === opt.durationMs ? 'border-orange-500/50 bg-orange-500/15 text-orange-300' : 'border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-zinc-300'">
+                        {{ opt.label }}
+                      </button>
+                    }
+                  </div>
+                </div>
+                <div #chartEl class="w-full h-64"></div>
+              </div>
+            </div>
+          } @else if (selectedGroup()) {
+            <!-- VISTA DETALLADA DEL GRUPO (PUNTO 3) -->
+            <div class="space-y-6 flex-1 animate-fade-in">
+              <div class="flex items-start justify-between border-b border-zinc-900 pb-5">
+                <div>
+                  <div class="flex items-center space-x-3">
+                    @if (selectedGroup()?.overallStatus === 'UP') {
+                      <span class="px-3 py-1 rounded-full bg-emerald-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-lg shadow-emerald-500/20">
+                        <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                        {{ lang.t('group.detail.functional') }}
+                      </span>
+                    } @else if (selectedGroup()?.overallStatus === 'DOWN') {
+                      <span class="px-3 py-1 rounded-full bg-rose-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-lg shadow-rose-500/20 animate-pulse">
+                        <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                        {{ lang.t('group.detail.incidents') }}
+                      </span>
+                    } @else {
+                      <span class="px-3 py-1 rounded-full bg-amber-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-lg shadow-amber-500/20">
+                        <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                        {{ lang.t('group.detail.checking') }}
+                      </span>
+                    }
+                    <h2 class="text-2xl font-black tracking-tight text-white">{{ lang.t('group.detail.title') }}: {{ selectedGroup()?.group }}</h2>
+                  </div>
+                  <p class="text-xs text-zinc-500 mt-1">{{ lang.t('group.detail.subtitle') }}</p>
+                </div>
+              </div>
+
+              <!-- Cartas de Estadísticas Consolidadas del Grupo -->
+              <div class="grid grid-cols-3 gap-4">
+                <div class="bg-zinc-900/40 border border-zinc-900 p-4 rounded-2xl shadow">
+                  <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">{{ lang.t('group.detail.uptime') }}</span>
+                  <span class="text-2xl font-black text-orange-500 mt-1 block">
+                    {{ (getGroupUptime(selectedGroup()?.group) * 100).toFixed(2) }}%
+                  </span>
+                </div>
+                <div class="bg-zinc-900/40 border border-zinc-900 p-4 rounded-2xl shadow">
+                  <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">{{ lang.t('group.detail.latency') }}</span>
+                  <span class="text-2xl font-black text-orange-500 mt-1 block">
+                    {{ selectedGroup()?.avgPing ? selectedGroup()?.avgPing + ' ms' : '--' }}
+                  </span>
+                </div>
+                <div class="bg-zinc-900/40 border border-zinc-900 p-4 rounded-2xl shadow">
+                  <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">{{ lang.t('group.detail.agents') }}</span>
+                  <span class="text-2xl font-black text-orange-500 mt-1 block">
+                    {{ selectedGroup()?.monitors?.length ?? 0 }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Gráfico de Latencia Combinada del Grupo -->
+              <div class="bg-zinc-900/20 border border-zinc-900 p-4 rounded-2xl">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <span class="text-xs font-bold text-zinc-400">Comparativa de Latencia de Monitores en Tiempo Real (ms)</span>
+                  <div class="flex flex-wrap gap-1">
+                    @for (opt of historyRangeOptions; track opt.durationMs) {
+                      <button
+                        (click)="setHistoryRange(opt.durationMs)"
+                        class="px-2 py-1 rounded-md border text-[10px] font-black tracking-wide transition-colors"
+                        [class]="selectedHistoryDurationMs() === opt.durationMs ? 'border-orange-500/50 bg-orange-500/15 text-orange-300' : 'border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-zinc-300'">
+                        {{ opt.label }}
+                      </button>
+                    }
+                  </div>
+                </div>
+                <div #groupChartEl class="w-full h-80"></div>
+              </div>
+
+              <!-- Lista Grid de Monitores en el Grupo -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                @for (m of selectedGroup()?.monitors; track m.id) {
+                  <div (click)="selectMonitor(m)" 
+                    class="bg-zinc-900/30 border border-zinc-900 p-4 rounded-2xl cursor-pointer hover:bg-zinc-900/60 transition-colors flex items-center justify-between border border-transparent hover:border-zinc-800">
+                    <div class="space-y-1 truncate pr-4">
+                      <span class="text-xs font-black text-zinc-200 block truncate">{{ m.name }}</span>
+                      <span class="text-[10px] text-zinc-500 block truncate">{{ m.target || 'Push pasivo' }}</span>
+                    </div>
+                    <div class="text-right flex-shrink-0">
+                      @if (m.status === 'UP') {
+                        <span class="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black uppercase tracking-wider">UP</span>
+                      } @else if (m.status === 'DOWN') {
+                        <span class="text-[9px] bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded font-black uppercase tracking-wider animate-pulse">DOWN</span>
+                      } @else {
+                        <span class="text-[9px] bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-black uppercase tracking-wider">PEND</span>
+                      }
+                      <span class="text-[10px] text-zinc-500 font-mono block mt-1.5">{{ m.lastPing ? m.lastPing + ' ms' : '--' }}</span>
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          } @else {
+            <!-- GENERAL QUICK STATS DASHBOARD (IMAGEN 4) -->
+            <div class="space-y-6 flex-1">
+              <div>
+                <h2 class="text-3xl font-black tracking-tight text-white flex items-center gap-2">
+                  <span>{{ lang.t('dashboard.title') }}</span>
+                </h2>
+                <p class="text-xs text-zinc-500 mt-1">{{ lang.t('dashboard.subtitle') }}</p>
+              </div>
+
+              <!-- Banner Global de Caída de Red Local (ISP Outage) -->
+              @if (isAnyMonitorLocalNetworkDown()) {
+                <div class="p-4 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs rounded-2xl flex items-center gap-3 animate-pulse shadow-lg shadow-amber-500/5">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 shrink-0 text-amber-500">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>
+                  <div>
+                    <span class="font-bold uppercase tracking-wider text-[10px] text-amber-500 block">Diagnóstico de Servidor</span>
+                    <span class="text-[11px] font-medium leading-relaxed block mt-0.5">{{ lang.t('dashboard.localOutageBanner') }}</span>
+                  </div>
+                </div>
+              }
+
+              <!-- Grid de Stats Consolidados (Imagen 4) -->
+              <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-zinc-900/30 border border-zinc-900 p-5 rounded-2xl shadow-xl flex items-center justify-between">
+                  <div>
+                    <span class="text-[10px] text-zinc-500 font-black uppercase tracking-wider">{{ lang.t('dashboard.statUp') }}</span>
+                    <span class="text-3xl font-black text-emerald-500 mt-1 block">{{ activeCount() }}</span>
+                  </div>
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50"></span>
+                </div>
+                <div class="bg-zinc-900/30 border border-zinc-900 p-5 rounded-2xl shadow-xl flex items-center justify-between">
+                  <div>
+                    <span class="text-[10px] text-zinc-500 font-black uppercase tracking-wider">{{ lang.t('dashboard.statDown') }}</span>
+                    <span class="text-3xl font-black text-rose-500 mt-1 block">{{ downCount() }}</span>
+                  </div>
+                  <span class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-lg shadow-rose-500/50 animate-pulse"></span>
+                </div>
+                <div class="bg-zinc-900/30 border border-zinc-900 p-5 rounded-2xl shadow-xl flex items-center justify-between">
+                  <div>
+                    <span class="text-[10px] text-zinc-500 font-black uppercase tracking-wider">{{ lang.t('dashboard.statPending') }}</span>
+                    <span class="text-3xl font-black text-amber-500 mt-1 block">{{ pendingCount() }}</span>
+                  </div>
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-lg shadow-amber-500/50"></span>
+                </div>
+                <div class="bg-zinc-900/30 border border-zinc-900 p-5 rounded-2xl shadow-xl flex items-center justify-between">
+                  <div>
+                    <span class="text-[10px] text-zinc-500 font-black uppercase tracking-wider">{{ lang.t('dashboard.statTotal') }}</span>
+                    <span class="text-3xl font-black text-zinc-400 mt-1 block">{{ totalMonitors() }}</span>
+                  </div>
+                  <span class="w-2.5 h-2.5 rounded-full bg-zinc-600 shadow-lg"></span>
+                </div>
+              </div>
+
+              <!-- Tabla de Incidentes/Eventos Recientes (Imagen 4) -->
+              <div class="bg-zinc-900/20 border border-zinc-900/80 rounded-2xl overflow-hidden shadow-2xl">
+                <div class="p-4 bg-zinc-900/40 border-b border-zinc-900 flex justify-between items-center">
+                  <span class="text-xs font-black text-zinc-300 uppercase tracking-wider">{{ lang.t('dashboard.incidentLog') }}</span>
+                  <button (click)="loadRecentIncidents()" class="text-[10px] text-zinc-500 hover:text-white font-bold flex items-center gap-1.5 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                    </svg>
+                    {{ lang.t('dashboard.refresh') }}
+                  </button>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr class="bg-zinc-950/80 text-zinc-500 border-b border-zinc-900 font-bold uppercase tracking-wider">
+                        <th class="p-3">{{ lang.t('dashboard.colMonitor') }}</th>
+                        <th class="p-3">{{ lang.t('dashboard.colStatus') }}</th>
+                        <th class="p-3">{{ lang.t('dashboard.colDatetime') }}</th>
+                        <th class="p-3">{{ lang.t('dashboard.colMessage') }}</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-900/60">
+                      @if (recentEvents().length === 0) {
+                        <tr>
+                          <td colspan="4" class="p-8 text-center text-zinc-600 font-semibold">
+                            {{ lang.t('dashboard.noEvents') }}
+                          </td>
+                        </tr>
+                      } @else {
+                        @for (ev of recentEvents(); track $index) {
+                          <tr class="hover:bg-zinc-900/20 transition-colors">
+                            <td class="p-3 font-bold text-zinc-200">
+                              <span (click)="selectMonitorById(ev.monitorId)" class="cursor-pointer hover:underline hover:text-emerald-500">{{ ev.monitorName }}</span>
+                              <span class="text-[10px] text-zinc-500 font-normal block">{{ ev.target }}</span>
+                            </td>
+                            <td class="p-3">
+                              <app-badge-status [status]="ev.status"></app-badge-status>
+                            </td>
+                            <td class="p-3 text-zinc-400 font-medium">
+                              {{ ev.timestamp | date:'HH:mm:ss dd/MM/yyyy' }}
+                            </td>
+                            <td class="p-3 font-mono text-zinc-500 text-[11px] truncate max-w-xs" [title]="ev.msg || ''">
+                              {{ ev.msg || 'OK' }} ({{ ev.ping !== null ? ev.ping + 'ms' : 'N/A' }})
+                            </td>
+                          </tr>
+                        }
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          }
+          
+          <!-- Branding Footer -->
+          <footer class="mt-6 pt-4 border-t border-zinc-900 flex items-center justify-between text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
+            <span>© 2026 AZKIN LABS</span>
+            <span>Estabilidad Garantizada</span>
+          </footer>
+        </main>
+      </div>
+
+      <!-- Slide-over Formularios de Creación y Edición -->
+      @if (showForm()) {
+        <div class="fixed inset-0 z-50 flex justify-end overflow-hidden">
+          <!-- Backdrop -->
+          <div (click)="closeForm()" class="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"></div>
+
+          <!-- Panel Formulario -->
+          <div class="relative w-full max-w-xl bg-zinc-900 border-l border-zinc-800 h-full shadow-2xl flex flex-col justify-between animate-slide-in">
+            <!-- Header -->
+            <div class="p-6 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/80">
+              <div>
+                <h3 class="text-lg font-black text-orange-500">{{ isEditing() ? lang.t('monitor.modal.editTitle') : lang.t('monitor.modal.addTitle') }}</h3>
+                <p class="text-xs text-zinc-500 mt-1">{{ lang.t('monitor.modal.subtitle') }}</p>
+              </div>
+              <button (click)="closeForm()" class="text-zinc-500 hover:text-zinc-200">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Body (Scrollable) -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-6">
+              <!-- Banner de Error de Formulario (Punto 10) -->
+              @if (formError()) {
+                <div class="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs rounded-xl flex items-center gap-2 animate-fade-in mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 shrink-0">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                  </svg>
+                  <span>{{ formError() }}</span>
+                </div>
+              }
+
+              <!-- Datos Básicos -->
+              <div class="space-y-4">
+                <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec1') }}</h4>
+                
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="col-span-2">
+                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.name') }}</label>
+                    <input type="text" [(ngModel)]="formModel.name" placeholder="Ej. Servidor Web Principal" required
+                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.type') }}</label>
+                    <select [(ngModel)]="formModel.type"
+                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                      <option value="http">HTTP / HTTPS</option>
+                      <option value="ping">Ping (ICMP)</option>
+                      <option value="port">Port TCP</option>
+                      <option value="dns">DNS Resolution</option>
+                      <option value="snmp">SNMP Agent</option>
+                      <option value="push">{{ lang.t('monitor.modal.pushPassive') }}</option>
+                    </select>
+                  </div>
+                  @if (formModel.type !== 'push') {
+                    <div>
+                      <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.target') }}</label>
+                      <input type="text" [(ngModel)]="formModel.target" placeholder="Ej. www.google.com o 8.8.8.8" required
+                        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <!-- Configuración del Checker -->
+              <div class="space-y-4">
+                <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec2') }}</h4>
+                <div class="grid grid-cols-3 gap-4">
+                  <div>
+                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.interval') }}</label>
+                    <input type="number" [(ngModel)]="formModel.interval" min="20" required
+                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.retries') }}</label>
+                    <input type="number" [(ngModel)]="formModel.retries" min="0" required
+                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.retryInterval') }}</label>
+                    <input type="number" [(ngModel)]="formModel.retryInterval" min="20" required
+                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Campos de SNMP -->
+              @if (formModel.type === 'snmp') {
+                <div class="space-y-4 animate-fade-in">
+                  <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.snmpSec') }}</h4>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpVersion') }}</label>
+                      <select [(ngModel)]="formModel.snmpVersion"
+                        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                        <option value="v1">SNMP v1</option>
+                        <option value="v2c">SNMP v2c</option>
+                        <option value="v3">SNMP v3</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpPort') }}</label>
+                      <input type="number" [(ngModel)]="formModel.snmpPort" placeholder="161"
+                        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                    </div>
+                    <div class="col-span-2">
+                      <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpOid') }}</label>
+                      <input type="text" [(ngModel)]="formModel.snmpOid" placeholder="Ej. 1.3.6.1.2.1.1.5.0"
+                        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white font-mono">
+                    </div>
+                    
+                    @if (formModel.snmpVersion !== 'v3') {
+                      <div class="col-span-2 animate-fade-in">
+                        <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpCommunity') }}</label>
+                        <input type="text" [(ngModel)]="formModel.snmpCommunity" placeholder="public"
+                          class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                      </div>
+                    }
+
+                    <!-- Parámetros SNMP v3 -->
+                    @if (formModel.snmpVersion === 'v3') {
+                      <div class="col-span-2 grid grid-cols-2 gap-4 border border-zinc-800 p-4 rounded-xl bg-zinc-950/45 animate-fade-in">
+                        <div class="col-span-2">
+                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpUser') }}</label>
+                          <input type="text" [(ngModel)]="formModel.snmpV3Username" placeholder="Username"
+                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500 text-white">
+                        </div>
+                        <div>
+                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpAuthProto') }}</label>
+                          <select [(ngModel)]="formModel.snmpV3AuthProtocol"
+                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500 text-white">
+                            <option value="md5">MD5</option>
+                            <option value="sha">SHA</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpAuthKey') }}</label>
+                          <input type="password" [(ngModel)]="formModel.snmpV3AuthKey" placeholder="••••••••"
+                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500 text-white">
+                        </div>
+                        <div>
+                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpPrivProto') }}</label>
+                          <select [(ngModel)]="formModel.snmpV3PrivProtocol"
+                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500 text-white">
+                            <option value="des">DES</option>
+                            <option value="aes">AES</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpPrivKey') }}</label>
+                          <input type="password" [(ngModel)]="formModel.snmpV3PrivKey" placeholder="••••••••"
+                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500 text-white">
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              <!-- Organización -->
+              <div class="space-y-4">
+                <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec3') }}</h4>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.group') }}</label>
+                    <input type="text" [(ngModel)]="formModel.group" list="groups-datalist" placeholder="Ej. Bases de Datos"
+                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
+                    <datalist id="groups-datalist">
+                      @for (g of uniqueGroups(); track g) {
+                        <option [value]="g"></option>
+                      }
+                    </datalist>
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.tags') }}</label>
+                    <input type="text" [ngModel]="tagsString()" (ngModelChange)="setTagsFromString($event)" placeholder="Ej. aws, core, api"
+                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Canales de Alerta -->
+              <div class="space-y-4">
+                <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec4') }}</h4>
+                <div class="space-y-2 max-h-48 overflow-y-auto border border-zinc-800 p-3 rounded-xl bg-zinc-950/20">
+                  @if (notificationChannels().length === 0) {
+                    <p class="text-xs text-zinc-500 font-semibold p-2">{{ lang.t('monitor.modal.noChannels') }}</p>
+                  } @else {
+                    @for (ch of notificationChannels(); track ch.id) {
+                      <div class="flex items-center gap-3 p-1.5 hover:bg-zinc-900/60 rounded transition-colors">
+                        <input type="checkbox" 
+                          [checked]="formModel.notificationIds.includes(ch.id)"
+                          (change)="toggleNotificationChannel(ch.id)"
+                          [id]="'ch-' + ch.id" 
+                          class="rounded border-zinc-850 text-orange-500 focus:ring-0 cursor-pointer">
+                        <label [for]="'ch-' + ch.id" class="text-xs text-zinc-300 font-bold cursor-pointer flex-1 flex items-center justify-between">
+                          <span>{{ ch.name }}</span>
+                          <span class="text-[9px] uppercase tracking-widest text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded">{{ ch.type }}</span>
+                        </label>
+                      </div>
+                    }
+                  }
+                </div>
+              </div>
+
+              <!-- Opciones avanzadas de puerto -->
+              @if (formModel.type === 'port') {
+                <div class="space-y-4 animate-fade-in">
+                  <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.portSec') }}</h4>
+                  <div>
+                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.portNum') }}</label>
+                    <input type="number" [(ngModel)]="formModel.port" placeholder="Ej. 80 o 3306" required
+                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                  </div>
+                </div>
+              }
+
+              <!-- Opciones avanzadas de DNS -->
+              @if (formModel.type === 'dns') {
+                <div class="space-y-4 animate-fade-in">
+                  <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.dnsSec') }}</h4>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.dnsResolver') }}</label>
+                      <input type="text" [(ngModel)]="formModel.dnsResolver" placeholder="Ej. 8.8.8.8 o 1.1.1.1"
+                        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.dnsRecord') }}</label>
+                      <select [(ngModel)]="formModel.dnsRecordType"
+                        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                        <option value="A">A (IPv4)</option>
+                        <option value="AAAA">AAAA (IPv6)</option>
+                        <option value="CNAME">CNAME</option>
+                        <option value="MX">MX</option>
+                        <option value="TXT">TXT</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              }
+
+              <!-- Defacement / Integridad Visual y Estructural -->
+              @if (formModel.type === 'http') {
+                <div class="space-y-4">
+                  <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec5') }}</h4>
+                  <div class="space-y-4">
+                    <div class="flex items-center gap-3 bg-zinc-950 p-3 rounded-lg border border-zinc-800">
+                      <input type="checkbox" [(ngModel)]="formModel.integrityEnabled" id="integrityEnabled" class="rounded border-zinc-800 text-orange-500 focus:ring-0">
+                      <label for="integrityEnabled" class="text-xs text-zinc-300 font-semibold cursor-pointer">{{ lang.t('monitor.modal.integrityCheck') }}</label>
+                    </div>
+
+                    @if (formModel.integrityEnabled) {
+                      <div class="grid grid-cols-2 gap-4 animate-fade-in">
+                        <div>
+                          <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.integrityProfile') }}</label>
+                          <select [(ngModel)]="formModel.integrityProfile"
+                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                            <option value="static">Estático (Static)</option>
+                            <option value="dynamic">Dinámico (Dynamic)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.integrityThreshold') }}</label>
+                          <input type="number" [(ngModel)]="formModel.integrityThreshold" step="0.01" min="0" max="1"
+                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                        </div>
+                        <div class="col-span-2">
+                          <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.cssSelectors') }}</label>
+                          <input type="text" [ngModel]="ignoredSelectorsString()" (ngModelChange)="setIgnoredSelectorsFromString($event)" placeholder="Ej. #banner, .ads"
+                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- Footer (Acciones) -->
+            <div class="p-6 border-t border-zinc-800 bg-zinc-950/80 flex items-center justify-end space-x-3">
+              <button (click)="closeForm()"
+                class="px-4 py-2.5 rounded-xl border border-zinc-850 hover:bg-zinc-900 font-semibold text-sm transition-all">
+                {{ lang.t('common.cancel') }}
+              </button>
+              <button (click)="onSave()" [disabled]="isSubmitting()"
+                class="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 disabled:bg-orange-800 font-bold text-sm tracking-tight transition-all active:scale-95 shadow-lg shadow-orange-600/10">
+                {{ isSubmitting() ? lang.t('monitor.modal.saving') : lang.t('monitor.modal.saveBtn') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Custom Confirm Delete Monitor Modal (Punto 4) -->
+      @if (showConfirmDelete()) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" (click)="cancelDelete()"></div>
+          <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl max-w-sm w-full shadow-2xl relative z-10 animate-fade-in text-center space-y-4">
+            <div class="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mx-auto">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+              </svg>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-white uppercase tracking-wider">{{ lang.t('monitor.modal.deleteTitle') }}</h4>
+              <p class="text-xs text-zinc-400 mt-2">{{ lang.t('monitor.modal.deleteMsg') }}</p>
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button (click)="cancelDelete()" class="flex-1 py-2 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 rounded-xl text-xs font-bold transition-all">{{ lang.t('common.cancel') }}</button>
+              <button (click)="confirmDelete()" class="flex-1 py-2 bg-rose-600 hover:bg-rose-500 rounded-xl text-xs font-bold transition-all">{{ lang.t('common.delete') }}</button>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  `,
+  styles: [`
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slide-in {
+      from { transform: translateX(100%); }
+      to   { transform: translateX(0); }
+    }
+    .animate-fade-in { animation: fade-in 0.2s ease-out; }
+    .animate-slide-in { animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+  `]
+})
+export class DashboardComponent implements OnInit, OnDestroy {
+  private static readonly HISTORY_RANGE_STORAGE_KEY = 'azkin-history-range-ms';
+
+  private _chartEl: ElementRef<HTMLDivElement> | undefined;
+  @ViewChild('chartEl') set chartEl(el: ElementRef<HTMLDivElement> | undefined) {
+    this._chartEl = el;
+    if (el) {
+      setTimeout(() => this.initChart(), 0);
+    } else {
+      this.chart?.dispose();
+      this.chart = null;
+    }
+  }
+
+  private _groupChartEl: ElementRef<HTMLDivElement> | undefined;
+  @ViewChild('groupChartEl') set groupChartEl(el: ElementRef<HTMLDivElement> | undefined) {
+    this._groupChartEl = el;
+    if (el) {
+      setTimeout(() => this.initGroupChart(), 0);
+    } else {
+      this.groupChart?.dispose();
+      this.groupChart = null;
+    }
+  }
+  private chart: echarts.ECharts | null = null;
+  private groupChart: echarts.ECharts | null = null;
+
+  readonly authService = inject(AuthService);
+  private readonly monitorService = inject(MonitorService);
+  private readonly realtimeService = inject(RealtimeService);
+  private readonly notificationService = inject(NotificationService);
+  private readonly http = inject(HttpClient);
+  private readonly router = inject(Router);
+  public readonly lang = inject(LanguageService);
+
+  // Estados de carga e interfaz
+  readonly isLoading = signal(true);
+  readonly showForm = signal(false);
+  readonly isEditing = signal(false);
+  readonly isSubmitting = signal(false);
+  readonly toast = signal<string | null>(null);
+  readonly formError = signal<string | null>(null);
+
+  // Selección del Monitor o Grupo actual
+  readonly selectedMonitor = signal<IMonitor | null>(null);
+  readonly selectedMonitorId = computed(() => this.selectedMonitor()?.id ?? null);
+  readonly selectedGroup = signal<any | null>(null);
+  readonly selectedGroupName = computed(() => this.selectedGroup()?.group ?? null);
+
+  // Historial de latencia del monitor seleccionado
+  readonly historyPoints = signal<IHeartbeat[]>([]);
+  readonly historyRangeOptions: HistoryRangeOption[] = [
+    { label: '5m', durationMs: 5 * 60 * 1000 },
+    { label: '30m', durationMs: 30 * 60 * 1000 },
+    { label: '1h', durationMs: 60 * 60 * 1000 },
+    { label: '3h', durationMs: 3 * 60 * 60 * 1000 },
+    { label: '6h', durationMs: 6 * 60 * 60 * 1000 },
+    { label: '12h', durationMs: 12 * 60 * 60 * 1000 },
+    { label: '24h', durationMs: 24 * 60 * 60 * 1000 },
+    { label: '48h', durationMs: 48 * 60 * 60 * 1000 },
+    { label: '7d', durationMs: 7 * 24 * 60 * 60 * 1000 },
+    { label: '30d', durationMs: 30 * 24 * 60 * 60 * 1000 },
+  ];
+  readonly selectedHistoryDurationMs = signal(this.getInitialHistoryDurationMs());
+  groupHistoryMap = new Map<string, { name: string; points: { latency: number; timestamp: string; isLocalNetworkDown?: boolean }[] }>();
+
+  // Notificaciones y canales activos
+  readonly notificationChannels = this.notificationService.channels;
+
+  // Eventos/Incidentes recientes consolidado (Dashboard General)
+  readonly recentEvents = signal<any[]>([]);
+
+  // Control colapsable de grupos en el sidebar
+  readonly collapsedGroups = signal<Record<string, boolean>>({});
+
+  // Control de tema claro/oscuro — persiste en localStorage para sobrevivir al F5
+  readonly isLightTheme = signal(typeof window !== 'undefined' && localStorage.getItem('azkin-theme') === 'light');
+
+  // Easter egg NyanCat — persistido en localStorage para máxima robustez
+  readonly isNyanCatMode = signal(typeof window !== 'undefined' && localStorage.getItem('azkin-nyancat') === 'true');
+  readonly nyanCatPosition = signal<{ x: number; y: number } | null>(null);
+  readonly nyanCatAngle = signal(0);
+
+  constructor() {
+    effect(() => {
+      // Registrar dependencias reactivas
+      this.isNyanCatMode();
+      this.isLightTheme();
+      
+      // Re-renderizar gráficos en tiempo real
+      setTimeout(() => {
+        if (this.chart) this.updateChart();
+        if (this.groupChart) this.updateGroupChart();
+      }, 50);
+    });
+  }
+
+  // Modal de confirmación personalizado
+  readonly showConfirmDelete = signal(false);
+  monitorIdToDelete: string | null = null;
+
+  // Bloques de disponibilidad (Uptime Blocks Heatmap)
+  readonly uptimeBlocks = computed(() => {
+    const points = this.historyPoints();
+    const blocks: { status: 'UP' | 'DOWN' | 'PENDING'; isLocalNetworkDown?: boolean }[] = [];
+    
+    if (points.length === 0) {
+      const monitor = this.selectedMonitor();
+      const defaultStatus = monitor?.status || 'PENDING';
+      return Array(30).fill(null).map(() => ({ status: defaultStatus, isLocalNetworkDown: false }));
+    }
+
+    const recent = points.slice(-30);
+    for (let i = 0; i < 30 - recent.length; i++) {
+      blocks.push({ status: 'PENDING', isLocalNetworkDown: false });
+    }
+    for (const p of recent) {
+      blocks.push({
+        status: p.status === 'UP' ? 'UP' : 'DOWN',
+        isLocalNetworkDown: (p as any).isLocalNetworkDown ?? false
+      });
+    }
+    return blocks;
+  });
+
+  // Latencia promedio de las últimas 24h
+  readonly avgPing = computed(() => {
+    const points = this.historyPoints().filter(p => p.status === 'UP' && p.latency !== null && p.latency !== undefined);
+    if (points.length === 0) return 0;
+    const sum = points.reduce((acc, p) => acc + (p.latency ?? 0), 0);
+    return Math.round(sum / points.length);
+  });
+
+  // Filtros de búsqueda del panel lateral
+  searchQuery = '';
+  statusFilter = 'ALL';
+  groupFilter = '';
+  tagFilter = signal<string | null>(null);
+
+  // Formulario
+  formModel = this.getEmptyForm();
+
+  // Getters reactivos de contadores basados en el listado de monitores
+  readonly totalMonitors = () => this.monitorService.monitors().length;
+  readonly activeCount = () => this.monitorService.monitors().filter(m => m.isActive).length;
+  readonly downCount = () => this.monitorService.monitors().filter(m => m.status === 'DOWN').length;
+  readonly pendingCount = () => this.monitorService.monitors().filter(m => m.status === 'PENDING').length;
+
+  readonly uniqueGroups = computed(() => {
+    const list = this.monitorService.monitors().map(m => m.group).filter(g => g);
+    return Array.from(new Set(list)) as string[];
+  });
+
+  readonly uniqueTags = computed(() => {
+    const allTags = this.monitorService.monitors().reduce((acc, m) => [...acc, ...(m.tags || [])], [] as string[]);
+    return Array.from(new Set(allTags));
+  });
+
+  readonly isAnyMonitorLocalNetworkDown = computed(() => {
+    return this.monitorService.monitors().some(m => m.isLocalNetworkDown);
+  });
+
+  // Listado filtrado para el panel lateral
+  readonly filteredMonitors = computed(() => {
+    let list = this.monitorService.monitors();
+
+    // Búsqueda
+    if (this.searchQuery.trim()) {
+      const q = this.searchQuery.toLowerCase();
+      list = list.filter(m => m.name.toLowerCase().includes(q) || (m.target && m.target.toLowerCase().includes(q)));
+    }
+
+    // Filtro por estado
+    if (this.statusFilter !== 'ALL') {
+      list = list.filter(m => m.status === this.statusFilter);
+    }
+
+    // Filtro por grupo
+    if (this.groupFilter) {
+      list = list.filter(m => m.group === this.groupFilter);
+    }
+
+    // Filtro por etiqueta
+    const activeTag = this.tagFilter();
+    if (activeTag) {
+      list = list.filter(m => m.tags?.includes(activeTag));
+    }
+
+    return list;
+  });
+
+  // Agrupamiento jerárquico computado para el árbol colapsable del sidebar
+  readonly groupedMonitors = computed(() => {
+    const list = this.filteredMonitors();
+    const groupsMap: Record<string, IMonitor[]> = {};
+    const flatList: IMonitor[] = [];
+
+    for (const m of list) {
+      if (m.group) {
+        if (!groupsMap[m.group]) {
+          groupsMap[m.group] = [];
+        }
+        groupsMap[m.group].push(m);
+      } else {
+        flatList.push(m);
+      }
+    }
+
+    return {
+      groups: Object.entries(groupsMap).map(([name, monitors]) => {
+        // Calcular uptime promedio consolidado
+        const active = monitors.filter(x => x.uptime24h !== null && x.uptime24h !== undefined);
+        const uptime = active.length === 0 ? 1.0 : active.reduce((sum, x) => sum + (x.uptime24h ?? 1), 0) / active.length;
+        
+        // Determinar peor estado consolidado
+        let status: 'UP' | 'DOWN' | 'PENDING' = 'UP';
+        if (monitors.some(x => x.status === 'DOWN')) status = 'DOWN';
+        else if (monitors.some(x => x.status === 'PENDING')) status = 'PENDING';
+
+        const isCollapsed = !!this.collapsedGroups()[name];
+
+        return { name, monitors, uptime, status, isCollapsed };
+      }),
+      ungrouped: flatList
+    };
+  });
+
+  ngOnInit(): void {
+    this.loadData();
+    this.notificationService.loadChannels().subscribe();
+    this.loadRecentIncidents();
+
+    // Restaurar el tema guardado en localStorage al cargar el componente
+    if (this.isLightTheme()) {
+      document.body.classList.add('light-theme');
+    } else {
+      document.body.classList.remove('light-theme');
+    }
+
+    // Conectar WebSocket y escuchar actualizaciones en tiempo real
+    this.realtimeService.connect();
+    this.realtimeService.onHeartbeat((hb: any) => {
+      this.monitorService.applyHeartbeat(hb);
+      
+      // Si estamos en la vista de Quick Stats consolidada, recargar incidentes recientes
+      if (!this.selectedMonitorId()) {
+        this.loadRecentIncidents();
+      }
+
+      // Si el heartbeat corresponde al monitor seleccionado, actualizar su detalle e historial
+      const current = this.selectedMonitor();
+      if (current && current.id === hb.monitorId) {
+        let statusStr: 'UP' | 'DOWN' | 'PENDING' = 'PENDING';
+        if (hb.status === 1 || hb.status === 'UP') statusStr = 'UP';
+        else if (hb.status === 0 || hb.status === 'DOWN') statusStr = 'DOWN';
+
+        this.selectedMonitor.set({
+          ...current,
+          status: statusStr,
+          lastPing: hb.latency ?? hb.ping,
+          lastCheckedAt: hb.timestamp,
+          certExpiry: hb.certExpiry !== undefined ? hb.certExpiry : current.certExpiry,
+          domainExpiry: hb.domainExpiry !== undefined ? hb.domainExpiry : current.domainExpiry,
+          isLocalNetworkDown: hb.isLocalNetworkDown
+        });
+
+        // Insertar el nuevo punto en el historial local para actualizar el gráfico en caliente
+        const newPoint: IHeartbeat = {
+          monitorId: hb.monitorId,
+          status: hb.status === 1 || hb.status === 'UP' ? 'UP' : 'DOWN',
+          latency: hb.latency ?? hb.ping ?? 0,
+          timestamp: hb.timestamp,
+          isLocalNetworkDown: hb.isLocalNetworkDown
+        };
+        this.historyPoints.update(pts => this.filterPointsBySelectedRange([...pts, newPoint]));
+        this.updateChart();
+      }
+
+      // Si el grupo está seleccionado, actualizar la latencia y estado del monitor dentro del grupo en caliente
+      const currentGroup = this.selectedGroup();
+      if (currentGroup && currentGroup.monitors.some((m: any) => m.id === hb.monitorId)) {
+        const updatedMonitors = currentGroup.monitors.map((m: any) => {
+          if (m.id === hb.monitorId) {
+            let statusStr: 'UP' | 'DOWN' | 'PENDING' = 'PENDING';
+            if (hb.status === 1 || hb.status === 'UP') statusStr = 'UP';
+            else if (hb.status === 0 || hb.status === 'DOWN') statusStr = 'DOWN';
+
+            return {
+              ...m,
+              status: statusStr,
+              lastPing: hb.latency ?? hb.ping,
+              lastCheckedAt: hb.timestamp,
+              isLocalNetworkDown: hb.isLocalNetworkDown
+            };
+          }
+          return m;
+        });
+
+        // Recalcular latencia promedio del grupo
+        const upMonitors = updatedMonitors.filter((m: any) => m.lastPing !== undefined && m.lastPing !== null);
+        const avgPing = upMonitors.length > 0 ? Math.round(upMonitors.reduce((sum: number, m: any) => sum + (m.lastPing ?? 0), 0) / upMonitors.length) : 0;
+
+        // Determinar estado consolidado
+        let groupStatus: 'UP' | 'DOWN' | 'PENDING' = 'UP';
+        if (updatedMonitors.some((x: any) => x.status === 'DOWN')) groupStatus = 'DOWN';
+        else if (updatedMonitors.some((x: any) => x.status === 'PENDING')) groupStatus = 'PENDING';
+
+        this.selectedGroup.set({
+          ...currentGroup,
+          monitors: updatedMonitors,
+          avgPing,
+          overallStatus: groupStatus
+        });
+
+        // Insertar en groupHistoryMap
+        const hist = this.groupHistoryMap.get(hb.monitorId);
+        if (hist) {
+          hist.points.push({
+            latency: hb.latency ?? hb.ping ?? 0,
+            timestamp: hb.timestamp,
+            isLocalNetworkDown: hb.isLocalNetworkDown ?? false
+          });
+          // Mantener últimos 100 puntos
+          if (hist.points.length > 100) hist.points.shift();
+          this.updateGroupChart();
+        }
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.realtimeService.disconnect();
+    this.chart?.dispose();
+    this.groupChart?.dispose();
+  }
+
+  loadData(): void {
+    this.isLoading.set(true);
+    this.monitorService.loadMonitors().subscribe({
+      next: (data) => {
+        this.isLoading.set(false);
+      },
+      error: () => this.isLoading.set(false)
+    });
+  }
+
+  loadRecentIncidents(): void {
+    this.http.get<any[]>('/api/v1/stats/recent').subscribe({
+      next: (data) => {
+        this.recentEvents.set(data);
+      }
+    });
+  }
+
+  /**
+   * Cambia la vista al dashboard de Quick Stats general
+   */
+  resetSelection(): void {
+    this.selectedMonitor.set(null);
+    this.selectedGroup.set(null);
+    this.historyPoints.set([]);
+    this.chart?.dispose();
+    this.chart = null;
+    this.groupChart?.dispose();
+    this.groupChart = null;
+    this.loadRecentIncidents();
+  }
+
+  /**
+   * Selecciona un monitor por ID (utilizado al hacer click en la bitácora)
+   */
+  selectMonitorById(id: string): void {
+    const monitor = this.monitorService.monitors().find(m => m.id === id);
+    if (monitor) {
+      this.selectMonitor(monitor);
+    }
+  }
+
+  /**
+   * Selecciona un monitor para inspeccionar sus estadísticas e inicializa su gráfico ECharts
+   */
+  selectMonitor(monitor: IMonitor): void {
+    this.selectedGroup.set(null);
+    this.groupChart?.dispose();
+    this.groupChart = null;
+
+    this.selectedMonitor.set(monitor);
+    this.historyPoints.set([]);
+    this.chart?.dispose();
+    this.chart = null;
+
+    // Cargar historial de latencia según la ventana de tiempo seleccionada
+    this.monitorService.getHistory(monitor.id, this.selectedHistoryDurationMs()).subscribe({
+      next: (res: any) => {
+        if (res && res.points) {
+          this.historyPoints.set(this.filterPointsBySelectedRange(res.points.map((p: any) => ({
+            monitorId: monitor.id,
+            status: p.status === 1 || p.status === 'UP' ? 'UP' : 'DOWN',
+            latency: p.ping ?? p.latency ?? 0,
+            timestamp: p.timestamp,
+            isLocalNetworkDown: p.isLocalNetworkDown ?? false
+          }))));
+        }
+        setTimeout(() => this.initChart(), 50);
+      }
+    });
+  }
+
+  setHistoryRange(durationMs: number): void {
+    if (!this.isAllowedHistoryDuration(durationMs)) return;
+    if (this.selectedHistoryDurationMs() === durationMs) return;
+
+    this.selectedHistoryDurationMs.set(durationMs);
+    this.persistHistoryDuration(durationMs);
+    const monitor = this.selectedMonitor();
+    if (monitor) {
+      this.selectMonitor(monitor);
+      return;
+    }
+
+    const group = this.selectedGroup();
+    if (group?.monitors?.length) {
+      this.loadGroupHistory(group.monitors);
+    }
+  }
+
+  /**
+   * Selecciona un grupo en el sidebar y carga las estadísticas combinadas
+   */
+  selectGroup(groupName: string): void {
+    this.selectedMonitor.set(null);
+    this.historyPoints.set([]);
+    this.chart?.dispose();
+    this.chart = null;
+
+    const g = this.groupedMonitors().groups.find(x => x.name === groupName);
+    if (!g) return;
+
+    const upMonitors = g.monitors.filter(m => m.lastPing !== undefined && m.lastPing !== null);
+    const avgPing = upMonitors.length > 0 ? Math.round(upMonitors.reduce((sum, m) => sum + (m.lastPing ?? 0), 0) / upMonitors.length) : 0;
+
+    this.selectedGroup.set({
+      group: groupName,
+      monitors: g.monitors,
+      avgPing,
+      overallStatus: g.status
+    });
+
+    this.loadGroupHistory(g.monitors);
+  }
+
+  getGroupUptime(groupName: string | undefined): number {
+    if (!groupName) return 1.0;
+    const g = this.groupedMonitors().groups.find(x => x.name === groupName);
+    return g ? g.uptime : 1.0;
+  }
+
+  loadGroupHistory(monitors: IMonitor[]): void {
+    this.groupHistoryMap.clear();
+    this.groupChart?.dispose();
+    this.groupChart = null;
+
+    if (monitors.length === 0) return;
+
+    let loadedCount = 0;
+    monitors.forEach(m => {
+      this.monitorService.getHistory(m.id, this.selectedHistoryDurationMs()).subscribe({
+        next: (res: any) => {
+          if (res && res.points) {
+            this.groupHistoryMap.set(m.id, {
+              name: m.name,
+              points: res.points.map((p: any) => ({
+                latency: p.ping ?? p.latency ?? 0,
+                timestamp: p.timestamp,
+                isLocalNetworkDown: p.isLocalNetworkDown ?? false
+              }))
+            });
+          }
+          loadedCount++;
+          if (loadedCount === monitors.length) {
+            setTimeout(() => this.initGroupChart(), 50);
+          }
+        },
+        error: () => {
+          loadedCount++;
+          if (loadedCount === monitors.length) {
+            setTimeout(() => this.initGroupChart(), 50);
+          }
+        }
+      });
+    });
+  }
+
+  private filterPointsBySelectedRange(points: IHeartbeat[]): IHeartbeat[] {
+    const cutoff = Date.now() - this.selectedHistoryDurationMs();
+    return points.filter((p) => new Date(p.timestamp).getTime() >= cutoff);
+  }
+
+  private isAllowedHistoryDuration(durationMs: number): boolean {
+    return this.historyRangeOptions.some((o) => o.durationMs === durationMs);
+  }
+
+  private getInitialHistoryDurationMs(): number {
+    const fallback = 12 * 60 * 60 * 1000;
+    if (typeof window === 'undefined') return fallback;
+
+    const raw = window.localStorage.getItem(DashboardComponent.HISTORY_RANGE_STORAGE_KEY);
+    if (!raw) return fallback;
+
+    const parsed = Number(raw);
+    return this.isAllowedHistoryDuration(parsed) ? parsed : fallback;
+  }
+
+  private persistHistoryDuration(durationMs: number): void {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(DashboardComponent.HISTORY_RANGE_STORAGE_KEY, String(durationMs));
+  }
+
+  // --- Gráficos ECharts ---
+  private initChart(): void {
+    if (!this._chartEl) return;
+    this.chart = echarts.init(this._chartEl.nativeElement, 'dark', { renderer: 'svg' });
+    this.updateChart();
+  }
+
+  private updateChart(): void {
+    if (!this.chart) return;
+
+    const data = this.historyPoints();
+    const times = data.map(d => new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    
+    // Inyectar el símbolo de NyanCat y calcular rotación y tamaño proporcional no aplanado
+    const latencies = data.map((d, index) => {
+      const val = d.latency ?? 0;
+      if (this.isNyanCatMode() && index === data.length - 1) {
+        let angle = 0;
+        if (data.length > 1) {
+          const prevVal = data[index - 1].latency ?? 0;
+          const diff = val - prevVal;
+          // Mapear diferencia de latencia a un ángulo en grados para ECharts
+          // Si el valor sube (diff > 0), el gato apunta hacia arriba. ECharts rota antihorario.
+          angle = Math.max(-30, Math.min(30, diff * 0.4));
+        }
+        return {
+          value: val,
+          symbol: 'image:///nyan-cat.gif',
+          symbolSize: [95, 58], // Aumentado y con relación de aspecto correcta para evitar aplanarse
+          symbolRotate: angle
+        };
+      }
+      return {
+        value: val,
+        symbol: 'none',
+        symbolSize: 0
+      };
+    });
+
+    const option = {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: '#18181b',
+        borderColor: '#3f3f46',
+        textStyle: { color: '#e4e4e7', fontSize: 11 },
+        formatter: (params: any[]) => {
+          const p = params[0];
+          const point = data[p.dataIndex];
+          const time = p.axisValue ?? '';
+          let valueStr = `${p.value} ms`;
+          if (point?.isLocalNetworkDown) {
+            valueStr = `<span style="color:#f59e0b;font-weight:bold">${this.lang.t('monitor.detail.statusLocalDown')}</span>`;
+          } else if (p.value === 0) {
+            valueStr = `<span style="color:#ef4444;font-weight:bold">DOWN</span>`;
+          }
+          return `<div style="font-size:10px;color:#9ca3af;margin-bottom:4px">${time}</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color}"></span>
+              <span style="font-weight:bold">${p.seriesName}:</span>
+              <span>${valueStr}</span>
+            </div>`;
+        }
+      },
+      grid: { left: '3%', right: '3%', top: '8%', bottom: '8%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: times,
+        axisLine: { lineStyle: { color: '#27272a' } },
+        axisLabel: { color: '#71717a', fontSize: 11 }
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: '#71717a', fontSize: 11 },
+        splitLine: { lineStyle: { color: '#1c1c1e' } }
+      },
+      series: [{
+        name: 'Latencia (ms)',
+        data: latencies,
+        type: 'line',
+        smooth: true,
+        showSymbol: true, // Permitir símbolos dinámicos de los puntos
+        symbol: 'none',   // No poner símbolo por defecto a nivel de serie
+        lineStyle: { 
+          width: this.isNyanCatMode() ? 5 : 2, 
+          color: this.isNyanCatMode() ? '#ec4899' : '#f97316'
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: this.isNyanCatMode() ? 'rgba(236, 72, 153, 0.2)' : 'rgba(249, 115, 22, 0.2)' },
+            { offset: 1, color: 'transparent' }
+          ])
+        }
+      }]
+    };
+
+    this.chart.setOption(option);
+
+    // Calcular posición y rotación del NyanCat animado en el DOM
+    if (this.isNyanCatMode() && data.length > 0) {
+      setTimeout(() => {
+        if (!this.chart) return;
+        try {
+          const lastIndex = data.length - 1;
+          const lastVal = data[lastIndex].latency ?? 0;
+          const pt = this.chart.convertToPixel({ seriesIndex: 0 }, [lastIndex, lastVal]);
+          if (pt && !isNaN(pt[0]) && !isNaN(pt[1])) {
+            let angle = 0;
+            if (data.length > 1) {
+              const prevIndex = lastIndex - 1;
+              const prevVal = data[prevIndex].latency ?? 0;
+              const prevPt = this.chart.convertToPixel({ seriesIndex: 0 }, [prevIndex, prevVal]);
+              if (prevPt) {
+                const dx = pt[0] - prevPt[0];
+                const dy = pt[1] - prevPt[1]; // dy en pixeles va hacia abajo (eje Y invertido en HTML vs plano cartesiano)
+                angle = Math.atan2(dy, dx) * (180 / Math.PI);
+              }
+            }
+            this.nyanCatPosition.set({ x: pt[0], y: pt[1] });
+            this.nyanCatAngle.set(angle);
+          }
+        } catch (e) {
+          console.warn('[NyanCat] Error al convertir coordenadas:', e);
+        }
+      }, 50);
+    } else {
+      this.nyanCatPosition.set(null);
+    }
+  }
+
+  private initGroupChart(): void {
+    if (!this._groupChartEl) return;
+    this.groupChart = echarts.init(this._groupChartEl.nativeElement, 'dark', { renderer: 'svg' });
+    this.updateGroupChart();
+  }
+
+  private updateGroupChart(): void {
+    if (!this.groupChart) return;
+
+    // Encontrar todos los timestamps únicos y ordenados para el eje X
+    const allTimestampsSet = new Set<string>();
+    for (const [_, data] of this.groupHistoryMap.entries()) {
+      data.points.forEach(p => allTimestampsSet.add(p.timestamp));
+    }
+    const sortedTimestamps = Array.from(allTimestampsSet).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    const times = sortedTimestamps.map(t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+    // Crear una serie para cada monitor — paleta sin rojo (rojo solo para caídas)
+    const series: any[] = [];
+    const colors = [
+      '#f97316', // naranja (primario Azkin)
+      '#3b82f6', // azul
+      '#8b5cf6', // violeta
+      '#ec4899', // rosa
+      '#06b6d4', // cyan
+      '#eab308', // amarillo
+      '#a78bfa', // lavanda
+      '#14b8a6', // teal
+      '#f59e0b', // ámbar
+      '#6366f1', // indigo
+    ];
+
+    // Función hash determinista: convierte el monitorId en un índice de color fijo.
+    // Garantiza que cada monitor tenga SIEMPRE el mismo color sin depender del orden de carga.
+    const getColorForId = (id: string): string => {
+      let hash = 0;
+      for (let i = 0; i < id.length; i++) {
+        hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+      }
+      return colors[hash % colors.length];
+    };
+
+    for (const [monitorId, data] of this.groupHistoryMap.entries()) {
+      const latencies = sortedTimestamps.map((ts, index) => {
+        const point = data.points.find(p => p.timestamp === ts);
+        const val = point ? point.latency : null;
+        // Si el modo NyanCat está activo, inyectar el GIF de NyanCat en el último punto
+        if (this.isNyanCatMode() && index === sortedTimestamps.length - 1 && val !== null) {
+          let angle = 0;
+          if (data.points.length > 1) {
+            const prevPoint = data.points[data.points.length - 2];
+            const prevVal = prevPoint ? prevPoint.latency : null;
+            if (prevVal !== null && prevVal !== undefined) {
+              const diff = val - prevVal;
+              angle = Math.max(-30, Math.min(30, diff * 0.4));
+            }
+          }
+          return {
+            value: val,
+            symbol: 'image:///nyan-cat.gif',
+            symbolSize: [95, 58],
+            symbolRotate: angle
+          };
+        }
+        return {
+          value: val,
+          symbol: 'none',
+          symbolSize: 0
+        };
+      });
+
+      const lineColor = getColorForId(monitorId);
+
+      series.push({
+        name: data.name,
+        data: latencies,
+        type: 'line',
+        smooth: true,
+        showSymbol: true, // Permitir símbolos personalizados por punto
+        symbol: 'none',   // No poner símbolo por defecto a nivel de serie
+        connectNulls: true, // Conectar puntos aunque haya nulos
+        lineStyle: { width: this.isNyanCatMode() ? 4.5 : 2.5, color: lineColor },
+        // Relleno suave bajo cada línea con opacidad del 15% fija
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: lineColor + '26' }, // Hexadecimal con alfa transparente (26 = 15%)
+            { offset: 1, color: 'transparent' }
+          ]),
+          opacity: 0.3
+        },
+        markPoint: {
+          // Marcar los puntos donde el valor es 0 (posible caída) con un símbolo distinto
+          data: latencies
+            .map((v: any, idx) => {
+              const val = typeof v === 'object' && v !== null ? v.value : v;
+              return val === 0 ? { coord: [idx, 0] } : null;
+            })
+            .filter(Boolean)
+            .slice(0, 5) as any[]
+        }
+      });
+    }
+
+    const option = {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: '#18181b',
+        borderColor: '#3f3f46',
+        borderWidth: 1,
+        padding: [8, 12],
+        textStyle: { color: '#e4e4e7', fontSize: 11 },
+        formatter: (params: any[]) => {
+          const time = params[0]?.axisValue ?? '';
+          const rows = params.map(p => {
+            const rawVal = typeof p.value === 'object' && p.value !== null ? p.value.value : p.value;
+            
+            // Buscar el punto para ver si es un fallo de red local
+            const monitorData = Array.from(this.groupHistoryMap.values()).find(x => x.name === p.seriesName);
+            const pt = monitorData?.points[p.dataIndex];
+            const isLocalDown = pt?.isLocalNetworkDown;
+
+            const val = isLocalDown ? `<span style="color:#f59e0b;font-weight:bold">${this.lang.t('monitor.detail.statusLocalDown')}</span>` :
+              (rawVal == null ? '<span style="color:#6b7280">Sin datos</span>' :
+              rawVal === 0 ? '<span style="color:#ef4444">⚠ Caído</span>' :
+              `${rawVal} ms`);
+
+            return `<div style="display:flex;justify-content:space-between;gap:16px;line-height:1.8">
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:4px"></span>${p.seriesName}</span>
+              <span style="font-weight:700">${val}</span>
+            </div>`;
+          }).join('');
+          return `<div style="font-size:10px;color:#9ca3af;margin-bottom:4px">${time}</div>${rows}`;
+        }
+      },
+      legend: {
+        data: series.map(s => s.name),
+        textStyle: { color: '#e4e4e7', fontSize: 13, fontWeight: 'bold' },
+        bottom: '0%',
+        icon: 'roundRect',
+        itemWidth: 26,
+        itemHeight: 8,
+        itemGap: 16
+      },
+      grid: { left: '3%', right: '3%', top: '8%', bottom: '15%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: times,
+        axisLine: { lineStyle: { color: '#27272a' } },
+        axisLabel: { color: '#71717a', fontSize: 12 },
+        boundaryGap: false
+      },
+      yAxis: {
+        type: 'value',
+        scale: true,
+        axisLabel: { color: '#71717a', fontSize: 12, formatter: (v: number) => `${v}ms` },
+        splitLine: { lineStyle: { color: '#27272a' } },
+      },
+      series
+    };
+
+    this.groupChart.setOption(option);
+  }
+
+  // --- Filtros ---
+  toggleTag(tag: string): void {
+    if (this.tagFilter() === tag) {
+      this.tagFilter.set(null);
+    } else {
+      this.tagFilter.set(tag);
+    }
+  }
+
+  clearFilters(): void {
+    this.searchQuery = '';
+    this.statusFilter = 'ALL';
+    this.groupFilter = '';
+    this.tagFilter.set(null);
+  }
+
+  // --- Colapsado de Grupos en Sidebar ---
+  toggleGroup(groupName: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.collapsedGroups.update(map => ({
+      ...map,
+      [groupName]: !map[groupName]
+    }));
+  }
+
+  // --- Auxiliares de Formulario ---
+  private getEmptyForm() {
+    return {
+      name: '',
+      type: 'http' as MonitorType,
+      target: '',
+      port: 80 as number | undefined,
+      interval: 60,
+      retries: 0,
+      retryInterval: 60,
+      group: '',
+      tags: [] as string[],
+      keyword: '',
+      keywordMethod: 'presence' as 'presence' | 'absence',
+      dnsResolver: '',
+      dnsRecordType: 'A' as 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT',
+      
+      // SNMP Fields
+      snmpVersion: 'v2c' as 'v1' | 'v2c' | 'v3',
+      snmpCommunity: 'public',
+      snmpPort: 161,
+      snmpOid: '1.3.6.1.2.1.1.5.0',
+      snmpV3Username: '',
+      snmpV3AuthProtocol: 'md5' as 'md5' | 'sha',
+      snmpV3AuthKey: '',
+      snmpV3PrivProtocol: 'des' as 'des' | 'aes',
+      snmpV3PrivKey: '',
+
+      ignoreTls: false,
+      userAgent: '',
+      integrityEnabled: false,
+      integrityProfile: 'static' as 'static' | 'dynamic',
+      integrityThreshold: 0.10,
+      integrityIgnoredCssSelectors: [] as string[],
+      notificationIds: [] as string[]
+    };
+  }
+
+  tagsString(): string {
+    return this.formModel.tags.join(', ');
+  }
+
+  setTagsFromString(val: string): void {
+    this.formModel.tags = val.split(',')
+      .map(t => t.trim())
+      .filter(t => t.length > 0);
+  }
+
+  ignoredSelectorsString(): string {
+    return this.formModel.integrityIgnoredCssSelectors.join(', ');
+  }
+
+  setIgnoredSelectorsFromString(val: string): void {
+    this.formModel.integrityIgnoredCssSelectors = val.split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+  }
+
+  toggleNotificationChannel(id: string): void {
+    const ids = [...this.formModel.notificationIds];
+    const idx = ids.indexOf(id);
+    if (idx > -1) {
+      ids.splice(idx, 1);
+    } else {
+      ids.push(id);
+    }
+    this.formModel.notificationIds = ids;
+  }
+
+  openCreateForm(): void {
+    this.isEditing.set(false);
+    this.formModel = this.getEmptyForm();
+    this.formError.set(null);
+    this.showForm.set(true);
+  }
+
+  openEditForm(monitor: IMonitor): void {
+    this.isEditing.set(true);
+    this.formError.set(null);
+    this.formModel = {
+      name: monitor.name,
+      type: monitor.type,
+      target: monitor.target || '',
+      port: monitor.port,
+      interval: monitor.interval,
+      retries: monitor.retries || 0,
+      retryInterval: 60,
+      group: monitor.group || '',
+      tags: monitor.tags || [],
+      keyword: (monitor as any).keyword || '',
+      keywordMethod: (monitor as any).keywordMethod || 'presence',
+      dnsResolver: (monitor as any).dnsResolver || '',
+      dnsRecordType: (monitor as any).dnsRecordType || 'A',
+
+      // SNMP Fields mappings
+      snmpVersion: monitor.snmpVersion || 'v2c',
+      snmpCommunity: monitor.snmpCommunity || 'public',
+      snmpPort: monitor.snmpPort || 161,
+      snmpOid: monitor.snmpOid || '1.3.6.1.2.1.1.5.0',
+      snmpV3Username: monitor.snmpV3Username || '',
+      snmpV3AuthProtocol: monitor.snmpV3AuthProtocol || 'md5',
+      snmpV3AuthKey: monitor.snmpV3AuthKey || '',
+      snmpV3PrivProtocol: monitor.snmpV3PrivProtocol || 'des',
+      snmpV3PrivKey: monitor.snmpV3PrivKey || '',
+
+      ignoreTls: (monitor as any).ignoreTls || false,
+      userAgent: (monitor as any).userAgent || '',
+      integrityEnabled: (monitor as any).integrityEnabled || false,
+      integrityProfile: (monitor as any).integrityProfile || 'static',
+      integrityThreshold: (monitor as any).integrityThreshold || 0.10,
+      integrityIgnoredCssSelectors: (monitor as any).integrityIgnoredCssSelectors || [],
+      notificationIds: monitor.notificationIds || []
+    };
+    this.showForm.set(true);
+  }
+
+  closeForm(): void {
+    this.showForm.set(false);
+    this.formError.set(null);
+  }
+
+  showSuccessToast(msg: string): void {
+    this.toast.set(msg);
+    setTimeout(() => this.toast.set(null), 4000);
+  }
+
+  onSave(): void {
+    if (!this.formModel.name.trim()) return;
+
+    this.isSubmitting.set(true);
+    this.formError.set(null);
+
+    const type = this.formModel.type;
+    let targetUrl = this.formModel.target?.trim();
+
+    if (type !== 'push' && !targetUrl) {
+      this.formError.set('Por favor, ingresa el destino/host.');
+      this.isSubmitting.set(false);
+      return;
+    }
+
+    // Validación inteligente de Target según el tipo (Punto 10)
+    if (type === 'http') {
+      if (targetUrl && !targetUrl.toLowerCase().startsWith('http://') && !targetUrl.toLowerCase().startsWith('https://')) {
+        targetUrl = 'https://' + targetUrl;
+        this.formModel.target = targetUrl;
+      }
+      const hasProto = targetUrl.toLowerCase().startsWith('http://') || targetUrl.toLowerCase().startsWith('https://');
+      if (!hasProto) {
+        this.formError.set('Para monitores HTTP/HTTPS, el destino debe iniciar con http:// o https://');
+        this.isSubmitting.set(false);
+        return;
+      }
+    } else if (type === 'ping' || type === 'port' || type === 'dns' || type === 'snmp') {
+      const hasProto = targetUrl.toLowerCase().includes('http://') || targetUrl.toLowerCase().includes('https://');
+      const hasPath = targetUrl.includes('/');
+      if (hasProto || hasPath) {
+        this.formError.set('Para este tipo de monitor (Ping/Puerto/DNS/SNMP), el destino debe ser un host o IP puro (sin http://, https:// ni rutas).');
+        this.isSubmitting.set(false);
+        return;
+      }
+    }
+
+    const payload: Partial<IMonitor> = {
+      name: this.formModel.name,
+      type: this.formModel.type,
+      target: this.formModel.type !== 'push' ? targetUrl : undefined,
+      port: this.formModel.type === 'port' ? this.formModel.port : undefined,
+      interval: this.formModel.interval,
+      retries: this.formModel.retries,
+      group: this.formModel.group?.trim() || null as any,
+      tags: this.formModel.tags,
+      isActive: true,
+      notificationIds: this.formModel.notificationIds
+    };
+
+    if (this.formModel.type === 'http') {
+      Object.assign(payload, {
+        keyword: this.formModel.keyword?.trim() || undefined,
+        keywordMethod: this.formModel.keyword?.trim() ? this.formModel.keywordMethod : undefined,
+        ignoreTls: this.formModel.ignoreTls,
+        userAgent: this.formModel.userAgent?.trim() || undefined,
+        integrityEnabled: this.formModel.integrityEnabled,
+        integrityProfile: this.formModel.integrityEnabled ? this.formModel.integrityProfile : undefined,
+        integrityThreshold: this.formModel.integrityEnabled ? this.formModel.integrityThreshold : undefined,
+        integrityIgnoredCssSelectors: this.formModel.integrityEnabled ? this.formModel.integrityIgnoredCssSelectors : undefined
+      });
+    } else if (this.formModel.type === 'dns') {
+      Object.assign(payload, {
+        dnsResolver: this.formModel.dnsResolver?.trim() || undefined,
+        dnsRecordType: this.formModel.dnsRecordType
+      });
+    } else if (this.formModel.type === 'snmp') {
+      Object.assign(payload, {
+        snmpVersion: this.formModel.snmpVersion,
+        snmpCommunity: this.formModel.snmpVersion !== 'v3' ? this.formModel.snmpCommunity : undefined,
+        snmpPort: this.formModel.snmpPort,
+        snmpOid: this.formModel.snmpOid,
+        snmpV3Username: this.formModel.snmpVersion === 'v3' ? this.formModel.snmpV3Username : undefined,
+        snmpV3AuthProtocol: this.formModel.snmpVersion === 'v3' ? this.formModel.snmpV3AuthProtocol : undefined,
+        snmpV3AuthKey: this.formModel.snmpVersion === 'v3' ? this.formModel.snmpV3AuthKey : undefined,
+        snmpV3PrivProtocol: this.formModel.snmpVersion === 'v3' ? this.formModel.snmpV3PrivProtocol : undefined,
+        snmpV3PrivKey: this.formModel.snmpVersion === 'v3' ? this.formModel.snmpV3PrivKey : undefined,
+      });
+    }
+
+    if (this.isEditing() && this.selectedMonitor()) {
+      this.monitorService.update(this.selectedMonitor()!.id, payload).subscribe({
+        next: (updated) => {
+          this.isSubmitting.set(false);
+          this.showForm.set(false);
+          this.selectedMonitor.set(updated);
+          this.showSuccessToast('Monitor actualizado con éxito.');
+          this.loadRecentIncidents();
+        },
+        error: () => this.isSubmitting.set(false)
+      });
+    } else {
+      this.monitorService.create(payload).subscribe({
+        next: (created) => {
+          this.isSubmitting.set(false);
+          this.showForm.set(false);
+          this.selectMonitor(created);
+          this.showSuccessToast('Monitor creado y agendado con éxito.');
+          this.loadRecentIncidents();
+        },
+        error: () => this.isSubmitting.set(false)
+      });
+    }
+  }
+
+  togglePause(monitor: IMonitor): void {
+    const newActiveState = !monitor.isActive;
+    this.monitorService.update(monitor.id, { isActive: newActiveState }).subscribe({
+      next: (updated: any) => {
+        let statusStr: 'UP' | 'DOWN' | 'PENDING' = 'PENDING';
+        const ls = updated.lastStatus;
+        if (ls === 1 || ls === 'UP') statusStr = 'UP';
+        else if (ls === 0 || ls === 'DOWN') statusStr = 'DOWN';
+
+        const mapped = {
+          ...updated,
+          status: statusStr
+        };
+        // Actualizar el monitor seleccionado
+        this.selectedMonitor.set(mapped);
+        this.showSuccessToast(newActiveState ? 'Monitoreo reanudado con éxito.' : 'Monitoreo pausado con éxito.');
+      },
+      error: () => this.showSuccessToast('Error al cambiar el estado del monitoreo.')
+    });
+  }
+
+  onDelete(id: string): void {
+    this.monitorIdToDelete = id;
+    this.showConfirmDelete.set(true);
+  }
+
+  confirmDelete(): void {
+    if (this.monitorIdToDelete) {
+      this.monitorService.delete(this.monitorIdToDelete).subscribe({
+        next: () => {
+          this.showSuccessToast('Monitor eliminado correctamente.');
+          this.selectedMonitor.set(null);
+          this.showConfirmDelete.set(false);
+          this.monitorIdToDelete = null;
+          this.loadData();
+          this.loadRecentIncidents();
+        }
+      });
+    }
+  }
+
+  cancelDelete(): void {
+    this.showConfirmDelete.set(false);
+    this.monitorIdToDelete = null;
+  }
+
+  onLogout(): void {
+    this.authService.logout().subscribe(() => {
+      this.router.navigate(['/login']);
+    });
+  }
+
+  toggleNyanCat(): void {
+    const newValue = !this.isNyanCatMode();
+    this.isNyanCatMode.set(newValue);
+    localStorage.setItem('azkin-nyancat', String(newValue));
+
+    // Intentar guardar en backend, pero el origen local prevalece
+    this.http.put('/api/v1/users/preferences', { nyanCatMode: newValue }).subscribe({
+      next: () => {
+        const current = this.authService.currentUser() as any;
+        if (current) {
+          const updated = {
+            ...current,
+            preferences: { ...(current.preferences || {}), nyanCatMode: newValue }
+          };
+          this.authService.currentUser.set(updated);
+          localStorage.setItem('azkin_user', JSON.stringify(updated));
+        }
+      },
+      error: () => {}
+    });
+
+    this.showSuccessToast(newValue ? '🌈 NyanCat Mode activado!' : '🐱 NyanCat Mode desactivado.');
+  }
+
+  toggleTheme(event: MouseEvent): void {
+    const doc = document as any;
+    const isLight = !this.isLightTheme();
+
+    // Persistir la preferencia para sobrevivir al F5
+    localStorage.setItem('azkin-theme', isLight ? 'light' : 'dark');
+
+    if (!doc.startViewTransition) {
+      // Fallback sin View Transitions API
+      this.isLightTheme.set(isLight);
+      if (isLight) {
+        document.body.classList.add('light-theme');
+      } else {
+        document.body.classList.remove('light-theme');
+      }
+      return;
+    }
+
+    const x = event.clientX;
+    const y = event.clientY;
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    );
+
+    const transition = doc.startViewTransition(() => {
+      this.isLightTheme.set(isLight);
+      if (isLight) {
+        document.body.classList.add('light-theme');
+      } else {
+        document.body.classList.remove('light-theme');
+      }
+    });
+
+    transition.ready.then(() => {
+      // Siempre animar la vista NUEVA como un círculo que crece desde el cursor,
+      // independientemente de si se va a claro u oscuro.
+      // Esto garantiza el mismo efecto visual en ambas direcciones.
+      document.documentElement.animate(
+        {
+          clipPath: [
+            `circle(0px at ${x}px ${y}px)`,
+            `circle(${endRadius}px at ${x}px ${y}px)`
+          ]
+        },
+        {
+          duration: 450,
+          easing: 'ease-out',
+          pseudoElement: '::view-transition-new(root)'
+        }
+      );
+    });
+  }
+}

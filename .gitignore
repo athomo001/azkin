@@ -7,3 +7,8 @@ dist/
 
 # Archivos de configuración local de agentes o entornos
 .gemini/
+.agents/AGENTS.md
+spec/*
+
+# Datos persistentes de MongoDB (bind mount local — no versionar)
+data/

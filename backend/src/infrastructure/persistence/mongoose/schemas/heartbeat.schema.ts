@@ -6,6 +6,9 @@ export interface HeartbeatDoc {
   status: number;
   ping: number | null;
   msg: string | null;
+  certExpiry?: number | null;
+  domainExpiry?: number | null;
+  isLocalNetworkDown?: boolean;
 }
 
 const THIRTY_DAYS_IN_SECONDS = 60 * 60 * 24 * 30;
@@ -17,6 +20,9 @@ const heartbeatSchema = new Schema<HeartbeatDoc>(
     status: { type: Number, enum: [0, 1, 2, 3], required: true },
     ping: { type: Number, default: null },
     msg: { type: String, default: null },
+    certExpiry: { type: Number, default: null },
+    domainExpiry: { type: Number, default: null },
+    isLocalNetworkDown: { type: Boolean, default: false },
   },
   {
     timeseries: {

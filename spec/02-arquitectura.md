@@ -1,7 +1,7 @@
 # Fase 1 — Especificación de Arquitectura y Stack: Azkin
 
 > Estado: **Aprobada** · Metodología: Spec-Driven Development (SDD)
-> Documento derivado de [`01-general.md`](01-general.md) y del análisis de ingeniería inversa de Uptime Kuma.
+> Documento derivado de [`01-general.md`](01-general.md) y del análisis de arquitecturas de referencia.
 
 Este documento fija la arquitectura de referencia de Azkin **antes** de escribir código de
 implementación. Cualquier decisión posterior debe justificarse contra los principios aquí definidos.
@@ -10,10 +10,10 @@ implementación. Cualquier decisión posterior debe justificarse contra los prin
 
 ## 1. Principios rectores
 
-Azkin nace de un análisis de las deudas técnicas de Uptime Kuma. Cada decisión estructural
+Azkin nace de un análisis de las deudas técnicas de arquitecturas de monitoreo de referencia. Cada decisión estructural
 corrige una de ellas o preserva uno de sus aciertos:
 
-| Aprendizaje de Uptime Kuma | Decisión en Azkin |
+| Limitación de Referencia | Decisión en Azkin |
 |---|---|
 | ✅ Su sistema de plugins de tipos de monitor es limpio y extensible | **Strategy Pattern** para los *checkers* (`http`/`ping`/`port`) preparado para Cloudflare (User-Agent configurable, cabeceras personalizadas y bypass opcional de validación SSL/TLS para evitar bloqueos del WAF o falsos DOWN) |
 | ❌ `monitor.js` mezcla red + SQL + sockets + alertas (~2069 líneas, viola SRP) | **Clean Architecture**: el dominio no conoce Mongoose, Express ni Socket.io |
@@ -36,7 +36,7 @@ Fronteras explícitas de YAGNI (lo que **NO** haremos en este alcance):
 
 #### Aislamiento de Marca (Ingeniería Inversa)
 Con el fin de mantener la total independencia legal y técnica del proyecto:
-- Queda **estrictamente prohibido** incluir referencias directas (cadenas de texto, comentarios, variables, rutas, nombres de archivos, base de datos) a "Uptime Kuma" en todo el código base de Azkin.
+- Queda **estrictamente prohibido** incluir referencias directas (cadenas de texto, comentarios, variables, rutas, nombres de archivos, base de datos) a sistemas externos de monitoreo analizados previamente en todo el código base de Azkin.
 - Los conceptos y aprendizajes se implementan bajo nuestra propia nomenclatura y arquitectura de forma 100 % limpia.
 
 #### Política de Comentarios y Documentación
@@ -151,7 +151,7 @@ se detallan en la Fase 2/3.
 - **`ICheckStrategy`** — `check(monitor): Promise<CheckResult>`.
   Una implementación por tipo (`HttpChecker`, `PingChecker`, `PortChecker`, `DnsChecker`, `PushChecker`), resueltas por un
   `CheckerRegistry`. Agregar un tipo nuevo = una clase nueva, **cero modificación** del núcleo
-  (Open/Closed). Este es el patrón que reemplaza al God Object de Uptime Kuma.
+  (Open/Closed). Este es el patrón que reemplaza a estructuras de objeto centralizadas (God Object) de arquitecturas previas.
 
 - **`IMonitorRepository` / `IHeartbeatRepository`** — las operaciones de lectura resuelven
   `ownerId` (Admin propietario) y, si el actor es Viewer, filtran por `permissions` granulares

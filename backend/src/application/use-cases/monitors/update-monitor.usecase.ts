@@ -6,6 +6,10 @@ import { IScheduler } from "../../ports/services/scheduler";
 import { IMonitor } from "../../../domain/entities/monitor";
 import { NotFoundError } from "../../../domain/errors/domain-error";
 
+/**
+ * Caso de uso para actualizar la configuración de un monitor de red.
+ * Almacena los cambios y actualiza el agendamiento del programador (reschedule o unschedule) según isActive.
+ */
 export class UpdateMonitorUseCase {
   constructor(
     private readonly monitors: IMonitorRepository,
@@ -15,7 +19,7 @@ export class UpdateMonitorUseCase {
   async execute(userId: string, id: string, data: UpdateMonitorData): Promise<IMonitor> {
     const updated = await this.monitors.update(userId, id, data);
     if (!updated) {
-      throw new NotFoundError("Monitor not found");
+      throw new NotFoundError("Monitor no encontrado");
     }
 
     if (updated.isActive) {

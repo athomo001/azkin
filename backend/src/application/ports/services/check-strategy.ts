@@ -5,6 +5,8 @@ export interface CheckResult {
   ok: boolean;
   ping: number | null; // latencia en ms
   msg: string | null;
+  certExpiry?: number | null;
+  domainExpiry?: number | null;
 }
 
 export interface ICheckStrategy {

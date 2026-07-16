@@ -9,13 +9,7 @@ import { HeartbeatModel } from "../schemas/heartbeat.schema";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-interface SummaryAggRow {
-  _id: Types.ObjectId;
-  total: number;
-  ups: number;
-  lastStatus: number;
-  lastPing: number | null;
-}
+
 
 export class MongooseHeartbeatRepository implements IHeartbeatRepository {
   async save(beat: IHeartbeat): Promise<void> {
@@ -25,12 +19,20 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
       status: beat.status,
       ping: beat.ping,
       msg: beat.msg,
+      certExpiry: beat.certExpiry,
+      domainExpiry: beat.domainExpiry,
+      isLocalNetworkDown: beat.isLocalNetworkDown ?? false,
     });
   }
 
   async findLast24h(monitorId: string): Promise<IHeartbeat[]> {
+    return this.findHistory(monitorId, DAY_MS);
+  }
+
+  async findHistory(monitorId: string, durationMs: number): Promise<IHeartbeat[]> {
     if (!Types.ObjectId.isValid(monitorId)) return [];
-    const since = new Date(Date.now() - DAY_MS);
+    const safeDurationMs = Math.max(0, durationMs);
+    const since = new Date(Date.now() - safeDurationMs);
     const docs = await HeartbeatModel.find({
       monitorId: new Types.ObjectId(monitorId),
       timestamp: { $gte: since },
@@ -42,6 +44,9 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
       status: doc.status as MonitorStatus,
       ping: doc.ping ?? null,
       msg: doc.msg ?? null,
+      certExpiry: doc.certExpiry ?? null,
+      domainExpiry: doc.domainExpiry ?? null,
+      isLocalNetworkDown: doc.isLocalNetworkDown ?? false,
     }));
   }
 
@@ -51,33 +56,51 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
   }
 
   async getSummaries(monitorIds: string[]): Promise<Record<string, HeartbeatSummary>> {
-    const objectIds = monitorIds
-      .filter((id) => Types.ObjectId.isValid(id))
-      .map((id) => new Types.ObjectId(id));
-    if (objectIds.length === 0) return {};
-
-    const since = new Date(Date.now() - DAY_MS);
-    const rows = await HeartbeatModel.aggregate<SummaryAggRow>([
-      { $match: { monitorId: { $in: objectIds }, timestamp: { $gte: since } } },
-      { $sort: { timestamp: 1 } },
-      {
-        $group: {
-          _id: "$monitorId",
-          total: { $sum: 1 },
-          ups: { $sum: { $cond: [{ $eq: ["$status", MonitorStatus.UP] }, 1, 0] } },
-          lastStatus: { $last: "$status" },
-          lastPing: { $last: "$ping" },
-        },
-      },
-    ]);
-
     const result: Record<string, HeartbeatSummary> = {};
-    for (const row of rows) {
-      result[String(row._id)] = {
-        lastStatus: row.lastStatus as MonitorStatus,
-        lastPing: row.lastPing ?? null,
-        uptime24h: row.total === 0 ? null : row.ups / row.total,
-      };
+    const since = new Date(Date.now() - DAY_MS);
+
+    for (const id of monitorIds) {
+      if (!Types.ObjectId.isValid(id)) continue;
+      const mId = new Types.ObjectId(id);
+
+      // 1. Obtener el último heartbeat absoluto de toda la historia
+      const lastBeat = await HeartbeatModel.findOne({ monitorId: mId }).sort({ timestamp: -1 });
+
+      // 2. Obtener agregados de las últimas 24h para el cálculo del uptime porcentual
+      const stats = await HeartbeatModel.aggregate([
+        { $match: { monitorId: mId, timestamp: { $gte: since } } },
+        {
+          $group: {
+            _id: "$monitorId",
+            total: { $sum: 1 },
+            ups: { $sum: { $cond: [{ $eq: ["$status", MonitorStatus.UP] }, 1, 0] } }
+          }
+        }
+      ]);
+
+      if (lastBeat) {
+        const row24 = stats[0] || { total: 0, ups: 0 };
+        const isUp = lastBeat.status === MonitorStatus.UP;
+        result[id] = {
+          lastStatus: lastBeat.status as MonitorStatus,
+          lastPing: lastBeat.ping ?? null,
+          uptime24h: row24.total === 0 ? 1.0 : row24.ups / row24.total,
+          lastErrorMsg: !isUp ? (lastBeat.msg ?? null) : null,
+          certExpiry: lastBeat.certExpiry ?? null,
+          domainExpiry: lastBeat.domainExpiry ?? null,
+          isLocalNetworkDown: (lastBeat as any).isLocalNetworkDown ?? false,
+        };
+      } else {
+        result[id] = {
+          lastStatus: MonitorStatus.PENDING,
+          lastPing: null,
+          uptime24h: null,
+          lastErrorMsg: null,
+          certExpiry: null,
+          domainExpiry: null,
+          isLocalNetworkDown: false,
+        };
+      }
     }
     return result;
   }

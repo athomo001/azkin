@@ -5,6 +5,7 @@ import { INotifier } from "../../ports/services/notifier";
 import { IMonitor } from "../../../domain/entities/monitor";
 import { IHeartbeat } from "../../../domain/entities/heartbeat";
 import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
+import { NetworkDiagnostics } from "../../../infrastructure/services/network-diagnostics";
 
 /** Estado runtime que aporta el scheduler para decidir reintentos/transiciones. */
 export interface CheckContext {
@@ -37,19 +38,25 @@ export class ExecuteCheckUseCase {
     let status: MonitorStatus;
     let retryAttempts = ctx.retryAttempts;
     let nextDelaySeconds: number;
+    let isLocalNetworkDown = false;
 
     if (result.ok) {
       status = MonitorStatus.UP;
       retryAttempts = 0;
       nextDelaySeconds = monitor.interval;
-    } else if (retryAttempts < monitor.retries) {
-      retryAttempts += 1;
-      status = MonitorStatus.PENDING;
-      nextDelaySeconds = monitor.retryInterval;
     } else {
-      status = MonitorStatus.DOWN;
-      retryAttempts = 0;
-      nextDelaySeconds = monitor.interval;
+      // Si el chequeo falla, verificar si es debido a la falta de conexión local a Internet
+      isLocalNetworkDown = await NetworkDiagnostics.checkIsLocalNetworkDown();
+
+      if (retryAttempts < monitor.retries) {
+        retryAttempts += 1;
+        status = MonitorStatus.PENDING;
+        nextDelaySeconds = monitor.retryInterval;
+      } else {
+        status = MonitorStatus.DOWN;
+        retryAttempts = 0;
+        nextDelaySeconds = monitor.interval;
+      }
     }
 
     const beat: IHeartbeat = {
@@ -57,7 +64,10 @@ export class ExecuteCheckUseCase {
       timestamp: new Date(),
       status,
       ping: result.ping,
-      msg: result.msg,
+      msg: isLocalNetworkDown ? "Error de conexión local (ISP Outage)" : result.msg,
+      certExpiry: (result as any).certExpiry,
+      domainExpiry: (result as any).domainExpiry,
+      isLocalNetworkDown,
     };
 
     await this.heartbeats.save(beat);
@@ -67,7 +77,23 @@ export class ExecuteCheckUseCase {
     let lastStatus = ctx.lastStatus;
     if (status === MonitorStatus.UP || status === MonitorStatus.DOWN) {
       if (lastStatus !== null && lastStatus !== status) {
-        await this.notifier.notify({ monitor, from: lastStatus, to: status, beat });
+        // Si el fallo es por una caída confirmada de la red local, evitamos enviar alertas
+        // para no generar falsos positivos spameando al usuario.
+        if (!isLocalNetworkDown) {
+          for (const notifId of monitor.notificationIds) {
+            await this.notifier.notify({
+              notificationId: notifId,
+              monitor,
+              from: lastStatus,
+              to: status,
+              beat,
+            });
+          }
+        } else {
+          console.warn(
+            `[Diagnóstico de Red] Alerta omitida para monitor ${monitor.name} debido a ISP Outage local.`
+          );
+        }
       }
       lastStatus = status;
     }

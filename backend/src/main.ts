@@ -2,10 +2,16 @@ import { env } from "./infrastructure/config/env";
 import { buildContainer } from "./composition-root";
 import { connectMongo, disconnectMongo } from "./infrastructure/persistence/mongoose/connection";
 import { logger } from "./infrastructure/logger";
+import { seedFirstAdmin } from "./infrastructure/config/seed-first-admin";
+import { MongooseUserRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-user.repository";
+import { BcryptPasswordHasher } from "./infrastructure/security/bcrypt-password-hasher";
 
 async function bootstrap(): Promise<void> {
   await connectMongo(env.mongoUri);
   logger.info("Connected to MongoDB");
+
+  // Ejecutar el seeder del primer admin antes de arrancar el contenedor de DI
+  await seedFirstAdmin(new MongooseUserRepository(), new BcryptPasswordHasher(), env);
 
   const { server, scheduler } = buildContainer(env);
   await scheduler.start();

@@ -1,18 +1,19 @@
 # Imagen de DESARROLLO local (hot-reload con tsx watch).
 # Para producción usa el Dockerfile multi-stage (build + runtime slim).
-FROM node:20-alpine
+FROM node:24-alpine
+RUN corepack enable && corepack prepare pnpm@11.13.1 --activate
 WORKDIR /app
 
 # iputils provee un binario `ping` compatible con el checker ICMP
 RUN apk add --no-cache iputils
 
 # Instala dependencias en una capa cacheable
-COPY package*.json ./
-RUN npm ci
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile
 
 # El código fuente se monta como volumen en compose.dev.yaml,
 # por lo que aquí solo copiamos como fallback para ejecución standalone.
 COPY . .
 
 EXPOSE 3000
-CMD ["npm", "run", "dev"]
+CMD ["pnpm", "run", "dev"]

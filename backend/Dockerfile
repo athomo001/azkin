@@ -1,20 +1,22 @@
 # --- Etapa de build ---
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
+RUN corepack enable && corepack prepare pnpm@11.13.1 --activate
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build
+RUN pnpm run build
 
 # --- Etapa de runtime ---
-FROM node:20-alpine AS runtime
+FROM node:24-alpine AS runtime
+RUN corepack enable && corepack prepare pnpm@11.13.1 --activate
 WORKDIR /app
 ENV NODE_ENV=production
-# iputils provee un binario `ping` compatible con la librería de monitoreo ICMP
-RUN apk add --no-cache iputils
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# iputils provee un binario `ping` compatible con la librería de monitoreo ICMP y ca-certificates para HTTPS
+RUN apk add --no-cache iputils ca-certificates
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN pnpm install --prod --frozen-lockfile
 COPY --from=build /app/dist ./dist
 EXPOSE 3000
 CMD ["node", "dist/main.js"]

@@ -7,4 +7,10 @@ export interface IScheduler {
   reschedule(monitor: IMonitor): void;
   unschedule(monitorId: string): void;
   stopAll(): void;
+  receivePushHeartbeat(
+    monitorId: string,
+    clientStatus: "up" | "down",
+    clientPing?: number,
+    clientMsg?: string,
+  ): Promise<void>;
 }
