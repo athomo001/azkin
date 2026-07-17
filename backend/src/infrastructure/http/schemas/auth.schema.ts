@@ -9,9 +9,15 @@ export const registerSchema = z.object({
 });
 
 export const loginSchema = z.object({
-  email: z
-    .string()
-    .email()
-    .transform((e) => e.toLowerCase()),
+  identifier: z.string().trim().optional(),
+  email: z.string().trim().optional(),
   password: z.string().min(1),
-});
+})
+  .refine((v) => !!(v.identifier || v.email), {
+    message: "identifier is required",
+    path: ["identifier"],
+  })
+  .transform((v) => ({
+    identifier: (v.identifier ?? v.email ?? "").toLowerCase(),
+    password: v.password,
+  }));

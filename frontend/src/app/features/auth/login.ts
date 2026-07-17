@@ -49,9 +49,9 @@ type ToastType = 'error' | 'success';
           <form (submit)="onSubmit(); $event.preventDefault()" class="space-y-4">
             <div>
               <label class="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                {{ lang.t('auth.login.email') }}
+                {{ lang.t('auth.login.identifier') }}
               </label>
-              <input type="email" name="email" [(ngModel)]="email" required
+              <input type="text" name="identifier" [(ngModel)]="identifier" required
                 class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2.5 text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500 transition-colors">
             </div>
             <div>
@@ -89,7 +89,7 @@ export class LoginComponent {
   private readonly router = inject(Router);
   public readonly lang = inject(LanguageService);
 
-  email = '';
+  identifier = '';
   password = '';
   readonly isLoading = signal(false);
 
@@ -113,7 +113,7 @@ export class LoginComponent {
   onSubmit(): void {
     this.toast.set(null);
     this.isLoading.set(true);
-    this.authService.login(this.email, this.password).subscribe({
+    this.authService.login(this.identifier, this.password).subscribe({
       next: () => {
         this.router.navigate(['/dashboard']);
       },

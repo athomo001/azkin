@@ -67,8 +67,8 @@ export class AuthService {
   /**
    * Inicia sesión y almacena el payload del token decodificado en memoria y localStorage
    */
-  login(email: string, password: string, isTvSessionEnabled = false): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/login`, { email, password, isTvSessionEnabled }).pipe(
+  login(identifier: string, password: string, isTvSessionEnabled = false): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/login`, { identifier, password, isTvSessionEnabled }).pipe(
       tap(res => {
         if (res && res.user) {
           // Soporta el mapeo tanto de res.accessToken (spec) como de res.token (implementación)

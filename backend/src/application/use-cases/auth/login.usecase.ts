@@ -4,7 +4,7 @@ import { InvalidCredentialsError } from "../../../domain/errors/domain-error";
 import { AuthOutput } from "../../dtos/auth-output";
 
 export interface LoginInput {
-  email: string;
+  identifier: string;
   password: string;
 }
 
@@ -20,7 +20,7 @@ export class LoginUseCase {
   ) {}
 
   async execute(input: LoginInput): Promise<AuthOutput> {
-    const user = await this.users.findByIdentifier(input.email);
+    const user = await this.users.findByIdentifier(input.identifier);
     // Mensaje genérico: no revela si el identificador existe (anti-enumeración).
     if (!user) {
       throw new InvalidCredentialsError();
