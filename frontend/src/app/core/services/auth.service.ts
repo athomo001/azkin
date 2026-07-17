@@ -74,7 +74,7 @@ export class AuthService {
           // Soporta el mapeo tanto de res.accessToken (spec) como de res.token (implementación)
           this.accessToken = res.accessToken || res.token;
           this.currentUser.set(res.user);
-          
+
           // Persistencia para rehidratar sesión
           localStorage.setItem('azkin_token', this.accessToken ?? '');
           localStorage.setItem('azkin_user', JSON.stringify(res.user));
@@ -92,7 +92,7 @@ export class AuthService {
     if (token && user) {
       return of({ token, user });
     }
-    
+
     // Si no hay datos, limpiamos y arrojamos error
     this.accessToken = null;
     this.currentUser.set(null);
