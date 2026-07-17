@@ -62,3 +62,34 @@ En su lugar, debe existir opcion de recuperacion de contrasena.
 - Definir si el registro admin queda solo para bootstrap inicial controlado.
 - Implementar token temporal firmado/almacenado con expiracion corta.
 - Mantener mensajes anti-enumeracion para seguridad.
+
+---
+
+## AZ-003) Implementar versionamiento del sistema
+- Codigo: AZ-003
+- Estado: [ ] Abierto
+- Prioridad: Media
+- Reportado: 2026-07-16
+
+### Descripcion
+Actualmente no existe una estrategia clara para versionar el sistema y sus cambios desplegados.
+Se requiere definir e implementar versionado para facilitar trazabilidad, soporte y compatibilidad entre frontend, backend y despliegues.
+
+### Comportamiento esperado
+1. El sistema usa una convencion de versionado definida (ej. SemVer).
+2. Cada release registra version, fecha y cambios relevantes.
+3. Backend expone version actual por endpoint o metadata operativa.
+4. Frontend muestra la version de la aplicacion en una zona visible (pie de pagina o pantalla de login).
+5. El pipeline/proceso de build permite inyectar o fijar version de forma consistente.
+
+### Criterios de aceptacion
+1. Existe documento corto con la politica de versionado (major/minor/patch).
+2. Se actualiza version en cada release de forma automatizable o estandarizada.
+3. Endpoint de health/info devuelve version ejecutada.
+4. UI muestra la misma version que reporta el backend o artefacto de build.
+5. `CHANGELOG.md` se mantiene alineado con las versiones publicadas.
+
+### Pistas de investigacion
+- Evaluar fuente unica de verdad para version (tag git, package.json o variable de entorno de build).
+- Definir convencion de tagging en git (`vX.Y.Z`) y reglas para pre-releases.
+- Asegurar que Docker/Compose propaguen version al runtime sin inconsistencias.
