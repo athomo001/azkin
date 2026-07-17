@@ -93,3 +93,65 @@ Se requiere definir e implementar versionado para facilitar trazabilidad, soport
 - Evaluar fuente unica de verdad para version (tag git, package.json o variable de entorno de build).
 - Definir convencion de tagging en git (`vX.Y.Z`) y reglas para pre-releases.
 - Asegurar que Docker/Compose propaguen version al runtime sin inconsistencias.
+
+---
+
+## AZ-004) Admin debe poder configurar plantillas de notificaciones por canal (correo, webhook y Telegram)
+- Codigo: AZ-004
+- Estado: [ ] Abierto
+- Prioridad: Alta
+- Reportado: 2026-07-16
+
+### Descripcion
+Hace falta una configuracion interna para que el admin pueda definir el contenido de las notificaciones por canal.
+Debe poder decidir el formato del correo, el payload/texto del webhook y el mensaje de Telegram, con opciones dinamicas segun el evento del monitor (por ejemplo: caida, recuperacion, latencia alta).
+
+### Comportamiento esperado
+1. El admin puede configurar plantilla por canal: email, webhook y Telegram.
+2. Cada plantilla permite variables dinamicas (ej.: monitor, URL, estado, fecha/hora, codigo HTTP, tiempo de respuesta).
+3. Se soportan al menos eventos de `DOWN` (caida) y `RECOVERED` (levantado), y queda preparado para otros eventos.
+4. Existe vista previa del mensaje final antes de guardar/enviar prueba.
+5. El sistema valida formato minimo por canal (ej. JSON valido para webhook, asunto/cuerpo para email).
+
+### Criterios de aceptacion
+1. UI de administracion con seccion de plantillas por canal y por tipo de evento.
+2. Guardado y lectura de plantillas persistidas por organizacion/admin.
+3. En disparo real de alerta, el mensaje usa la plantilla configurada y reemplaza variables correctamente.
+4. Si una variable no existe, se informa error de configuracion sin romper el envio global.
+5. Existe accion de "enviar prueba" por canal para validar integraciones y formato.
+
+### Pistas de investigacion
+- Definir catalogo oficial de variables dinamicas disponibles por tipo de evento.
+- Separar motor de render de plantillas del transporte (email/webhook/telegram).
+- Incluir versionado de plantillas para evitar cambios destructivos en caliente.
+
+---
+
+## AZ-005) Copia de seguridad y restauracion: reemplazo de respaldo anterior y borrado masivo de webs monitoreadas
+- Codigo: AZ-005
+- Estado: [ ] Abierto
+- Prioridad: Alta
+- Reportado: 2026-07-16
+
+### Descripcion
+En el flujo de respaldos falta una opcion para borrar o reemplazar el respaldo anterior cuando se genera uno nuevo, evitando solape o duplicacion de informacion.
+Ademas, se necesita una accion administrativa para borrar de forma masiva webs monitoreadas, con controles de seguridad para evitar eliminaciones accidentales.
+
+### Comportamiento esperado
+1. En "Copia de Seguridad y Restauracion" existe opcion para crear nuevo respaldo reemplazando el anterior.
+2. El sistema permite elegir entre "acumular respaldos" o "reemplazar ultimo respaldo".
+3. Al reemplazar, no quedan datos solapados ni metadatos inconsistentes.
+4. Existe opcion de seleccion multiple para borrar masivamente webs monitoreadas.
+5. El borrado masivo requiere confirmacion explicita y muestra resumen de impacto antes de ejecutar.
+
+### Criterios de aceptacion
+1. UI de respaldos con selector claro de estrategia (acumular/reemplazar).
+2. Al generar respaldo en modo reemplazo, el respaldo anterior queda eliminado o archivado segun politica definida.
+3. Restauracion valida integridad del respaldo y evita mezcla de estados previos.
+4. UI de monitores permite seleccionar multiples webs y eliminarlas en una sola operacion.
+5. Endpoint de borrado masivo registra auditoria minima (quien, cuando, cuantos, ids).
+
+### Pistas de investigacion
+- Definir politica de retencion de respaldos (ultimo, N ultimos, por fecha).
+- Garantizar operacion atomica o transaccional para evitar respaldo parcial/corrupto.
+- Implementar "soft delete" opcional para recuperacion rapida ante errores de borrado masivo.
