@@ -3,7 +3,7 @@
 # <p align="center">Azkin</p>
 
 <p align="center">
-  <strong>Plataforma profesional de monitoreo multiusuario de infraestructura y servicios de red en tiempo real.</strong>
+  <strong>Plataforma profesional de monitoreo  y servicios de red en tiempo real.</strong>
 </p>
 
 ---
@@ -11,6 +11,8 @@
 ## 🚀 Descripción General
 
 **Azkin** es una solución para el monitoreo de disponibilidad, integridad y rendimiento de servicios web y redes en tiempo real.
+
+Esta wea está pensada para cachar al tiro el uptime de varias páginas, servicios y redes, ver cuándo algo se cae (downtime), cuánto se demora en responder (latency) y recibir alerts en tiempo real para reaccionar rápido sin andar adivinando qué wea pasó.
 
 La plataforma soporta múltiples tipos de verificación:
 
@@ -20,6 +22,7 @@ La plataforma soporta múltiples tipos de verificación:
 - **DNS Resolver:** Resolución de registros A, AAAA, CNAME, MX y TXT con servidores específicos.
 - **Push Pasivo:** Agente pasivo (heartbeat remoto hacia Azkin).
 - **SNMP (v1/v2c/v3):** Lectura avanzada de OIDs para equipos de red.
+- **Uptime 24h:** Cálculo de disponibilidad porcentual por monitor y por grupo para seguimiento operativo.
 
 Para conocer el diseño detallado de la arquitectura de Clean Architecture, el funcionamiento del bypass de Cloudflare WAF, la lógica del modo Nyan Cat y el modelado de datos, consulta la [Documentación de Arquitectura de Azkin](./docs/ARCHITECTURE.md).
 
@@ -69,3 +72,33 @@ docker compose -f compose.dev.yaml up -d --build
 Este espacio está configurado bajo estándares de seguridad estrictos y es utilizado exclusivamente para monitoreo autorizado y auditorías de seguridad perimetral y disponibilidad de red.
 
 _Diseñado bajo principios de Clean Architecture y Spec-Driven Development._
+
+---
+
+## 🏷️ Versiones y Tags
+
+Azkin sigue **Versionado Semántico** y publica versiones en `CHANGELOG.md`.
+La convención de tags recomendada en Git es:
+
+- `vMAJOR.MINOR.PATCH` (ejemplo: `v1.0.0`)
+
+Comandos útiles para ver versiones por tag:
+
+```bash
+# listar tags
+git tag
+
+# listar tags con su mensaje/anotación
+git tag -n
+
+# ver detalle de una versión específica
+git show v1.0.0
+
+# comparar dos versiones
+git diff v1.0.0..v1.1.0
+```
+
+Relación recomendada entre artefactos:
+
+- Cada release en `CHANGELOG.md` debe tener su tag Git correspondiente.
+- Si se publican imágenes Docker, usar el mismo tag de versión (por ejemplo `v1.0.0`) para mantener trazabilidad.
