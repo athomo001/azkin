@@ -155,3 +155,65 @@ Ademas, se necesita una accion administrativa para borrar de forma masiva webs m
 - Definir politica de retencion de respaldos (ultimo, N ultimos, por fecha).
 - Garantizar operacion atomica o transaccional para evitar respaldo parcial/corrupto.
 - Implementar "soft delete" opcional para recuperacion rapida ante errores de borrado masivo.
+
+---
+
+## AZ-006) Configuracion interna de certificados SSL/TLS y puerto HTTPS configurable
+- Codigo: AZ-006
+- Estado: [ ] Abierto
+- Prioridad: Alta
+- Reportado: 2026-07-16
+
+### Descripcion
+Se requiere una opcion interna para cargar y administrar certificados SSL/TLS, de modo que la plataforma pueda correr de forma segura en HTTPS.
+El admin debe poder elegir puerto de escucha (por defecto 443 u otro puerto personalizado) y dejar la configuracion operativa de forma simple, segura y robusta.
+
+### Comportamiento esperado
+1. El admin puede cargar certificado, clave privada y cadena intermedia desde UI o configuracion guiada.
+2. El sistema permite definir el puerto HTTPS (443 por defecto) o uno personalizado.
+3. La validacion de certificados detecta errores de formato, vencimiento y pares clave-certificado invalidos.
+4. Al aplicar cambios, el servicio queda operativo sin dejar estados intermedios inseguros.
+5. La configuracion incluye buenas practicas de seguridad TLS (protocolos/cifrados permitidos y redireccion opcional de HTTP a HTTPS).
+
+### Criterios de aceptacion
+1. Existe flujo de configuracion simple con validaciones y mensajes claros para el admin.
+2. La plataforma levanta correctamente en HTTPS en el puerto configurado.
+3. Se puede cambiar de puerto sin romper acceso administrativo ni endpoints principales.
+4. Si la configuracion es invalida, el sistema revierte al estado estable anterior y reporta el error.
+5. Se registran auditorias de cambios de certificados y puertos (quien, cuando, que cambio).
+
+### Pistas de investigacion
+- Definir almacenamiento seguro para claves privadas (cifrado en reposo y acceso restringido).
+- Evaluar soporte para renovacion de certificados y alertas previas a vencimiento.
+- Verificar compatibilidad con Docker/Compose y puertos expuestos para despliegues en distintos entornos.
+
+---
+
+## AZ-007) Notificaciones centralizadas por tipo de alerta, incluyendo Defacement
+- Codigo: AZ-007
+- Estado: [ ] Abierto
+- Prioridad: Alta
+- Reportado: 2026-07-16
+
+### Descripcion
+Se necesita centralizar la configuracion de eventos de notificacion para que cada canal pueda recibir todas las alertas o solo tipos especificos.
+Adicionalmente, debe contemplarse explicitamente la alerta de Defacement dentro de los eventos configurables.
+
+### Comportamiento esperado
+1. Al crear o editar un canal, el admin puede elegir modo "todas las alertas" o "solo alertas seleccionadas".
+2. El catalogo de eventos incluye al menos: `DOWN`, `RECOVERED`, `LATENCY_HIGH` y `DEFACEMENT`.
+3. La seleccion de eventos se gestiona en un unico punto centralizado de configuracion.
+4. El sistema permite combinar canales con estrategias distintas (ej.: Telegram todo, email solo Defacement y caidas).
+5. El disparo de notificaciones respeta exactamente la seleccion de eventos definida por canal.
+
+### Criterios de aceptacion
+1. UI muestra selector claro de alcance: todas vs eventos especificos.
+2. Existe selector multiple de eventos con `DEFACEMENT` disponible.
+3. Guardado y carga de la configuracion mantienen consistencia sin perder eventos seleccionados.
+4. Pruebas funcionales verifican que una alerta de Defacement se envia solo a los canales habilitados para ese evento.
+5. Existe vista/resumen central que permita auditar rapido que eventos envia cada canal.
+
+### Pistas de investigacion
+- Definir enum unico de eventos de alerta compartido entre backend y frontend.
+- Evitar duplicidad entre configuracion de plantillas (contenido) y configuracion de enrutamiento (eventos).
+- Considerar migracion de canales existentes a un valor por defecto seguro (por ejemplo, "todas las alertas").
