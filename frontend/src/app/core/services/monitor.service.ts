@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
@@ -163,6 +164,15 @@ export class MonitorService {
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/monitors/${id}`).pipe(
       tap(() => this.monitors.update(list => list.filter(m => m.id !== id)))
+    );
+  }
+
+  /**
+   * Elimina varios monitores en una sola operación (AZ-005).
+   */
+  bulkDelete(ids: string[]): Observable<{ deletedCount: number; deletedIds: string[] }> {
+    return this.http.post<{ deletedCount: number; deletedIds: string[] }>(`${this.apiUrl}/monitors/bulk-delete`, { ids }).pipe(
+      tap(({ deletedIds }) => this.monitors.update(list => list.filter(m => !deletedIds.includes(m.id))))
     );
   }
 

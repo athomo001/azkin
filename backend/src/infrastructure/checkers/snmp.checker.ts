@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import dgram from "dgram";
 import { CheckResult, ICheckStrategy } from "../../application/ports/services/check-strategy";
 import { IMonitor } from "../../domain/entities/monitor";

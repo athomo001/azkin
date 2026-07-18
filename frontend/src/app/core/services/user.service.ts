@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
@@ -60,6 +61,26 @@ export class UserService {
   deleteViewer(id: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${id}`).pipe(
       tap(() => this.viewers.update(list => list.filter(v => v.id !== id)))
+    );
+  }
+
+  /**
+   * Crea una nueva cuenta Admin (acceso global, sin permisos granulares).
+   * Solo un Admin autenticado puede invocar este endpoint.
+   */
+  createAdmin(data: { email: string; password: string }): Observable<{ id: string; email: string; role: string }> {
+    return this.http.post<{ id: string; email: string; role: string }>(`${this.apiUrl}/admins`, data);
+  }
+
+  // Signal reactivo con el listado de administradores del sistema
+  readonly admins = signal<{ id: string; email: string; role: string; createdAt: string }[]>([]);
+
+  /**
+   * Carga el listado de todas las cuentas Admin del sistema (sin aislamiento por tenant).
+   */
+  loadAdmins(): Observable<{ id: string; email: string; role: string; createdAt: string }[]> {
+    return this.http.get<{ id: string; email: string; role: string; createdAt: string }[]>(`${this.apiUrl}/admins`).pipe(
+      tap(data => this.admins.set(data))
     );
   }
 }

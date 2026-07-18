@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { INotificationRepository } from "../../ports/repositories/notification-repository";
 import { IMonitorRepository } from "../../ports/repositories/monitor-repository";
 import { IScheduler } from "../../ports/services/scheduler";

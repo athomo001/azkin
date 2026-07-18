@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IMonitor } from "../../../domain/entities/monitor";
 import { MonitorType } from "../../../domain/value-objects/monitor-type";
 
@@ -81,13 +82,20 @@ export interface UpdateMonitorData {
   integrityThreshold?: number;
 }
 
+/**
+ * Sin aislamiento por tenant entre Admins (spec/03-modelo-datos.md §8): todos los monitores
+ * son un único pool global. `userId` en el documento es solo trazabilidad de creación.
+ */
 export interface IMonitorRepository {
   create(data: CreateMonitorData): Promise<IMonitor>;
-  findAllByUser(userId: string): Promise<IMonitor[]>;
-  findById(userId: string, id: string): Promise<IMonitor | null>;
-  update(userId: string, id: string, data: UpdateMonitorData): Promise<IMonitor | null>;
-  delete(userId: string, id: string): Promise<boolean>;
+  /** Todos los monitores del sistema (pool global, sin filtro de propietario). */
+  findAll(): Promise<IMonitor[]>;
+  findById(id: string): Promise<IMonitor | null>;
+  update(id: string, data: UpdateMonitorData): Promise<IMonitor | null>;
+  delete(id: string): Promise<boolean>;
+  /** Borra múltiples monitores. Devuelve la cantidad realmente eliminada. */
+  deleteMany(ids: string[]): Promise<number>;
   /** Contexto de sistema: monitores activos de todos los usuarios (bootstrap del scheduler). */
   findAllActive(): Promise<IMonitor[]>;
-  distinctTags(userId: string): Promise<string[]>;
+  distinctTags(): Promise<string[]>;
 }

@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { z } from "zod";
 
 export const createViewerSchema = z.object({
@@ -13,6 +14,11 @@ export const createViewerSchema = z.object({
     )
     .optional(),
   isTvSessionEnabled: z.boolean().optional(),
+});
+
+export const createAdminSchema = z.object({
+  email: z.string().email().transform((e) => e.toLowerCase()),
+  password: z.string().min(8),
 });
 
 export const updateViewerPermissionsSchema = z.object({

@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IUser } from "../../../domain/entities/user";
 
 export interface CreateUserData {
@@ -31,7 +32,14 @@ export interface IUserRepository {
   findByIdentifier(identifier: string): Promise<IUser | null>;
   findById(id: string): Promise<IUser | null>;
   changePassword(id: string, newPasswordHash: string): Promise<boolean>;
-  
+  /** Cantidad total de cuentas con rol admin (usado para el auto-bootstrap de registro, AZ-002). */
+  countAdmins(): Promise<number>;
+  findAllAdmins(): Promise<IUser[]>;
+  setPasswordResetToken(userId: string, tokenHash: string, expiresAt: Date): Promise<void>;
+  /** Busca por el hash del token vigente (no expirado). Null si no existe o ya expiró. */
+  findByValidResetTokenHash(tokenHash: string): Promise<IUser | null>;
+  clearPasswordResetToken(userId: string): Promise<void>;
+
   // Administración de Viewers por parte de un Admin
   createViewer(data: CreateViewerData): Promise<IUser>;
   findAllViewers(adminId: string): Promise<IUser[]>;

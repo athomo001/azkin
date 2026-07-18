@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Component, OnInit, OnDestroy, ElementRef, ViewChild, signal, computed, inject, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
@@ -95,13 +96,15 @@ type HistoryRangeOption = {
         <aside class="w-full md:w-[350px] border-r border-zinc-900 bg-zinc-900/10 flex flex-col h-auto md:h-[calc(100vh-57px)] flex-shrink-0">
           <!-- Búsqueda y Botón Añadir -->
           <div class="p-4 border-b border-zinc-900 space-y-3 bg-zinc-950/20">
-            <button (click)="openCreateForm()"
-              class="w-full py-2 rounded-xl bg-orange-600 hover:bg-orange-500 font-bold text-xs tracking-tight transition-all active:scale-98 shadow-md flex items-center justify-center gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              {{ lang.t('sidebar.newMonitor') }}
-            </button>
+            @if (authService.isAdmin()) {
+              <button (click)="openCreateForm()"
+                class="w-full py-2 rounded-xl bg-orange-600 hover:bg-orange-500 font-bold text-xs tracking-tight transition-all active:scale-98 shadow-md flex items-center justify-center gap-1.5">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                {{ lang.t('sidebar.newMonitor') }}
+              </button>
+            }
 
             <div class="relative">
               <input type="text" [(ngModel)]="searchQuery" [placeholder]="lang.currentLang() === 'es' ? 'Buscar por nombre o IP...' : 'Search by name or IP...'"
@@ -119,6 +122,20 @@ type HistoryRangeOption = {
             <button (click)="statusFilter = 'DOWN'" [class.text-orange-500]="statusFilter === 'DOWN'">{{ lang.t('dashboard.down') }} ({{ downCount() }})</button>
             <button (click)="statusFilter = 'PENDING'" [class.text-orange-500]="statusFilter === 'PENDING'">{{ lang.t('dashboard.pending') }} ({{ pendingCount() }})</button>
           </div>
+
+          @if (authService.isAdmin()) {
+            <div class="px-4 py-1.5 bg-zinc-950/20 border-b border-zinc-900 flex items-center justify-between">
+              <button (click)="toggleSelectionMode()" class="text-[10px] font-bold text-zinc-400 hover:text-orange-500 transition-colors">
+                {{ selectionMode() ? 'Cancelar selección' : 'Seleccionar varios' }}
+              </button>
+              @if (selectionMode() && selectedMonitorIds().size > 0) {
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-mono text-zinc-500">{{ selectedMonitorIds().size }} seleccionados</span>
+                  <button (click)="onBulkDelete()" class="text-[10px] font-bold text-rose-500 hover:text-rose-400 transition-colors">Eliminar</button>
+                </div>
+              }
+            </div>
+          }
 
           <!-- Lista de Monitores Scrollable -->
           <div class="flex-1 overflow-y-auto space-y-1 p-2">
@@ -158,10 +175,14 @@ type HistoryRangeOption = {
                   @if (!g.isCollapsed) {
                     <div class="pl-2 border-l border-zinc-800/60 ml-4.5 mt-1 space-y-0.5 animate-fade-in">
                       @for (m of g.monitors; track m.id) {
-                        <div (click)="selectMonitor(m)"
+                        <div (click)="selectionMode() ? toggleMonitorSelection(m.id) : selectMonitor(m)"
                           [class]="selectedMonitorId() === m.id ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'border-transparent hover:bg-zinc-900/20 text-zinc-300'"
                           class="flex items-center justify-between p-1.5 rounded-lg border cursor-pointer transition-all duration-150 group">
                           <div class="flex items-center space-x-2 truncate">
+                            @if (selectionMode()) {
+                              <input type="checkbox" [checked]="selectedMonitorIds().has(m.id)" (click)="$event.stopPropagation()" (change)="toggleMonitorSelection(m.id)"
+                                class="rounded border-zinc-800 bg-zinc-950 text-orange-500 focus:ring-0">
+                            }
                             @if (!m.isActive) {
                               <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-zinc-400 bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 rounded">
                                 PAUSED
@@ -199,10 +220,14 @@ type HistoryRangeOption = {
 
               <!-- MONITORES SIN GRUPO (Flat y Compactos) -->
               @for (m of groupedMonitors().ungrouped; track m.id) {
-                <div (click)="selectMonitor(m)"
+                <div (click)="selectionMode() ? toggleMonitorSelection(m.id) : selectMonitor(m)"
                   [class]="selectedMonitorId() === m.id ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'border-transparent hover:bg-zinc-900/20 text-zinc-300'"
                   class="flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all duration-150 group mb-1">
                   <div class="flex items-center space-x-3 truncate">
+                    @if (selectionMode()) {
+                      <input type="checkbox" [checked]="selectedMonitorIds().has(m.id)" (click)="$event.stopPropagation()" (change)="toggleMonitorSelection(m.id)"
+                        class="rounded border-zinc-800 bg-zinc-950 text-orange-500 focus:ring-0">
+                    }
                     @if (!m.isActive) {
                       <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-zinc-400 bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 rounded">
                         PAUSED
@@ -278,39 +303,41 @@ type HistoryRangeOption = {
                     }
                   </p>
                 </div>
-                <div class="flex space-x-2">
-                  <!-- Botón Pausar/Reanudar -->
-                  <button (click)="togglePause(selectedMonitor()!)"
-                    class="p-2 bg-zinc-900 border border-zinc-850 rounded-xl text-zinc-400 transition-all shadow-md hover:text-white"
-                    [class.hover:bg-amber-950/20]="selectedMonitor()?.isActive"
-                    [class.hover:border-amber-900]="selectedMonitor()?.isActive"
-                    [class.hover:bg-emerald-950/20]="!selectedMonitor()?.isActive"
-                    [class.hover:border-emerald-900]="!selectedMonitor()?.isActive"
-                    [title]="selectedMonitor()?.isActive ? 'Pausar Monitoreo' : 'Reanudar Monitoreo'">
-                    @if (selectedMonitor()?.isActive) {
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-amber-500">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
-                      </svg>
-                    } @else {
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-emerald-500">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
-                      </svg>
-                    }
-                  </button>
+                @if (authService.isAdmin()) {
+                  <div class="flex space-x-2">
+                    <!-- Botón Pausar/Reanudar -->
+                    <button (click)="togglePause(selectedMonitor()!)"
+                      class="p-2 bg-zinc-900 border border-zinc-850 rounded-xl text-zinc-400 transition-all shadow-md hover:text-white"
+                      [class.hover:bg-amber-950/20]="selectedMonitor()?.isActive"
+                      [class.hover:border-amber-900]="selectedMonitor()?.isActive"
+                      [class.hover:bg-emerald-950/20]="!selectedMonitor()?.isActive"
+                      [class.hover:border-emerald-900]="!selectedMonitor()?.isActive"
+                      [title]="selectedMonitor()?.isActive ? 'Pausar Monitoreo' : 'Reanudar Monitoreo'">
+                      @if (selectedMonitor()?.isActive) {
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-amber-500">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+                        </svg>
+                      } @else {
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-emerald-500">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                        </svg>
+                      }
+                    </button>
 
-                  <button (click)="openEditForm(selectedMonitor()!)"
-                    class="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 rounded-xl text-zinc-400 hover:text-white transition-all shadow-md">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
-                    </svg>
-                  </button>
-                  <button (click)="onDelete(selectedMonitor()!.id)"
-                    class="p-2 bg-zinc-900 hover:bg-rose-950/20 border border-zinc-850 hover:border-rose-900 rounded-xl text-zinc-400 hover:text-rose-500 transition-all shadow-md">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                    </svg>
-                  </button>
-                </div>
+                    <button (click)="openEditForm(selectedMonitor()!)"
+                      class="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 rounded-xl text-zinc-400 hover:text-white transition-all shadow-md">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                      </svg>
+                    </button>
+                    <button (click)="onDelete(selectedMonitor()!.id)"
+                      class="p-2 bg-zinc-900 hover:bg-rose-950/20 border border-zinc-850 hover:border-rose-900 rounded-xl text-zinc-400 hover:text-rose-500 transition-all shadow-md">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                      </svg>
+                    </button>
+                  </div>
+                }
               </div>
 
               <!-- Banner de Caída de Red Local (ISP Outage) -->
@@ -962,6 +989,33 @@ type HistoryRangeOption = {
           </div>
         </div>
       }
+
+      <!-- AZ-005: Confirmación de borrado masivo con resumen de impacto -->
+      @if (showBulkDeleteConfirm()) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" (click)="cancelBulkDelete()"></div>
+          <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl max-w-sm w-full shadow-2xl relative z-10 animate-fade-in text-center space-y-4">
+            <div class="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mx-auto">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+              </svg>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-white uppercase tracking-wider">Eliminar {{ selectedMonitorIds().size }} monitores</h4>
+              <p class="text-xs text-zinc-400 mt-2">Se eliminarán permanentemente los siguientes monitores y su historial:</p>
+              <ul class="text-[10px] text-zinc-500 mt-2 max-h-28 overflow-y-auto text-left list-disc list-inside">
+                @for (name of selectedMonitorNames(); track name) {
+                  <li>{{ name }}</li>
+                }
+              </ul>
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button (click)="cancelBulkDelete()" class="flex-1 py-2 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 rounded-xl text-xs font-bold transition-all">{{ lang.t('common.cancel') }}</button>
+              <button (click)="confirmBulkDelete()" class="flex-1 py-2 bg-rose-600 hover:bg-rose-500 rounded-xl text-xs font-bold transition-all">{{ lang.t('common.delete') }}</button>
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: [`
@@ -1077,6 +1131,57 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // Modal de confirmación personalizado
   readonly showConfirmDelete = signal(false);
   monitorIdToDelete: string | null = null;
+
+  // AZ-005: selección múltiple y borrado masivo de monitores
+  readonly selectionMode = signal(false);
+  readonly selectedMonitorIds = signal<Set<string>>(new Set());
+  readonly showBulkDeleteConfirm = signal(false);
+  readonly selectedMonitorNames = computed(() => {
+    const ids = this.selectedMonitorIds();
+    return this.monitorService.monitors().filter(m => ids.has(m.id)).map(m => m.name);
+  });
+
+  toggleSelectionMode(): void {
+    this.selectionMode.update(v => !v);
+    this.selectedMonitorIds.set(new Set());
+  }
+
+  toggleMonitorSelection(id: string): void {
+    this.selectedMonitorIds.update(current => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  onBulkDelete(): void {
+    if (this.selectedMonitorIds().size === 0) return;
+    this.showBulkDeleteConfirm.set(true);
+  }
+
+  confirmBulkDelete(): void {
+    const ids = Array.from(this.selectedMonitorIds());
+    this.monitorService.bulkDelete(ids).subscribe({
+      next: () => {
+        this.showSuccessToast(`${ids.length} monitores eliminados.`);
+        this.showBulkDeleteConfirm.set(false);
+        this.selectedMonitorIds.set(new Set());
+        this.selectionMode.set(false);
+      },
+      error: (err) => {
+        this.showSuccessToast(err?.error?.error?.message || 'Error al eliminar los monitores.');
+        this.showBulkDeleteConfirm.set(false);
+      }
+    });
+  }
+
+  cancelBulkDelete(): void {
+    this.showBulkDeleteConfirm.set(false);
+  }
 
   // Bloques de disponibilidad (Uptime Blocks Heatmap)
   readonly uptimeBlocks = computed(() => {

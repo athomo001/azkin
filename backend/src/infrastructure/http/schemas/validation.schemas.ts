@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { z } from "zod";
 
 // Patrón para verificar un ObjectId de Mongoose válido

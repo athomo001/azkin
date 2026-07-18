@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import tls from "tls";
 import { CheckResult, ICheckStrategy } from "../../application/ports/services/check-strategy";
 import { IMonitor } from "../../domain/entities/monitor";

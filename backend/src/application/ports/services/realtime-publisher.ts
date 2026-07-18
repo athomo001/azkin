@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IHeartbeat } from "../../../domain/entities/heartbeat";
 
 export interface IRealtimePublisher {

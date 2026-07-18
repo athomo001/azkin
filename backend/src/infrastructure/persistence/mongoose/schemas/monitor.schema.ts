@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Schema, Types, model } from "mongoose";
 import { MonitorType } from "../../../../domain/value-objects/monitor-type";
 

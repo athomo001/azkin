@@ -1,9 +1,11 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IMonitorRepository } from "../../ports/repositories/monitor-repository";
 import {
   HeartbeatSummary,
   IHeartbeatRepository,
 } from "../../ports/repositories/heartbeat-repository";
 import { IMonitor } from "../../../domain/entities/monitor";
+import { filterMonitorsByPermission } from "../../services/monitor-access-policy";
 
 export type MonitorWithStatus = IMonitor & HeartbeatSummary;
 
@@ -26,32 +28,14 @@ export class ListMonitorsUseCase {
   ) {}
 
   async execute(
-    userId: string,
+    _userId: string,
     role: string,
-    adminId: string,
+    _adminId: string,
     permissions: { type: string; value?: string }[],
   ): Promise<MonitorWithStatus[]> {
-    // Si es viewer, busca los monitores del Admin propietario, si es admin, los propios
-    const ownerId = role === "viewer" ? adminId : userId;
-    let monitors = await this.monitors.findAllByUser(ownerId);
-
-    // Si es viewer, filtramos los monitores según sus permisos granulares
-    if (role === "viewer") {
-      const hasAllPermission = permissions.some((p) => p.type === "all");
-      if (!hasAllPermission) {
-        monitors = monitors.filter((monitor) => {
-          return permissions.some((p) => {
-            if (p.type === "monitor" && p.value === monitor.id) {
-              return true;
-            }
-            if (p.type === "group" && monitor.group && p.value === monitor.group) {
-              return true;
-            }
-            return false;
-          });
-        });
-      }
-    }
+    // Sin aislamiento por tenant: se parte siempre del pool global de monitores.
+    const allMonitors = await this.monitors.findAll();
+    const monitors = filterMonitorsByPermission(allMonitors, role, permissions);
 
     const summaries = await this.heartbeats.getSummaries(monitors.map((m) => m.id));
 

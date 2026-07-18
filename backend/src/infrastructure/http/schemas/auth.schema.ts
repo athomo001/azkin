@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { z } from "zod";
 
 export const registerSchema = z.object({
@@ -6,6 +7,18 @@ export const registerSchema = z.object({
     .email()
     .transform((e) => e.toLowerCase()),
   password: z.string().min(8),
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z
+    .string()
+    .email()
+    .transform((e) => e.toLowerCase()),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8),
 });
 
 export const loginSchema = z.object({

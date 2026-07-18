@@ -1,9 +1,11 @@
-import { Component, signal, inject } from '@angular/core';
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { LanguageService } from '../../core/services/language.service';
+import { SystemService } from '../../core/services/system.service';
 
 type ToastType = 'error' | 'success';
 
@@ -68,11 +70,21 @@ type ToastType = 'error' | 'success';
             </button>
           </form>
 
-          <p class="text-zinc-500 text-xs text-center mt-6">
-            {{ lang.t('auth.login.noAccount') }}
-            <a routerLink="/register" class="text-emerald-500 hover:underline">{{ lang.t('auth.login.registerHere') }}</a>
+          <p class="text-zinc-500 text-xs text-center mt-4">
+            <a routerLink="/forgot-password" class="text-emerald-500 hover:underline">{{ lang.t('auth.login.forgotPassword') }}</a>
           </p>
+
+          @if (canRegister()) {
+            <p class="text-zinc-500 text-xs text-center mt-2">
+              {{ lang.t('auth.login.noAccount') }}
+              <a routerLink="/register" class="text-emerald-500 hover:underline">{{ lang.t('auth.login.registerHere') }}</a>
+            </p>
+          }
         </div>
+
+        @if (systemService.version()) {
+          <p class="text-center text-[10px] text-zinc-700 font-mono">v{{ systemService.version() }}</p>
+        }
       </div>
     </div>
   `,
@@ -84,14 +96,25 @@ type ToastType = 'error' | 'success';
     .animate-fade-in { animation: fade-in 0.2s ease-out; }
   `]
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   public readonly lang = inject(LanguageService);
+  public readonly systemService = inject(SystemService);
 
   identifier = '';
   password = '';
   readonly isLoading = signal(false);
+  // AZ-002: el CTA de registro solo se muestra mientras no exista ningún admin todavía.
+  readonly canRegister = signal(false);
+
+  ngOnInit(): void {
+    this.authService.getBootstrapStatus().subscribe({
+      next: (status) => this.canRegister.set(status.canRegister),
+      error: () => this.canRegister.set(false)
+    });
+    this.systemService.loadHealth().subscribe({ error: () => {} });
+  }
 
   // Mensaje del toast activo y su tipo (error | success)
   readonly toast = signal<string | null>(null);

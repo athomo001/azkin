@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IMonitorRepository } from "../../ports/repositories/monitor-repository";
 import { IScheduler } from "../../ports/services/scheduler";
 import { IMonitor } from "../../../domain/entities/monitor";
@@ -34,7 +35,8 @@ export interface CreateMonitorInput {
 
 /**
  * Caso de uso para crear un nuevo monitor de red en el sistema.
- * Valida la cuota máxima de 50 monitores por usuario y registra el check en el programador si está activo.
+ * Valida la cuota máxima global de 50 monitores (sin aislamiento por tenant entre Admins)
+ * y registra el check en el programador si está activo.
  */
 export class CreateMonitorUseCase {
   constructor(
@@ -43,8 +45,8 @@ export class CreateMonitorUseCase {
   ) {}
 
   async execute(input: CreateMonitorInput): Promise<IMonitor> {
-    const userMonitors = await this.monitors.findAllByUser(input.userId);
-    if (userMonitors.length >= 50) {
+    const allMonitors = await this.monitors.findAll();
+    if (allMonitors.length >= 50) {
       throw new QuotaExceededError();
     }
 

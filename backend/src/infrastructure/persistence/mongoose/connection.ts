@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import mongoose from "mongoose";
 
 export async function connectMongo(uri: string): Promise<void> {

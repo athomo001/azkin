@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import {
   IMonitorRepository,
   UpdateMonitorData,
@@ -16,8 +17,8 @@ export class UpdateMonitorUseCase {
     private readonly scheduler: IScheduler,
   ) {}
 
-  async execute(userId: string, id: string, data: UpdateMonitorData): Promise<IMonitor> {
-    const updated = await this.monitors.update(userId, id, data);
+  async execute(_userId: string, id: string, data: UpdateMonitorData): Promise<IMonitor> {
+    const updated = await this.monitors.update(id, data);
     if (!updated) {
       throw new NotFoundError("Monitor no encontrado");
     }

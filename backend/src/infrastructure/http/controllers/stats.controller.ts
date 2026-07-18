@@ -1,8 +1,10 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Request, Response } from "express";
 import { GetHistoryUseCase } from "../../../application/use-cases/stats/get-history.usecase";
 import { GetGroupsUseCase } from "../../../application/use-cases/stats/get-groups.usecase";
 import { GetGroupOverviewUseCase } from "../../../application/use-cases/stats/get-group-overview.usecase";
 import { IMonitorRepository } from "../../../application/ports/repositories/monitor-repository";
+import { filterMonitorsByPermission } from "../../../application/services/monitor-access-policy";
 import { toHistoryResponse, toGroupOverviewResponse } from "../presenters/monitor.presenter";
 
 /**
@@ -66,24 +68,9 @@ export class StatsController {
    * Retorna los últimos 30 eventos/heartbeats de todos los monitores del usuario.
    */
   recentEvents = async (req: Request, res: Response): Promise<void> => {
-    const ownerId = req.userRole === "viewer" ? req.adminId! : req.userId!;
-    
-    // Obtener todos los monitores autorizados del usuario
-    let userMonitors = await this.monitorsRepo.findAllByUser(ownerId);
-    
-    // Si es viewer, filtramos los monitores según sus permisos granulares
-    if (req.userRole === "viewer") {
-      const hasAllPermission = req.permissions!.some((p) => p.type === "all");
-      if (!hasAllPermission) {
-        userMonitors = userMonitors.filter((monitor) => {
-          return req.permissions!.some((p) => {
-            if (p.type === "monitor" && p.value === monitor.id) return true;
-            if (p.type === "group" && monitor.group && p.value === monitor.group) return true;
-            return false;
-          });
-        });
-      }
-    }
+    // Sin aislamiento por tenant: parte del pool global y filtra por permisos si es viewer.
+    const allMonitors = await this.monitorsRepo.findAll();
+    const userMonitors = filterMonitorsByPermission(allMonitors, req.userRole!, req.permissions!);
 
     const monitorIds = userMonitors.map((m) => m.id);
     if (monitorIds.length === 0) {

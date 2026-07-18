@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import jwt from "jsonwebtoken";
 import { ITokenService } from "../../application/ports/services/security";
 import { UnauthorizedError } from "../../domain/errors/domain-error";

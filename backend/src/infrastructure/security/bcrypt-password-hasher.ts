@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import bcrypt from "bcryptjs";
 import { IPasswordHasher } from "../../application/ports/services/security";
 

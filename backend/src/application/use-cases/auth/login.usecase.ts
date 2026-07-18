@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IUserRepository } from "../../ports/repositories/user-repository";
 import { IPasswordHasher, ITokenService } from "../../ports/services/security";
 import { InvalidCredentialsError } from "../../../domain/errors/domain-error";
@@ -31,7 +32,7 @@ export class LoginUseCase {
       throw new InvalidCredentialsError();
     }
 
-    const token = this.tokens.sign(user.id, user.role, user.adminId);
+    const token = this.tokens.sign(user.id, user.role, user.adminId, user.permissions);
     return {
       token,
       user: {

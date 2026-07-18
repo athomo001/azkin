@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 /**
  * Error de dominio: expone un `code` estable y su equivalente HTTP.
  * El `errorHandler` de la capa HTTP lo traduce al envelope de error de la API.
@@ -47,6 +48,15 @@ export class EmailTakenError extends DomainError {
   readonly httpStatus = 409;
 
   constructor(message = "Email already registered") {
+    super(message);
+  }
+}
+
+export class ForbiddenError extends DomainError {
+  readonly code = "FORBIDDEN";
+  readonly httpStatus = 403;
+
+  constructor(message = "No tiene permisos para realizar esta acción") {
     super(message);
   }
 }

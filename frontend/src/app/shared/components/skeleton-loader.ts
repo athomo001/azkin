@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Component, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 

@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { MonitorStatus } from "../value-objects/monitor-status";
 
 /** Medición append-only: no tiene identidad propia (sin id en el dominio). */

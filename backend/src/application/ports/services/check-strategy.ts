@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IMonitor } from "../../../domain/entities/monitor";
 import { MonitorType } from "../../../domain/value-objects/monitor-type";
 

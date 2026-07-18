@@ -4,6 +4,21 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.1.0] - 2026-07-18
+
+### Added
+- **Recuperación de contraseña:** flujo completo (solicitud + token de un solo uso + cambio) con mensajes anti-enumeración; el registro público de administradores queda deshabilitado tras crearse el primer admin (auto-bootstrap).
+- **Plantillas de notificación por canal:** email, webhook, Telegram, Slack y Discord admiten plantillas configurables por tipo de evento con variables dinámicas y vista previa.
+- **Enrutamiento centralizado de alertas:** cada canal puede suscribirse a "todas las alertas" o a una selección de eventos (`DOWN`, `RECOVERED`, `LATENCY_HIGH`, `DEFACEMENT`).
+- **Respaldos persistidos:** estrategia de "acumular" o "reemplazar último respaldo" al generar copias de seguridad, con listado y descarga de respaldos guardados.
+- **Borrado masivo de monitores:** selección múltiple en el dashboard con confirmación y resumen de impacto.
+- **TLS/HTTPS nativo:** el backend admite un listener HTTPS configurable (certificado, clave, cadena intermedia y puerto) gestionado desde la UI de administración, con auditoría de cambios.
+- **Auditoría mínima:** registro de acciones administrativas sensibles (borrado masivo, reemplazo de respaldos, cambios de TLS, recuperación de contraseña).
+- **Endpoint de versión:** `GET /health` expone la versión desplegada; el login muestra la misma versión.
+
+### Fixed
+- **Permisos de Viewer:** los permisos (`all`/`group`/`monitor`) ahora se incluyen en el token de sesión — antes un Viewer con permisos configurados no veía ningún monitor. Las rutas de escritura de monitores, viewers, respaldos y notificaciones ahora exigen rol Admin (antes cualquier Viewer autenticado podía crear/editar/eliminar monitores).
+
 ## [1.0.0] - 2026-07-16
 
 ### Added

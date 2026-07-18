@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IUserRepository } from "../../ports/repositories/user-repository";
 import { IUser } from "../../../domain/entities/user";
 import { NotFoundError } from "../../../domain/errors/domain-error";

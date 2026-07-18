@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Schema, Types, model } from "mongoose";
 
 export interface HeartbeatDoc {

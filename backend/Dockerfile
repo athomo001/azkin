@@ -10,6 +10,8 @@ RUN pnpm run build
 
 # --- Etapa de runtime ---
 FROM node:24-alpine AS runtime
+ARG APP_VERSION=1.1.0
+LABEL org.opencontainers.image.version="${APP_VERSION}"
 RUN corepack enable && corepack prepare pnpm@11.13.1 --activate
 WORKDIR /app
 ENV NODE_ENV=production

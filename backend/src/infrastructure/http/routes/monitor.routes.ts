@@ -1,14 +1,17 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Router } from "express";
 import { MonitorController } from "../controllers/monitor.controller";
 import { asyncHandler } from "../middlewares/async-handler";
+import { requireRole } from "../middlewares/require-role";
 import { validateBody } from "../middlewares/validate";
 import { createMonitorSchema, updateMonitorSchema } from "../schemas/monitor.schema";
 
 export function monitorRoutes(controller: MonitorController): Router {
   const router = Router();
   router.get("/", asyncHandler(controller.list));
-  router.post("/", validateBody(createMonitorSchema), asyncHandler(controller.create));
-  router.put("/:id", validateBody(updateMonitorSchema), asyncHandler(controller.update));
-  router.delete("/:id", asyncHandler(controller.remove));
+  router.post("/", requireRole("admin"), validateBody(createMonitorSchema), asyncHandler(controller.create));
+  router.post("/bulk-delete", requireRole("admin"), asyncHandler(controller.bulkRemove));
+  router.put("/:id", requireRole("admin"), validateBody(updateMonitorSchema), asyncHandler(controller.update));
+  router.delete("/:id", requireRole("admin"), asyncHandler(controller.remove));
   return router;
 }

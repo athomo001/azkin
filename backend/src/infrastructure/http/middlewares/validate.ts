@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { NextFunction, Request, Response } from "express";
 import { ZodTypeAny } from "zod";
 import { ValidationError } from "../../../domain/errors/domain-error";

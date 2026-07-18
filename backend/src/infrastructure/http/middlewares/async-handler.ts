@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { NextFunction, Request, Response } from "express";
 
 type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<unknown>;

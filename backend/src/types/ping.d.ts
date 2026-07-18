@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 declare module "ping" {
   export interface PingResponse {
     host: string;

@@ -14,6 +14,8 @@ RUN pnpm run build
 # --- Etapa de runtime ---
 # Nginx alpine ultra-slim para servir el bundle estático de Angular
 FROM nginx:alpine AS runtime
+ARG APP_VERSION=1.1.0
+LABEL org.opencontainers.image.version="${APP_VERSION}"
 
 # Inyecta la configuración personalizada:
 #   - try_files para Angular Router (SPA fallback a index.html)

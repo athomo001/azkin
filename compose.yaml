@@ -22,7 +22,10 @@ services:
       - ./data/mongodb:/data/db
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        APP_VERSION: ${AZKIN_VERSION:-1.1.0}
     container_name: azkin-back
     restart: unless-stopped
     depends_on:
@@ -30,6 +33,8 @@ services:
     ports:
       # Puerto del host configurable desde el .env (AZKIN_PORT)
       - "${AZKIN_PORT:-3000}:3000"
+      # AZ-006: puerto HTTPS nativo, solo se usa si se aplica una configuración TLS desde la UI.
+      - "${AZKIN_HTTPS_PORT:-8443}:${AZKIN_HTTPS_PORT:-8443}"
     environment:
       AZKIN_PORT: 3000
       AZKIN_MONGO_URI: ${AZKIN_MONGO_URI}
@@ -45,9 +50,14 @@ services:
       AZKIN_PROMETHEUS_USER: ${AZKIN_PROMETHEUS_USER}
       AZKIN_PROMETHEUS_PASS: ${AZKIN_PROMETHEUS_PASS}
       AZKIN_PROMETHEUS_API_KEY: ${AZKIN_PROMETHEUS_API_KEY}
+      # AZ-006: clave de cifrado en reposo para la clave privada TLS subida desde la UI.
+      AZKIN_TLS_ENCRYPTION_KEY: ${AZKIN_TLS_ENCRYPTION_KEY}
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        APP_VERSION: ${AZKIN_VERSION:-1.1.0}
     container_name: azkin-front
     restart: unless-stopped
     depends_on:

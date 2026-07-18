@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 export interface UserOutput {
   id: string;
   email?: string;

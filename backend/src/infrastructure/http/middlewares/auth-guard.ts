@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { NextFunction, Request, Response } from "express";
 import { ITokenService } from "../../../application/ports/services/security";
 import { UnauthorizedError } from "../../../domain/errors/domain-error";

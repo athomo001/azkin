@@ -1,4 +1,5 @@
-import { Component, signal, inject } from '@angular/core';
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -99,10 +100,21 @@ type ToastType = 'error' | 'success';
     .animate-fade-in { animation: fade-in 0.2s ease-out; }
   `]
 })
-export class RegisterComponent {
+export class RegisterComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   public readonly lang = inject(LanguageService);
+
+  // AZ-002: bloquea el acceso directo por URL si ya existe un admin (registro auto-bootstrap-only).
+  ngOnInit(): void {
+    this.authService.getBootstrapStatus().subscribe({
+      next: (status) => {
+        if (!status.canRegister) {
+          this.router.navigate(['/login']);
+        }
+      }
+    });
+  }
 
   name = '';
   email = '';

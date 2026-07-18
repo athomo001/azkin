@@ -1,4 +1,6 @@
-import { INotification, NotificationType } from "../../../domain/entities/notification";
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
+import { INotification, INotificationTemplate, NotificationType } from "../../../domain/entities/notification";
+import { AlertEventType } from "../../../domain/value-objects/alert-event-type";
 
 export interface CreateNotificationData {
   userId: string; // ID del administrador propietario
@@ -6,12 +8,16 @@ export interface CreateNotificationData {
   type: NotificationType;
   config: Record<string, unknown>;
   isActive?: boolean;
+  events?: AlertEventType[] | "all";
+  templates?: Partial<Record<AlertEventType, INotificationTemplate>>;
 }
 
 export interface UpdateNotificationData {
   name?: string;
   config?: Record<string, unknown>;
   isActive?: boolean;
+  events?: AlertEventType[] | "all";
+  templates?: Partial<Record<AlertEventType, INotificationTemplate>>;
 }
 
 /**

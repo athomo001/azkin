@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { HydratedDocument, Types } from "mongoose";
 import {
   CreateMonitorData,
@@ -52,18 +53,18 @@ export class MongooseMonitorRepository implements IMonitorRepository {
     return this.toDomain(doc);
   }
 
-  async findAllByUser(userId: string): Promise<IMonitor[]> {
-    const docs = await MonitorModel.find({ userId });
+  async findAll(): Promise<IMonitor[]> {
+    const docs = await MonitorModel.find({});
     return docs.map((doc) => this.toDomain(doc));
   }
 
-  async findById(userId: string, id: string): Promise<IMonitor | null> {
+  async findById(id: string): Promise<IMonitor | null> {
     if (!Types.ObjectId.isValid(id)) return null;
-    const doc = await MonitorModel.findOne({ _id: id, userId });
+    const doc = await MonitorModel.findOne({ _id: id });
     return doc ? this.toDomain(doc) : null;
   }
 
-  async update(userId: string, id: string, data: UpdateMonitorData): Promise<IMonitor | null> {
+  async update(id: string, data: UpdateMonitorData): Promise<IMonitor | null> {
     if (!Types.ObjectId.isValid(id)) return null;
 
     const updateObj: any = { ...data };
@@ -74,14 +75,21 @@ export class MongooseMonitorRepository implements IMonitorRepository {
       updateObj.headers = new Map(Object.entries(data.headers));
     }
 
-    const doc = await MonitorModel.findOneAndUpdate({ _id: id, userId }, updateObj, { new: true });
+    const doc = await MonitorModel.findOneAndUpdate({ _id: id }, updateObj, { new: true });
     return doc ? this.toDomain(doc) : null;
   }
 
-  async delete(userId: string, id: string): Promise<boolean> {
+  async delete(id: string): Promise<boolean> {
     if (!Types.ObjectId.isValid(id)) return false;
-    const result = await MonitorModel.deleteOne({ _id: id, userId });
+    const result = await MonitorModel.deleteOne({ _id: id });
     return result.deletedCount > 0;
+  }
+
+  async deleteMany(ids: string[]): Promise<number> {
+    const validIds = ids.filter((id) => Types.ObjectId.isValid(id));
+    if (validIds.length === 0) return 0;
+    const result = await MonitorModel.deleteMany({ _id: { $in: validIds } });
+    return result.deletedCount ?? 0;
   }
 
   async findAllActive(): Promise<IMonitor[]> {
@@ -89,8 +97,8 @@ export class MongooseMonitorRepository implements IMonitorRepository {
     return docs.map((doc) => this.toDomain(doc));
   }
 
-  async distinctTags(userId: string): Promise<string[]> {
-    const tags = await MonitorModel.distinct("tags", { userId });
+  async distinctTags(): Promise<string[]> {
+    const tags = await MonitorModel.distinct("tags", {});
     return tags;
   }
 

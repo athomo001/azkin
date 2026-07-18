@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { ICheckerRegistry } from "../../ports/services/check-strategy";
 import { IHeartbeatRepository } from "../../ports/repositories/heartbeat-repository";
 import { IRealtimePublisher } from "../../ports/services/realtime-publisher";
@@ -80,9 +81,11 @@ export class ExecuteCheckUseCase {
         // Si el fallo es por una caída confirmada de la red local, evitamos enviar alertas
         // para no generar falsos positivos spameando al usuario.
         if (!isLocalNetworkDown) {
+          const eventType = status === MonitorStatus.DOWN ? "DOWN" : "RECOVERED";
           for (const notifId of monitor.notificationIds) {
             await this.notifier.notify({
               notificationId: notifId,
+              eventType,
               monitor,
               from: lastStatus,
               to: status,

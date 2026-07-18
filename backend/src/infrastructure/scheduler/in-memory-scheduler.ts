@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IScheduler } from "../../application/ports/services/scheduler";
 import { IMonitorRepository } from "../../application/ports/repositories/monitor-repository";
 import { ExecuteCheckUseCase } from "../../application/use-cases/monitoring/execute-check.usecase";
@@ -117,9 +118,11 @@ export class InMemoryScheduler implements IScheduler {
       // Alerta de transición confirmada
       const lastStatus = scheduled.lastStatus;
       if (lastStatus !== null && lastStatus !== status) {
+        const eventType = status === MonitorStatus.DOWN ? "DOWN" : "RECOVERED";
         for (const notifId of scheduled.monitor.notificationIds) {
           await this.notifier.notify({
             notificationId: notifId,
+            eventType,
             monitor: scheduled.monitor,
             from: lastStatus,
             to: status,
@@ -156,9 +159,11 @@ export class InMemoryScheduler implements IScheduler {
 
       const lastStatus = scheduled.lastStatus;
       if (lastStatus !== null && lastStatus !== status) {
+        // handlePushTimeout siempre transiciona a DOWN (ver arriba).
         for (const notifId of scheduled.monitor.notificationIds) {
           await this.notifier.notify({
             notificationId: notifId,
+            eventType: "DOWN",
             monitor: scheduled.monitor,
             from: lastStatus,
             to: status,

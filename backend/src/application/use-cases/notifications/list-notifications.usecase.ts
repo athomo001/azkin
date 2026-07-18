@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { INotificationRepository } from "../../ports/repositories/notification-repository";
 import { INotification } from "../../../domain/entities/notification";
 

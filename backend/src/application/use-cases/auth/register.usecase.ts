@@ -1,6 +1,7 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IUserRepository } from "../../ports/repositories/user-repository";
 import { IPasswordHasher, ITokenService } from "../../ports/services/security";
-import { EmailTakenError } from "../../../domain/errors/domain-error";
+import { EmailTakenError, ForbiddenError } from "../../../domain/errors/domain-error";
 import { AuthOutput } from "../../dtos/auth-output";
 
 export interface RegisterInput {
@@ -9,8 +10,10 @@ export interface RegisterInput {
 }
 
 /**
- * Caso de uso para registrar un nuevo usuario administrador (Admin) en el sistema.
- * El registro público está restringido a administradores.
+ * Caso de uso para registrar el primer usuario administrador (Admin) del sistema (auto-bootstrap).
+ * Una vez que existe al menos un admin, este endpoint queda deshabilitado (AZ-002): las altas
+ * posteriores de admins/viewers se hacen desde la gestión de usuarios de un admin autenticado,
+ * o mediante el seeder de arranque (AZKIN_FIRST_ADMIN_*).
  */
 export class RegisterUseCase {
   constructor(
@@ -20,6 +23,11 @@ export class RegisterUseCase {
   ) {}
 
   async execute(input: RegisterInput): Promise<AuthOutput> {
+    const adminCount = await this.users.countAdmins();
+    if (adminCount > 0) {
+      throw new ForbiddenError("El registro público está deshabilitado: ya existe un administrador configurado");
+    }
+
     const existing = await this.users.findByEmail(input.email);
     if (existing) {
       throw new EmailTakenError();
@@ -27,7 +35,7 @@ export class RegisterUseCase {
 
     const passwordHash = await this.hasher.hash(input.password);
     const user = await this.users.create({ email: input.email, passwordHash });
-    const token = this.tokens.sign(user.id, user.role, user.adminId);
+    const token = this.tokens.sign(user.id, user.role, user.adminId, user.permissions);
 
     return {
       token,

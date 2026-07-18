@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { z } from "zod";
 
 const isHttpUrl = (value: string): boolean => {

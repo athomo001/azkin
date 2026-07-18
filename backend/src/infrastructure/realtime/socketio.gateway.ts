@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Server, Socket } from "socket.io";
 import { IRealtimePublisher } from "../../application/ports/services/realtime-publisher";
 import { ITokenService } from "../../application/ports/services/security";

@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 /**
  * Estado de un check. Numérico para compacidad en la colección time-series.
  */

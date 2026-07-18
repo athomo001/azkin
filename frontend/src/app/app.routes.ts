@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Routes } from '@angular/router';
 import { authGuard, unauthGuard } from './core/guards/auth.guard';
 
@@ -15,6 +16,16 @@ export const routes: Routes = [
     path: 'register',
     canActivate: [unauthGuard],
     loadComponent: () => import('./features/auth/register').then(m => m.RegisterComponent)
+  },
+  {
+    path: 'forgot-password',
+    canActivate: [unauthGuard],
+    loadComponent: () => import('./features/auth/forgot-password').then(m => m.ForgotPasswordComponent)
+  },
+  {
+    path: 'reset-password',
+    canActivate: [unauthGuard],
+    loadComponent: () => import('./features/auth/reset-password').then(m => m.ResetPasswordComponent)
   },
 
   // Rutas privadas (requieren sesión válida)

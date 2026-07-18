@@ -1,6 +1,16 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
+
+export type AlertEventType = 'DOWN' | 'RECOVERED' | 'LATENCY_HIGH' | 'DEFACEMENT';
+
+export const ALERT_EVENT_TYPES: AlertEventType[] = ['DOWN', 'RECOVERED', 'LATENCY_HIGH', 'DEFACEMENT'];
+
+export interface INotificationTemplate {
+  subject?: string;
+  body: string;
+}
 
 export interface INotificationChannel {
   id: string;
@@ -8,6 +18,8 @@ export interface INotificationChannel {
   type: 'email' | 'slack' | 'telegram' | 'discord' | 'webhook';
   config: Record<string, any>;
   isActive: boolean;
+  events: AlertEventType[] | 'all';
+  templates: Partial<Record<AlertEventType, INotificationTemplate>>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -59,7 +71,7 @@ export class NotificationService {
   /**
    * Dispara una alerta de prueba simulada a través de un canal para verificar su integración
    */
-  testChannel(id: string): Observable<{ message: string }> {
-    return this.http.post<{ message: string }>(`${this.apiUrl}/${id}/test`, {});
+  testChannel(id: string, eventType: AlertEventType = 'DOWN'): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/${id}/test`, { eventType });
   }
 }

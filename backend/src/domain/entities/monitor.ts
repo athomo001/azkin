@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { MonitorType } from "../value-objects/monitor-type";
 
 export interface IVisualMask {

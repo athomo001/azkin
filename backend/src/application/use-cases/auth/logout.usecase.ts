@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 /**
  * Caso de uso para cerrar la sesión del usuario.
  * Para una implementación JWT sin estado, la invalidación física ocurre eliminando el token de refresco del cliente

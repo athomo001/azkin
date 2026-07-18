@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IMonitor } from "../../../domain/entities/monitor";
 import { HeartbeatSummary } from "../../../application/ports/repositories/heartbeat-repository";
 import { IHeartbeat } from "../../../domain/entities/heartbeat";

@@ -1,13 +1,22 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { INotificationRepository } from "../../ports/repositories/notification-repository";
 import { INotifier } from "../../ports/services/notifier";
 import { NotFoundError, ValidationError } from "../../../domain/errors/domain-error";
 import { IMonitor } from "../../../domain/entities/monitor";
 import { IHeartbeat } from "../../../domain/entities/heartbeat";
 import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
+import { AlertEventType } from "../../../domain/value-objects/alert-event-type";
+
+const EVENT_TO_TRANSITION: Record<AlertEventType, { from: MonitorStatus; to: MonitorStatus }> = {
+  DOWN: { from: MonitorStatus.UP, to: MonitorStatus.DOWN },
+  RECOVERED: { from: MonitorStatus.DOWN, to: MonitorStatus.UP },
+  LATENCY_HIGH: { from: MonitorStatus.UP, to: MonitorStatus.UP },
+  DEFACEMENT: { from: MonitorStatus.UP, to: MonitorStatus.UP },
+};
 
 /**
  * Caso de uso para disparar un mensaje de prueba a través de un canal de notificación específico,
- * permitiendo validar sus credenciales y accesibilidad.
+ * permitiendo validar sus credenciales, accesibilidad y la plantilla configurada para un evento dado.
  */
 export class TestNotificationUseCase {
   constructor(
@@ -15,7 +24,7 @@ export class TestNotificationUseCase {
     private readonly notifier: INotifier,
   ) {}
 
-  async execute(userId: string, id: string): Promise<void> {
+  async execute(userId: string, id: string, eventType: AlertEventType = "DOWN"): Promise<void> {
     const notification = await this.notifications.findById(userId, id);
     if (!notification) {
       throw new NotFoundError("Canal de notificación no encontrado");
@@ -38,10 +47,11 @@ export class TestNotificationUseCase {
       updatedAt: new Date(),
     };
 
+    const { from, to } = EVENT_TO_TRANSITION[eventType];
     const dummyBeat: IHeartbeat = {
       monitorId: "test-monitor-id",
       timestamp: new Date(),
-      status: MonitorStatus.UP,
+      status: to,
       ping: 42,
       msg: "Mensaje de prueba exitoso: Canal de notificación operativo",
     };
@@ -49,10 +59,12 @@ export class TestNotificationUseCase {
     try {
       await this.notifier.notify({
         notificationId: id,
+        eventType,
         monitor: dummyMonitor,
-        from: MonitorStatus.DOWN,
-        to: MonitorStatus.UP,
+        from,
+        to,
         beat: dummyBeat,
+        isTest: true,
       });
     } catch (err: any) {
       throw new ValidationError(`Error al enviar la notificación de prueba: ${err.message ?? err}`);

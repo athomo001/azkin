@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import {
   CreateUserData,
   CreateViewerData,
@@ -51,6 +52,37 @@ export class MongooseUserRepository implements IUserRepository {
       { passwordHash: newPasswordHash }
     );
     return result.modifiedCount > 0;
+  }
+
+  async countAdmins(): Promise<number> {
+    return UserModel.countDocuments({ role: "admin" });
+  }
+
+  async findAllAdmins(): Promise<IUser[]> {
+    const docs = await UserModel.find({ role: "admin" });
+    return docs.map((doc) => this.toDomain(doc));
+  }
+
+  async setPasswordResetToken(userId: string, tokenHash: string, expiresAt: Date): Promise<void> {
+    await UserModel.findByIdAndUpdate(userId, {
+      resetPasswordTokenHash: tokenHash,
+      resetPasswordExpiresAt: expiresAt,
+    });
+  }
+
+  async findByValidResetTokenHash(tokenHash: string): Promise<IUser | null> {
+    const doc = await UserModel.findOne({
+      resetPasswordTokenHash: tokenHash,
+      resetPasswordExpiresAt: { $gt: new Date() },
+    }).select("+resetPasswordTokenHash");
+    return doc ? this.toDomain(doc) : null;
+  }
+
+  async clearPasswordResetToken(userId: string): Promise<void> {
+    await UserModel.findByIdAndUpdate(userId, {
+      resetPasswordTokenHash: null,
+      resetPasswordExpiresAt: null,
+    });
   }
 
   async createViewer(data: CreateViewerData): Promise<IUser> {

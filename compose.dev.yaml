@@ -31,6 +31,8 @@ services:
     ports:
       # Puerto configurable desde el .env (AZKIN_PORT)
       - "${AZKIN_PORT:-3000}:3000"
+      # AZ-006: puerto HTTPS nativo, solo se usa si se aplica una configuración TLS desde la UI.
+      - "${AZKIN_HTTPS_PORT:-8443}:${AZKIN_HTTPS_PORT:-8443}"
     environment:
       # Todas las variables se inyectan directamente desde el .env raíz
       AZKIN_PORT: ${AZKIN_PORT:-3000}
@@ -40,6 +42,7 @@ services:
       AZKIN_CHECK_CONCURRENCY: ${AZKIN_CHECK_CONCURRENCY:-50}
       AZKIN_FIRST_CHECK_DELAY_MS: ${AZKIN_FIRST_CHECK_DELAY_MS:-1000}
       AZKIN_CORS_ORIGIN: ${AZKIN_CORS_ORIGIN:-*}
+      AZKIN_TLS_ENCRYPTION_KEY: ${AZKIN_TLS_ENCRYPTION_KEY}
       # Seeder del primer administrador — leído del .env raíz
       AZKIN_FIRST_ADMIN_NAME: ${AZKIN_FIRST_ADMIN_NAME}
       AZKIN_FIRST_ADMIN_EMAIL: ${AZKIN_FIRST_ADMIN_EMAIL}

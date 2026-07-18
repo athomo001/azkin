@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IMonitorRepository } from "../../ports/repositories/monitor-repository";
 import {
   HeartbeatSummary,
@@ -6,6 +7,7 @@ import {
 import { IMonitor } from "../../../domain/entities/monitor";
 import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
 import { NotFoundError } from "../../../domain/errors/domain-error";
+import { filterMonitorsByPermission } from "../../services/monitor-access-policy";
 
 export interface MonitorHistoryPoints {
   monitorId: string;
@@ -45,39 +47,23 @@ export class GetGroupOverviewUseCase {
   ) {}
 
   async execute(
-    userId: string,
+    _userId: string,
     role: string,
-    adminId: string,
+    _adminId: string,
     permissions: { type: string; value?: string }[],
     groupName: string,
   ): Promise<GroupOverview> {
-    const ownerId = role === "viewer" ? adminId : userId;
-    const allMonitors = await this.monitors.findAllByUser(ownerId);
-    let groupMonitors = allMonitors.filter((m) => m.group === groupName);
+    const allMonitors = await this.monitors.findAll();
+    const groupMonitorsUnfiltered = allMonitors.filter((m) => m.group === groupName);
 
-    if (groupMonitors.length === 0) {
+    if (groupMonitorsUnfiltered.length === 0) {
       throw new NotFoundError("Grupo no encontrado");
     }
 
-    // Filtrar por permisos granulares para Viewers
-    if (role === "viewer") {
-      const hasAllPermission = permissions.some((p) => p.type === "all");
-      if (!hasAllPermission) {
-        // El viewer debe tener permiso sobre el Monitor Group específico o sobre al menos uno de los monitores que lo contienen
-        const hasGroupPermission = permissions.some(
-          (p) => p.type === "group" && p.value === groupName,
-        );
-
-        if (!hasGroupPermission) {
-          groupMonitors = groupMonitors.filter((m) =>
-            permissions.some((p) => p.type === "monitor" && p.value === m.id),
-          );
-
-          if (groupMonitors.length === 0) {
-            throw new NotFoundError("Grupo no encontrado");
-          }
-        }
-      }
+    // El viewer debe tener permiso sobre el Monitor Group específico o sobre al menos uno de los monitores que lo contienen
+    const groupMonitors = filterMonitorsByPermission(groupMonitorsUnfiltered, role, permissions);
+    if (groupMonitors.length === 0) {
+      throw new NotFoundError("Grupo no encontrado");
     }
 
     const summaries = await this.heartbeats.getSummaries(groupMonitors.map((m) => m.id));

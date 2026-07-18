@@ -1,8 +1,11 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Request, Response } from "express";
 import { CreateViewerUseCase } from "../../../application/use-cases/users/create-viewer.usecase";
 import { ListViewersUseCase } from "../../../application/use-cases/users/list-viewers.usecase";
 import { UpdateViewerPermissionsUseCase } from "../../../application/use-cases/users/update-viewer-permissions.usecase";
 import { DeleteViewerUseCase } from "../../../application/use-cases/users/delete-viewer.usecase";
+import { CreateAdminUseCase } from "../../../application/use-cases/users/create-admin.usecase";
+import { ListAdminsUseCase } from "../../../application/use-cases/users/list-admins.usecase";
 import { IUserRepository } from "../../../application/ports/repositories/user-repository";
 import { IPasswordHasher } from "../../../application/ports/services/security";
 
@@ -12,6 +15,8 @@ export class UserController {
     private readonly createUseCase: CreateViewerUseCase,
     private readonly updateUseCase: UpdateViewerPermissionsUseCase,
     private readonly deleteUseCase: DeleteViewerUseCase,
+    private readonly createAdminUseCase: CreateAdminUseCase,
+    private readonly listAdminsUseCase: ListAdminsUseCase,
     private readonly usersRepo: IUserRepository,
     private readonly hasher: IPasswordHasher,
   ) {}
@@ -80,6 +85,28 @@ export class UserController {
     const id = req.params.id as string;
     await this.deleteUseCase.execute(adminId, id);
     res.status(204).send();
+  };
+
+  createAdmin = async (req: Request, res: Response): Promise<void> => {
+    const admin = await this.createAdminUseCase.execute({
+      email: req.body.email,
+      password: req.body.password,
+    });
+    res.status(201).json({
+      id: admin.id,
+      email: admin.email,
+      role: admin.role,
+    });
+  };
+
+  listAdmins = async (_req: Request, res: Response): Promise<void> => {
+    const admins = await this.listAdminsUseCase.execute();
+    res.status(200).json(admins.map((a) => ({
+      id: a.id,
+      email: a.email,
+      role: a.role,
+      createdAt: a.createdAt,
+    })));
   };
 
   changeOwnPassword = async (req: Request, res: Response): Promise<void> => {

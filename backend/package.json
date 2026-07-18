@@ -1,6 +1,6 @@
 {
   "name": "azkin-backend",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "description": "Azkin — plataforma de monitoreo multiusuario (backend)",
   "license": "MIT",
   "engines": {
@@ -17,7 +17,8 @@
     "build": "tsc",
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

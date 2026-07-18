@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { INotifier, NotificationEvent } from "../../application/ports/services/notifier";
 import { MonitorStatus } from "../../domain/value-objects/monitor-status";
 import { logger } from "../logger";

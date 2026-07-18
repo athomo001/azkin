@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 /* eslint-disable no-console */
 function ts(): string {
   return new Date().toISOString();

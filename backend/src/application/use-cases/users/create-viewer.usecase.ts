@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IUserRepository } from "../../ports/repositories/user-repository";
 import { IPasswordHasher } from "../../ports/services/security";
 import { EmailTakenError } from "../../../domain/errors/domain-error";

@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Injectable, signal, effect } from '@angular/core';
 
 @Injectable({
@@ -113,6 +114,20 @@ export class LanguageService {
       'auth.login.noAccount': { es: '¿No tienes una cuenta de administrador?', en: 'Don\'t have an admin account?' },
       'auth.login.registerHere': { es: 'Regístrate aquí', en: 'Register here' },
       'auth.login.error': { es: 'Credenciales incorrectas. Verifica tu usuario/correo y contraseña.', en: 'Incorrect credentials. Please verify your username/email and password.' },
+      'auth.login.forgotPassword': { es: '¿Olvidaste tu contraseña?', en: 'Forgot your password?' },
+      'auth.forgotPassword.subtitle': { es: 'Ingresa tu correo y te enviaremos instrucciones para recuperar tu contraseña.', en: 'Enter your email and we\'ll send you instructions to recover your password.' },
+      'auth.forgotPassword.email': { es: 'Correo Electrónico', en: 'Email Address' },
+      'auth.forgotPassword.btn': { es: 'Enviar instrucciones', en: 'Send instructions' },
+      'auth.forgotPassword.btnLoading': { es: 'Enviando...', en: 'Sending...' },
+      'auth.forgotPassword.sent': { es: 'Si el correo existe en el sistema, recibirás instrucciones para recuperar tu contraseña en breve.', en: 'If the email exists in the system, you will receive recovery instructions shortly.' },
+      'auth.forgotPassword.backToLogin': { es: 'Volver al inicio de sesión', en: 'Back to login' },
+      'auth.resetPassword.subtitle': { es: 'Ingresa tu nueva contraseña.', en: 'Enter your new password.' },
+      'auth.resetPassword.newPassword': { es: 'Nueva Contraseña', en: 'New Password' },
+      'auth.resetPassword.btn': { es: 'Restablecer contraseña', en: 'Reset password' },
+      'auth.resetPassword.btnLoading': { es: 'Restableciendo...', en: 'Resetting...' },
+      'auth.resetPassword.success': { es: 'Contraseña restablecida correctamente. Redirigiendo al inicio de sesión...', en: 'Password reset successfully. Redirecting to login...' },
+      'auth.resetPassword.error': { es: 'El enlace de recuperación es inválido o ha expirado.', en: 'The recovery link is invalid or has expired.' },
+      'auth.resetPassword.missingToken': { es: 'Falta el token de recuperación en el enlace.', en: 'The recovery token is missing from the link.' },
       'auth.register.title': { es: 'Registro de Administrador Inicial', en: 'Initial Admin Registration' },
       'auth.register.fullName': { es: 'Nombre Completo', en: 'Full Name' },
       'auth.register.btn': { es: 'Registrar Administrador', en: 'Register Administrator' },

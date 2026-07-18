@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 export interface ITokenService {
   sign(userId: string, role: string, adminId?: string, permissions?: any[]): string;
   verify(token: string): { userId: string; role: string; adminId?: string; permissions?: any[] };

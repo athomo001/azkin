@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { HydratedDocument, Types } from "mongoose";
 import {
   CreateNotificationData,
@@ -19,6 +20,8 @@ export class MongooseNotificationRepository implements INotificationRepository {
       type: data.type,
       config: data.config,
       isActive: data.isActive ?? true,
+      events: data.events ?? "all",
+      templates: data.templates ?? {},
     });
     return this.toDomain(doc);
   }
@@ -62,6 +65,8 @@ export class MongooseNotificationRepository implements INotificationRepository {
       type: doc.type,
       config: doc.config as Record<string, unknown>,
       isActive: doc.isActive,
+      events: doc.events ?? "all",
+      templates: doc.templates ?? {},
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };

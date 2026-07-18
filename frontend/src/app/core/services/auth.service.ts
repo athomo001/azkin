@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap, catchError, of, throwError } from 'rxjs';
@@ -62,6 +63,21 @@ export class AuthService {
    */
   register(name: string, email: string, password: string): Observable<any> {
     return this.http.post(`${this.apiUrl}/register`, { name, email, password });
+  }
+
+  /**
+   * Consulta si el registro público sigue habilitado (solo lo está hasta que exista el primer admin, AZ-002).
+   */
+  getBootstrapStatus(): Observable<{ canRegister: boolean }> {
+    return this.http.get<{ canRegister: boolean }>(`${this.apiUrl}/bootstrap-status`);
+  }
+
+  forgotPassword(email: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/forgot-password`, { email });
+  }
+
+  resetPassword(token: string, newPassword: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/reset-password`, { token, newPassword });
   }
 
   /**

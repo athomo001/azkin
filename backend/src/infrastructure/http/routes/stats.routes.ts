@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Router } from "express";
 import { StatsController } from "../controllers/stats.controller";
 import { asyncHandler } from "../middlewares/async-handler";

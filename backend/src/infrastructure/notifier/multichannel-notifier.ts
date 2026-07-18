@@ -1,7 +1,10 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { INotifier, NotificationEvent } from "../../application/ports/services/notifier";
 import { INotificationRepository } from "../../application/ports/repositories/notification-repository";
 import { INotification } from "../../domain/entities/notification";
 import { MonitorStatus } from "../../domain/value-objects/monitor-status";
+import { renderTemplate, TemplateContext } from "./template-renderer";
+import { defaultTemplateFor } from "./default-templates";
 import { logger } from "../logger";
 
 /**
@@ -23,8 +26,29 @@ export class MultichannelNotifier implements INotifier {
       return;
     }
 
-    const title = event.to === MonitorStatus.UP ? "ALERTA RESTABLECIDA (UP)" : "ALERTA DE CAÍDA (DOWN)";
-    const message = `🚨 *${title}* 🚨\n\n*Monitor:* ${event.monitor.name}\n*Objetivo:* ${event.monitor.target}\n*Estado:* ${MonitorStatus[event.from]} ➡️ ${MonitorStatus[event.to]}\n*Detalle:* ${event.beat.msg ?? "Sin mensaje descriptivo"}\n*Ping:* ${event.beat.ping !== null ? `${event.beat.ping} ms` : "N/A"}\n*Fecha/Hora:* ${event.beat.timestamp.toISOString()}`;
+    // AZ-007: enrutamiento centralizado — el canal solo recibe los eventos para los que está suscrito.
+    const isSubscribed = config.events === "all" || config.events.includes(event.eventType);
+    if (!isSubscribed && !event.isTest) {
+      return;
+    }
+
+    const context: TemplateContext = {
+      monitor: event.monitor.name,
+      monitorId: event.monitor.id,
+      monitorType: event.monitor.type,
+      url: event.monitor.target ?? "",
+      status: MonitorStatus[event.to],
+      previousStatus: MonitorStatus[event.from],
+      datetime: event.beat.timestamp.toISOString(),
+      httpCode: String(event.beat.status),
+      ping: event.beat.ping !== null ? String(event.beat.ping) : "N/A",
+      detail: event.beat.msg ?? "Sin mensaje descriptivo",
+    };
+
+    // AZ-004: plantilla configurada por el admin para este evento, o la plantilla por defecto del canal.
+    const template = config.templates[event.eventType] ?? defaultTemplateFor(event.eventType, config.type);
+    const title = renderTemplate(template.subject ?? defaultTemplateFor(event.eventType, config.type).subject ?? "", context);
+    const message = renderTemplate(template.body, context);
 
     try {
       switch (config.type) {
@@ -38,7 +62,7 @@ export class MultichannelNotifier implements INotifier {
           await this.sendTelegram(config, message);
           break;
         case "webhook":
-          await this.sendWebhook(config, event);
+          await this.sendWebhook(config, message);
           break;
         case "email":
           await this.sendEmail(config, title, message);
@@ -107,35 +131,16 @@ export class MultichannelNotifier implements INotifier {
     }
   }
 
-  private async sendWebhook(config: INotification, event: NotificationEvent): Promise<void> {
+  private async sendWebhook(config: INotification, renderedJsonBody: string): Promise<void> {
     const conf = config.config as any;
     const url = conf?.webhookUrl;
     if (!url) throw new Error("Endpoint URL de Webhook faltante en la configuración");
 
-    const payload = {
-      event: "monitor.status_changed",
-      monitor: {
-        id: event.monitor.id,
-        name: event.monitor.name,
-        type: event.monitor.type,
-        target: event.monitor.target,
-      },
-      transition: {
-        from: MonitorStatus[event.from],
-        to: MonitorStatus[event.to],
-      },
-      heartbeat: {
-        timestamp: event.beat.timestamp.toISOString(),
-        status: event.beat.status,
-        ping: event.beat.ping,
-        msg: event.beat.msg,
-      },
-    };
-
+    // renderedJsonBody ya fue validado como JSON válido al guardar la plantilla (ver notification.schema.ts).
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: renderedJsonBody,
     });
 
     if (!res.ok) {

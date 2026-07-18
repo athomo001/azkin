@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Component, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 

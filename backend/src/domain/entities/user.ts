@@ -1,3 +1,4 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 export type UserRole = "admin" | "viewer";
 
 export interface IUserPermission {
@@ -18,6 +19,8 @@ export interface IUser {
   adminId?: string; // ID del administrador propietario (requerido solo si el rol es "viewer")
   permissions: IUserPermission[]; // Listado de permisos de lectura asignados para el viewer
   isTvSessionEnabled?: boolean; // Habilita sesiones de visualización prolongadas (ej. 1 año) para TV
+  resetPasswordTokenHash?: string | null; // hash SHA-256 del token de recuperación vigente (nunca el token en claro)
+  resetPasswordExpiresAt?: Date | null; // expiración corta del token de recuperación
   preferences: {
     nyanCatMode: boolean; // Activa el easter egg de nyan cat en los gráficos
   };
