@@ -14,3 +14,4 @@ spec/*
 # Datos persistentes de MongoDB (bind mount local — no versionar)
 data/
 .claude/*
+skills-lock.json
