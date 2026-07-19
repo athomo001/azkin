@@ -645,6 +645,8 @@ import { FileDownloadService } from '../../core/services/file-download.service';
                       </svg>
                       <span class="text-xs font-black text-white">Arrastra un CSV o haz clic para subir</span>
                       <span class="text-[10px] text-zinc-500 mt-1 font-medium">Columnas: name, type, target, port, interval, retries, retryInterval, group, tags</span>
+                      <span class="text-[10px] text-zinc-600 mt-1">Si un valor contiene comas, enciérralo entre comillas dobles (ej. "Produccion, Santiago")</span>
+                      <span class="text-[10px] text-zinc-700 mt-0.5">¿Tildes/ñ se ven como "Ã³"/"Ã±" en Excel? Abre el archivo con Datos → Desde texto/CSV y elige codificación UTF-8, en vez de doble clic.</span>
                     </label>
                   </div>
 
@@ -1648,10 +1650,34 @@ export class SettingsComponent implements OnInit {
 
   downloadCsvTemplate(): void {
     const csv = [
+      // "sep=," fuerza a Excel a usar coma como separador de columnas al abrir el archivo con
+      // doble clic, sin importar la configuración regional (en locales que usan coma como
+      // separador decimal, Excel espera ';' y de otro modo vuelca todo en una sola columna).
+      // Debe ser la primera línea del archivo para que Excel la reconozca; el backend la
+      // descarta antes de parsear (no es una fila de datos).
+      'sep=,',
+      // Líneas que empiezan con '#' son comentarios: viajan con el archivo pero el backend las
+      // ignora al importar (no son datos de un monitor). Sin comas dentro del texto (si no,
+      // Excel las corta en varias columnas) y en ASCII puro (sin tildes/ñ/¿/—): son texto plano
+      // que debe leerse bien en cualquier Excel, sin depender de que respete un BOM UTF-8.
+      '# Plantilla de importacion de monitores - Azkin',
+      '# Columnas: name | type | target | port | interval | retries | retryInterval | group | tags',
+      '# Valores validos para type: http | ping | port | dns | snmp | push',
+      '# http = HTTP / HTTPS | ping = Ping (ICMP) | port = Port TCP | dns = DNS Resolution',
+      '# snmp = SNMP Agent | push = Push (Pasivo)',
+      '# target es obligatorio salvo si type=push | port es obligatorio si type=port',
+      '# dns y snmp solo traen los campos basicos por CSV: configura resolver/OID despues editando el monitor en la UI',
+      '# Si un valor necesita una coma (ej. un nombre o grupo descriptivo) encierralo entre comillas dobles - ver ejemplo abajo',
+      '# Las tags se separan con ; dentro de la misma celda (ej. web;produccion)',
+      '# Lineas que empiezan con # son comentarios y se ignoran al importar',
       'name,type,target,port,interval,retries,retryInterval,group,tags',
       'Sitio de ejemplo,http,https://ejemplo.com,,60,0,60,General,web;produccion',
+      // Si un valor necesita contener una coma (ej. un nombre o grupo descriptivo), enciérralo
+      // entre comillas dobles — así no se interpreta como un separador de columna.
+      '"Otro sitio, con coma en el nombre",http,https://ejemplo2.com,,60,0,60,"Produccion, Santiago",web',
     ].join('\n');
-    this.fileDownload.downloadText(csv, 'text/csv', 'azkin-monitores-plantilla.csv');
+    // Prefijo BOM UTF-8 para que Excel muestre correctamente tildes/ñ al abrir el archivo directo.
+    this.fileDownload.downloadText(String.fromCharCode(0xfeff) + csv, 'text/csv;charset=utf-8', 'azkin-monitores-plantilla.csv');
   }
 
   onCsvDrop(event: DragEvent): void {

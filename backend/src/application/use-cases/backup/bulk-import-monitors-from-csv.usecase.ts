@@ -57,10 +57,27 @@ export class BulkImportMonitorsFromCsvUseCase {
   ) {}
 
   async execute(input: BulkImportMonitorsFromCsvInput): Promise<BulkImportMonitorsFromCsvOutput> {
-    const parsed = Papa.parse<Record<string, string>>(input.csv, {
+    // Un BOM UTF-8 (si el archivo se guardó/descargó con uno) debe recortarse ANTES de buscar la
+    // directiva "sep=" de Excel, o la regex ancla contra el BOM en vez de contra "sep=" y nunca
+    // matchea.
+    let csvContent = input.csv.charCodeAt(0) === 0xfeff ? input.csv.slice(1) : input.csv;
+
+    // Excel escribe una directiva "sep=<char>" como primera línea al abrir/guardar un CSV, para
+    // forzar el delimitador sin importar la configuración regional (en locales que usan coma
+    // como separador decimal, Excel espera ';' por defecto y de otro modo vuelca todo en una
+    // sola columna). Papaparse no la entiende como directiva, así que se descarta antes de parsear.
+    csvContent = csvContent.replace(/^sep=.\r?\n/, "");
+
+    const parsed = Papa.parse<Record<string, string>>(csvContent, {
       header: true,
       skipEmptyLines: true,
-      transformHeader: (h) => h.trim(),
+      // Líneas que empiecen con '#' son comentarios del usuario (ej. la plantilla descargada
+      // trae notas de uso) — se ignoran por completo, no son datos de un monitor.
+      comments: "#",
+      // Descarta también un BOM UTF-8 que haya quedado pegado al primer encabezado (algunos
+      // editores/Excel lo agregan al guardar; Papaparse ya lo recorta del contenido, pero no
+      // siempre del nombre de la primera columna parseada).
+      transformHeader: (h) => (h.charCodeAt(0) === 0xfeff ? h.slice(1) : h).trim(),
     });
 
     const errors: BulkImportRowError[] = [];

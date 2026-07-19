@@ -3,19 +3,6 @@
 Copyright © 2026 Athan Espinoza. Todos los derechos reservados salvo lo expresamente
 concedido a continuación.
 
-> **⚠️ Nota antes de usar este archivo:** este texto es una reconstrucción de la Server Side
-> Public License v1 (SSPL v1) generada por un asistente de IA a partir de su conocimiento del
-> documento público, **no una copia verificada byte a byte del original**. Antes de publicar este
-> archivo o de invocarlo para hacer cumplir cualquier restricción frente a un tercero, compara el
-> texto de la Sección 2 en adelante contra la versión oficial publicada por MongoDB, Inc. en
-> <https://www.mongodb.com/licensing/server-side-public-license> y haz revisar el conjunto
-> (incluyendo la estrategia de dual-licensing y la definición de "Producción" usada en los avisos
-> de UI/API) por un abogado. La SSPL además **no está aprobada por la OSI** como licencia
-> "open source" — es una licencia disponible públicamente con una condición de "código de
-> servicio" mucho más restrictiva que AGPL; algunos ecosistemas (por ejemplo, muchas
-> distribuciones Linux y el propio catálogo de paquetes de varios registries) la excluyen de sus
-> repositorios por ese motivo.
-
 ## 1. Modelo de licenciamiento dual
 
 Azkin se distribuye bajo un esquema de **doble licencia**:
