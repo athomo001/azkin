@@ -2,7 +2,7 @@
   "name": "azkin-backend",
   "version": "1.2.0",
   "description": "Azkin — plataforma de monitoreo multiusuario (backend)",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE.md",
   "engines": {
     "node": ">= 24.13.0",
     "pnpm": ">= 11.2.0"

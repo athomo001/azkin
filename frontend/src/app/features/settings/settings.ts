@@ -1,7 +1,7 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Component, OnInit, signal, computed, inject, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { UserService, IViewer, IViewerPermission, IAdmin } from '../../core/services/user.service';
@@ -86,7 +86,7 @@ import { FileDownloadService } from '../../core/services/file-download.service';
           <button (click)="activeTab.set('tls')"
             [class]="activeTab() === 'tls' ? 'border-b-2 border-orange-500 text-white font-bold pb-3 -mb-[2px]' : 'text-zinc-400 hover:text-zinc-200 pb-3 -mb-[2px] transition-colors'"
             class="transition-all relative z-10 px-1">
-            TLS / HTTPS
+            TLS / Sistema
           </button>
           <button (click)="activeTab.set('api')"
             [class]="activeTab() === 'api' ? 'border-b-2 border-orange-500 text-white font-bold pb-3 -mb-[2px]' : 'text-zinc-400 hover:text-zinc-200 pb-3 -mb-[2px] transition-colors'"
@@ -198,6 +198,7 @@ import { FileDownloadService } from '../../core/services/file-download.service';
 
                           <div class="border-t border-zinc-900 pt-3">
                             <span class="block text-[9px] font-black text-zinc-500 uppercase tracking-wider mb-2">{{ lang.t('settings.alerts.smtpServer') }}</span>
+                            <p class="text-[10px] text-zinc-600 mb-2">Servidor SMTP exclusivo de este canal de alerta. No afecta ni reemplaza el SMTP de recuperación de contraseña (pestaña TLS / Sistema).</p>
 
                             <div class="space-y-3">
                               <div>
@@ -734,13 +735,18 @@ import { FileDownloadService } from '../../core/services/file-download.service';
               </div>
             </div>
 
-            <!-- AZ-031: estado del SMTP de aplicación (recuperación de contraseña) -->
+            <!-- AZ-031/AZ-035: estado del SMTP de aplicación (recuperación de contraseña) — deliberadamente
+                 separado del SMTP por canal de alerta (pestaña "Canales de Alerta"): este es el único
+                 correo que el sistema puede enviar sin que exista ningún canal de alerta configurado. -->
             <div class="max-w-xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg mt-6">
               <div class="p-6 space-y-4">
                 <div>
-                  <h3 class="text-sm font-bold text-white tracking-tight">SMTP de Aplicación</h3>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-bold text-white tracking-tight">SMTP de Aplicación</h3>
+                    <span class="text-[9px] font-black uppercase tracking-wider text-zinc-500 bg-zinc-950/60 border border-zinc-850 rounded px-1.5 py-0.5">No es un canal de alerta</span>
+                  </div>
                   <p class="text-[11px] text-zinc-500 mt-0.5">
-                    Usado para correos transaccionales (recuperación de contraseña). Se configura vía variables de entorno del servidor.
+                    Exclusivo para el correo de recuperación de contraseña — no envía alertas de monitores. Se configura vía variables de entorno del servidor, no desde esta pantalla. Para notificar caídas/recuperaciones por correo, crea un canal de tipo "Email (SMTP)" en la pestaña {{ lang.t('settings.tabAlerts') }}.
                   </p>
                 </div>
 
@@ -859,6 +865,12 @@ import { FileDownloadService } from '../../core/services/file-download.service';
             </div>
           }
         </div>
+
+        <footer class="pt-6 mt-6 border-t border-zinc-900">
+          <p class="text-center text-[9px] text-zinc-700" title="Ver LICENSE.md para el texto completo">
+            Protegido bajo SSPL v1 / Licencia Comercial Requerida para Producción
+          </p>
+        </footer>
       </main>
 
       <!-- Modal: API Key generada (se muestra una única vez) -->
@@ -1005,6 +1017,7 @@ import { FileDownloadService } from '../../core/services/file-download.service';
 })
 export class SettingsComponent implements OnInit {
   private readonly http = inject(HttpClient);
+  private readonly route = inject(ActivatedRoute);
   readonly userService = inject(UserService);
   readonly notificationService = inject(NotificationService);
   readonly monitorService = inject(MonitorService);
@@ -1101,6 +1114,13 @@ export class SettingsComponent implements OnInit {
     this.loadTlsStatus();
     this.loadSmtpStatus();
     this.loadApiKeys();
+
+    const requestedTab = this.route.snapshot.queryParamMap.get('tab');
+    const validTabs = ['alerts', 'viewers', 'backups', 'tls', 'api', 'audit'] as const;
+    if (requestedTab && (validTabs as readonly string[]).includes(requestedTab)) {
+      this.activeTab.set(requestedTab as (typeof validTabs)[number]);
+      if (requestedTab === 'audit') this.loadAuditLog();
+    }
   }
 
   showToastFeedback(msg: string): void {

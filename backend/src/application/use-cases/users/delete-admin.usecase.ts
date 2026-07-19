@@ -1,5 +1,6 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IUserRepository } from "../../ports/repositories/user-repository";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { ForbiddenError, NotFoundError } from "../../../domain/errors/domain-error";
 
 /**
@@ -8,7 +9,10 @@ import { ForbiddenError, NotFoundError } from "../../../domain/errors/domain-err
  * de forma accidental desde su propia sesión).
  */
 export class DeleteAdminUseCase {
-  constructor(private readonly users: IUserRepository) {}
+  constructor(
+    private readonly users: IUserRepository,
+    private readonly auditLog: IAuditLogRepository,
+  ) {}
 
   async execute(actorId: string, targetId: string): Promise<void> {
     if (actorId === targetId) {
@@ -19,5 +23,12 @@ export class DeleteAdminUseCase {
     if (!deleted) {
       throw new NotFoundError("Administrador no encontrado");
     }
+
+    await this.auditLog.record({
+      actorId,
+      action: "ADMIN_DELETE",
+      targetType: "user",
+      targetIds: [targetId],
+    });
   }
 }

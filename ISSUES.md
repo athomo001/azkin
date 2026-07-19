@@ -54,6 +54,7 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-030](#az-030-el-registro-de-auditoria-persiste-datos-pero-no-existe-ninguna-forma-de-consultarlo-ni-por-api-ni-en-la-ui) | El registro de auditoria persiste datos pero no existe forma de consultarlo (ni API ni UI) | Backend | Media | [x] Resuelto |
 | [AZ-031](#az-031-la-configuracion-smtp-a-nivel-de-aplicacion-para-recuperacion-de-contrasena-no-tiene-pantalla-de-administracion-ni-boton-de-prueba) | SMTP de aplicacion (recuperacion de contrasena) sin pantalla de administracion ni prueba | Backend | Media | [x] Resuelto |
 | [AZ-032](#az-032-botones-de-solo-icono-sin-nombre-accesible-aria-label-title-en-varios-puntos-del-dashboard) | Botones de solo-icono sin nombre accesible (`aria-label`/`title`) en varios puntos | Frontend | Baja | [x] Resuelto |
+| [AZ-033](#az-033-benchmark-uxui-y-propuesta-de-identidad-visual-diferenciada-frente-a-uptime-robot-y-uptime-kuma) | Benchmark UX/UI y propuesta de identidad visual diferenciada frente a Uptime Robot y Uptime Kuma | Frontend | Media | [ ] Abierto |
 
 ---
 
@@ -1063,3 +1064,37 @@ Todo boton de solo-icono tiene un nombre accesible (`aria-label` o `title`) desc
 - `frontend/src/app/features/dashboard/group-dashboard.ts` (boton de volver).
 - `frontend/src/app/features/dashboard/dashboard.ts` (botones de logout, editar/eliminar monitor, cerrar modal).
 - Comparar con el patron ya correcto en `profile.ts`/`settings.ts` (`[title]="lang.t(...)"`).
+
+---
+
+## AZ-033) Benchmark UX/UI y propuesta de identidad visual diferenciada frente a Uptime Robot y Uptime Kuma
+- Codigo: AZ-033
+- Estado: [ ] Abierto
+- Prioridad: Media
+- Reportado: 2026-07-19
+
+### Descripcion
+El dashboard actual (fondo `zinc-950` + acento `orange-500`, tarjetas con badges de color por estado) ya se aleja parcialmente del verde corporativo de Uptime Robot y del azul/oscuro generico de Uptime Kuma, pero no tiene una identidad visual deliberada: paleta, tipografia y layout no fueron elegidos como sistema, sino heredados del patron generico de dashboards oscuros. Se solicito una propuesta concreta de diferenciacion visual.
+
+Se entrego una propuesta llamada **"Pulso"**: en la vista de flota (grilla de todos los monitores), cada tarjeta se representa con su propia forma de onda de latencia (sparkline) en vez de solo un badge de color, con el estado codificado como borde + etiqueta (nunca solo color). Paleta de tinta violeta-oscura + acento cobre/"ember" con un violeta secundario, colores semánticos (`good`/`warn`/`crit`) reservados y separados del acento de marca; tipografia serif editorial para titulos + monoespaciada para metricas (rompe el "todo-sans" del genero). Mockup interactivo publicado como artifact: [Pulso — Propuesta de identidad visual Azkin](https://claude.ai/code/artifact/3d3a6655-61c3-4b9e-a29e-8e559a041cc4)
+
+Feedback de usuario tras la primera revision: el heatmap de bloques por chequeo (verde/rojo, uno por chequeo, con "N chequeos atras" / "ahora mismo") que ya existe en el detalle de monitor **no debe reemplazarse por la onda** — el bloque individual es lo que permite identificar exactamente *cual* chequeo cayo, algo que una onda continua no resuelve tan bien. La onda si aporta valor para ver tendencia/estabilidad. Conclusion: en la vista de **detalle** de un monitor se mantienen ambos, bloques + grafico de latencia debajo (como ya funciona hoy), solo reestilizados con los tokens de Pulso; la onda-en-vez-de-badge aplica a la **grilla de flota** (tarjetas compactas), no al detalle. El mockup se actualizo para incluir esta vista de detalle. Tambien se agregaron al mockup, y deben incorporarse al sistema real (no solo quedar de demo): el toggle de tema claro/oscuro y el efecto existente de Modo NyanCat en los graficos (ver AZ-027 y `toggleNyanCat()` en `dashboard.ts`).
+
+### Comportamiento esperado
+1. Existe un sistema de diseño documentado (paleta, tipografia, layout) especifico de Azkin, no heredado de un dashboard generico.
+2. En la grilla de flota, la forma de onda (sparkline) reemplaza al badge de color como unidad minima de estado por tarjeta.
+3. En el detalle de un monitor se conserva el heatmap de bloques por chequeo (para identificar el chequeo exacto que fallo) **junto con** el grafico de latencia debajo, ambos reestilizados con los tokens de Pulso — no se reemplaza uno por el otro.
+4. El sistema funciona en tema claro y oscuro (con control explicito de cambio, no solo `prefers-color-scheme`), y es compatible con el Modo TV/Kiosko (AZ-027) y con el Modo NyanCat existente.
+
+### Criterios de aceptacion
+1. Tokens de color (`--ground`, `--surface`, `--ember`, `--violet`, `--good`, `--warn`, `--crit`, etc.) definidos centralmente (ej. variables CSS en `styles.css`) y aplicados en lugar de las clases Tailwind de color sueltas actuales.
+2. Tarjetas de monitor en la grilla de flota (`dashboard.ts`) incorporan un sparkline de latencia por monitor (no solo el numero puntual actual).
+3. El heatmap de bloques (`uptimeBlocks()`) del detalle de monitor se reestiliza con los tokens de Pulso pero no se elimina ni se sustituye por el sparkline.
+4. El grafico de latencia de ECharts (detalle de monitor y grupo) adopta la paleta Pulso (`--ember` en vez de `orange-500`, etc.), preservando el efecto Modo NyanCat (`isNyanCatMode()`) ya implementado.
+5. Existe un control de tema claro/oscuro explicito en la UI (no solo deteccion automatica de `prefers-color-scheme`).
+6. Verificado visualmente en ambos temas (claro/oscuro), en Modo TV/Kiosko y en Modo NyanCat, sin regresiones (ver AZ-027 y el fix de superposicion de `svg` en Modo TV).
+
+### Pistas de investigacion
+- Mockup y especificacion visual: artifact "Pulso — Propuesta de identidad visual Azkin" (incluye vista de detalle con bloques + latencia, toggle de tema y Modo NyanCat).
+- `frontend/src/styles.css` (tokens de color actuales, bloque `body.kiosk-mode`).
+- `frontend/src/app/features/dashboard/dashboard.ts` (tarjetas de monitor, `uptimeBlocks()`, grafico de latencia con ECharts, `isNyanCatMode()`/`toggleNyanCat()`, `isLightTheme`).

@@ -1,0 +1,56 @@
+{
+  "name": "Azkin — Listar monitores (automático)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 5 }
+          ]
+        }
+      },
+      "id": "b8e8dbd6-bf76-47a4-bc92-cfaad0f4f78b",
+      "name": "Cada 5 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.AZKIN_BASE_URL }}/api/public/v1/monitors",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.AZKIN_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cdca1914-32de-4c2c-93b0-2281f8cb3e21",
+      "name": "Listar monitores (Azkin)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "notes": "GET /api/public/v1/monitors — requiere scope 'read'. Autenticación vía header X-API-Key (ver docs/api-publica.md)."
+    }
+  ],
+  "connections": {
+    "Cada 5 minutos": {
+      "main": [
+        [
+          { "node": "Listar monitores (Azkin)", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "description": "Workflow de ejemplo: cada 5 minutos consulta la API pública de Azkin (AZ-029) y trae el estado de todos los monitores. Configura las variables de entorno de n8n AZKIN_BASE_URL (ej. https://tu-dominio.com) y AZKIN_API_KEY (una key generada en /settings → API, scope 'read' basta) antes de activar el workflow."
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

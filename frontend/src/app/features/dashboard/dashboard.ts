@@ -109,13 +109,22 @@ type HistoryRangeOption = {
           <!-- Búsqueda y Botón Añadir -->
           <div class="p-4 border-b border-zinc-900 space-y-3 bg-zinc-950/20">
             @if (authService.isAdmin()) {
-              <button (click)="openCreateForm()"
-                class="w-full py-2 rounded-xl bg-orange-600 hover:bg-orange-500 font-bold text-xs tracking-tight transition-all active:scale-98 shadow-md flex items-center justify-center gap-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-                {{ lang.t('sidebar.newMonitor') }}
-              </button>
+              <div class="flex gap-2">
+                <button (click)="openCreateForm()"
+                  class="flex-1 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 font-bold text-xs tracking-tight transition-all active:scale-98 shadow-md flex items-center justify-center gap-1.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  {{ lang.t('sidebar.newMonitor') }}
+                </button>
+                <a [routerLink]="['/settings']" [queryParams]="{ tab: 'backups' }"
+                  title="Importar monitores desde un archivo CSV"
+                  class="py-2 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 hover:border-orange-500/40 text-zinc-400 hover:text-orange-400 transition-all shadow-md flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
+                  </svg>
+                </a>
+              </div>
             }
 
             @if (!isKioskMode()) {
@@ -476,7 +485,7 @@ type HistoryRangeOption = {
                     }
                   </div>
                 </div>
-                <div #chartEl class="w-full h-64"></div>
+                <div #chartEl class="chart-canvas w-full h-64"></div>
               </div>
             </div>
           } @else if (selectedGroup()) {
@@ -544,7 +553,7 @@ type HistoryRangeOption = {
                     }
                   </div>
                 </div>
-                <div #groupChartEl class="w-full h-80"></div>
+                <div #groupChartEl class="chart-canvas w-full h-80"></div>
               </div>
 
               <!-- Lista Grid de Monitores en el Grupo -->
@@ -680,9 +689,14 @@ type HistoryRangeOption = {
           }
 
           <!-- Branding Footer -->
-          <footer class="mt-6 pt-4 border-t border-zinc-900 flex items-center justify-between text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
-            <span>© 2026 AZKIN LABS</span>
-            <span>Estabilidad Garantizada</span>
+          <footer class="mt-6 pt-4 border-t border-zinc-900 space-y-1.5">
+            <div class="flex items-center justify-between text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
+              <span>© 2026 AZKIN LABS</span>
+              <span>Estabilidad Garantizada</span>
+            </div>
+            <p class="text-center text-[9px] text-zinc-700 normal-case font-normal" title="Ver LICENSE.md para el texto completo">
+              Protegido bajo SSPL v1 / Licencia Comercial Requerida para Producción
+            </p>
           </footer>
         </main>
       </div>

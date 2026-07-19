@@ -114,6 +114,7 @@ import { makeAuthGuard } from "./infrastructure/http/middlewares/auth-guard";
 import { makeApiKeyAuth } from "./infrastructure/http/middlewares/api-key-auth";
 import { makeMetricsAuth } from "./infrastructure/http/middlewares/metrics-auth";
 import { errorHandler } from "./infrastructure/http/middlewares/error-handler";
+import { licenseNotice } from "./infrastructure/http/middlewares/license-notice";
 import { asyncHandler } from "./infrastructure/http/middlewares/async-handler";
 import { GetMetricsUseCase } from "./application/use-cases/system/get-metrics.usecase";
 import { MetricsController } from "./infrastructure/http/controllers/metrics.controller";
@@ -142,6 +143,7 @@ export function buildContainer(env: Env): AppContainer {
   app.use(cors({ origin: env.corsOrigin }));
   app.use(express.json());
   app.use(cookieParser());
+  app.use(licenseNotice);
 
   const server = http.createServer(app);
   const io = new Server(server, { cors: { origin: env.corsOrigin } });
@@ -213,9 +215,9 @@ export function buildContainer(env: Env): AppContainer {
   const listAdmins = new ListAdminsUseCase(users);
   const updateAdmin = new UpdateAdminUseCase(users);
   const setAdminBlocked = new SetAdminBlockedUseCase(users);
-  const deleteAdmin = new DeleteAdminUseCase(users);
+  const deleteAdmin = new DeleteAdminUseCase(users, auditLog);
   const updateViewerPermissions = new UpdateViewerPermissionsUseCase(users);
-  const deleteViewer = new DeleteViewerUseCase(users);
+  const deleteViewer = new DeleteViewerUseCase(users, auditLog);
   const createBackup = new CreateBackupUseCase(monitors, backupsRepo, auditLog);
   const listBackups = new ListBackupsUseCase(backupsRepo);
   const getBackup = new GetBackupUseCase(backupsRepo);

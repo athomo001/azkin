@@ -85,6 +85,9 @@ type ToastType = 'error' | 'success';
         @if (systemService.version()) {
           <p class="text-center text-[10px] text-zinc-700 font-mono">v{{ systemService.version() }}</p>
         }
+        <p class="text-center text-[9px] text-zinc-700" title="Ver LICENSE.md para el texto completo">
+          Protegido bajo SSPL v1 / Licencia Comercial Requerida para Producción
+        </p>
       </div>
     </div>
   `,

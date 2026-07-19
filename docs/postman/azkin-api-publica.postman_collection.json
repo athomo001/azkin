@@ -1,0 +1,188 @@
+{
+  "info": {
+    "_postman_id": "e609866a-9f4a-4a8e-9cf8-24aaba4d5e06",
+    "name": "Azkin — API Pública (AZ-029)",
+    "description": "Colección para integrar sistemas externos con Azkin usando autenticación por API Key (`X-API-Key`), sin sesión de usuario. Ver `docs/api-publica.md` para el detalle completo de scopes y códigos de error.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "X-API-Key", "type": "string" },
+      { "key": "value", "value": "{{api_key}}", "type": "string" },
+      { "key": "in", "value": "header", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "base_url", "value": "https://tu-dominio.com", "type": "string" },
+    { "key": "api_key", "value": "azk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "type": "string" },
+    { "key": "monitor_id", "value": "", "type": "string" },
+    { "key": "session_token", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Monitores",
+      "item": [
+        {
+          "name": "Listar monitores",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/public/v1/monitors",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "v1", "monitors"]
+            },
+            "description": "Requiere scope `read`. Devuelve el pool global de monitores (sin aislamiento por tenant)."
+          }
+        },
+        {
+          "name": "Crear monitor",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sitio principal\",\n  \"type\": \"http\",\n  \"target\": \"https://ejemplo.com\",\n  \"interval\": 60,\n  \"retries\": 0,\n  \"retryInterval\": 60,\n  \"group\": \"Producción\",\n  \"tags\": [\"web\", \"critico\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/public/v1/monitors",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "v1", "monitors"]
+            },
+            "description": "Requiere scope `write`. `target` es obligatorio salvo para `type: \"push\"`; `port` es obligatorio para `type: \"port\"`."
+          }
+        },
+        {
+          "name": "Actualizar monitor",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"interval\": 30\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/public/v1/monitors/{{monitor_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "v1", "monitors", "{{monitor_id}}"]
+            },
+            "description": "Requiere scope `write`. Acepta cualquier subconjunto de campos del monitor (ver `docs/api-publica.md`)."
+          }
+        },
+        {
+          "name": "Eliminar monitor",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/public/v1/monitors/{{monitor_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "v1", "monitors", "{{monitor_id}}"]
+            },
+            "description": "Requiere scope `write`."
+          }
+        },
+        {
+          "name": "Eliminar monitores (bulk)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": [\"{{monitor_id}}\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/public/v1/monitors/bulk-delete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "v1", "monitors", "bulk-delete"]
+            },
+            "description": "Requiere scope `write`. Ids que no pertenecen al pool se ignoran silenciosamente."
+          }
+        },
+        {
+          "name": "Importar monitores (CSV)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"csv\": \"name,type,target,port,interval,retries,retryInterval,group,tags\\nSitio principal,http,https://ejemplo.com,,60,0,60,Producción,web;critico\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/public/v1/monitors/bulk-import",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "v1", "monitors", "bulk-import"]
+            },
+            "description": "Requiere scope `write` (ver AZ-028). El CSV se envía como texto plano (no multipart); una fila inválida no aborta el resto del lote."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Gestión de API Keys (requiere sesión de Admin, no X-API-Key)",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{session_token}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Crear API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Integración n8n\",\n  \"scopes\": [\"read\", \"write\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/api-keys",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "api-keys"]
+            },
+            "description": "Devuelve `plainKey` una única vez — cópiala en `api_key`, no se puede recuperar después."
+          }
+        },
+        {
+          "name": "Listar API Keys",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/api-keys",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "api-keys"]
+            }
+          }
+        },
+        {
+          "name": "Revocar API Key",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/api-keys/{{api_key_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "api-keys", "{{api_key_id}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
