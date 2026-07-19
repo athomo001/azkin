@@ -3,6 +3,7 @@ import { HydratedDocument, Types } from "mongoose";
 import { IAuditLogRepository, RecordAuditLogData } from "../../../../application/ports/repositories/audit-log-repository";
 import { IAuditLog } from "../../../../domain/entities/audit-log";
 import { AuditLogDoc, AuditLogModel } from "../schemas/audit-log.schema";
+import { toDomainId } from "../to-domain-id";
 
 export class MongooseAuditLogRepository implements IAuditLogRepository {
   async record(data: RecordAuditLogData): Promise<IAuditLog> {
@@ -21,9 +22,14 @@ export class MongooseAuditLogRepository implements IAuditLogRepository {
     return docs.map((doc) => this.toDomain(doc));
   }
 
+  async listAll(limit = 50): Promise<IAuditLog[]> {
+    const docs = await AuditLogModel.find({}).sort({ createdAt: -1 }).limit(limit);
+    return docs.map((doc) => this.toDomain(doc));
+  }
+
   private toDomain(doc: HydratedDocument<AuditLogDoc>): IAuditLog {
     return {
-      id: String(doc._id),
+      id: toDomainId(doc._id),
       actorId: String(doc.actorId),
       action: doc.action,
       targetType: doc.targetType,

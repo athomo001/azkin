@@ -6,6 +6,7 @@ import { IAuditLogRepository } from "../../ports/repositories/audit-log-reposito
 import { ITlsServerManager } from "../../ports/services/tls-server-manager";
 import { ITlsConfig } from "../../../domain/entities/tls-config";
 import { ValidationError } from "../../../domain/errors/domain-error";
+import { getErrorMessage } from "../../services/get-error-message";
 
 export interface ApplyTlsConfigInput {
   actorId: string;
@@ -49,8 +50,8 @@ export class ApplyTlsConfigUseCase {
     try {
       // tls.createSecureContext valida que el certificado y la clave privada correspondan entre sí.
       tls.createSecureContext({ cert: input.certPem, key: input.keyPem, ca: input.chainPem });
-    } catch (err: any) {
-      throw new ValidationError(`Certificado o clave privada inválidos: ${err.message ?? err}`);
+    } catch (err) {
+      throw new ValidationError(`Certificado o clave privada inválidos: ${getErrorMessage(err)}`);
     }
 
     let applyError: string | undefined;
@@ -62,8 +63,8 @@ export class ApplyTlsConfigUseCase {
         port: input.port,
         httpRedirect: input.httpRedirect,
       });
-    } catch (err: any) {
-      applyError = err.message ?? String(err);
+    } catch (err) {
+      applyError = getErrorMessage(err);
     }
 
     await this.auditLog.record({

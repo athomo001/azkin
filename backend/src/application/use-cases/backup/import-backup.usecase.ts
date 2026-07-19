@@ -25,7 +25,7 @@ export class ImportBackupUseCase {
   ) {}
 
   async execute(input: ImportBackupInput): Promise<ImportBackupOutput> {
-    const existing = await this.monitors.findAllByUser(input.userId);
+    const existing = await this.monitors.findAll();
     const existingCount = existing.length;
 
     // Mapa para búsqueda rápida
@@ -55,7 +55,7 @@ export class ImportBackupUseCase {
 
       if (found) {
         // Actualiza el monitor existente
-        const updated = await this.monitors.update(input.userId, found.id, {
+        const updated = await this.monitors.update(found.id, {
           ...item,
         });
         if (updated) {

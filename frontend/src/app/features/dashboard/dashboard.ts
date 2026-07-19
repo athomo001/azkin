@@ -15,6 +15,9 @@ import { BadgeStatusComponent } from '../../shared/components/badge-status';
 import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader';
 import { HttpClient } from '@angular/common/http';
 import { LanguageService } from '../../core/services/language.service';
+import { ThemeService } from '../../core/services/theme.service';
+import { normalizeMonitorStatus } from '../../core/utils/monitor-status.util';
+import { extractApiErrorMessage } from '../../core/utils/api-error.util';
 
 type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
 
@@ -65,13 +68,22 @@ type HistoryRangeOption = {
               🐱
             </button>
           }
-          <a routerLink="/settings" class="text-sm font-semibold hover:text-orange-500 transition-colors flex items-center gap-1.5">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-            </svg>
-            {{ lang.t('nav.settings') }}
-          </a>
+          @if (authService.isAdmin()) {
+            <a routerLink="/settings" class="text-sm font-semibold hover:text-orange-500 transition-colors flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+              {{ lang.t('nav.settings') }}
+            </a>
+          } @else {
+            <a routerLink="/profile" class="text-sm font-semibold hover:text-orange-500 transition-colors flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+              Mi Perfil
+            </a>
+          }
           <button (click)="onLogout()" class="text-sm font-semibold text-rose-500 hover:text-rose-400 transition-colors flex items-center gap-1.5">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
               <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
@@ -106,13 +118,15 @@ type HistoryRangeOption = {
               </button>
             }
 
-            <div class="relative">
-              <input type="text" [(ngModel)]="searchQuery" [placeholder]="lang.currentLang() === 'es' ? 'Buscar por nombre o IP...' : 'Search by name or IP...'"
-                class="w-full bg-zinc-950 border border-zinc-900 rounded-lg pl-8 pr-3 py-1.5 text-xs placeholder-zinc-600 focus:outline-none focus:border-orange-500 text-white">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-zinc-600 absolute left-2.5 top-2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.637Z" />
-              </svg>
-            </div>
+            @if (!isKioskMode()) {
+              <div class="relative">
+                <input type="text" [(ngModel)]="searchQuery" [placeholder]="lang.currentLang() === 'es' ? 'Buscar por nombre o IP...' : 'Search by name or IP...'"
+                  class="w-full bg-zinc-950 border border-zinc-900 rounded-lg pl-8 pr-3 py-1.5 text-xs placeholder-zinc-600 focus:outline-none focus:border-orange-500 text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-zinc-600 absolute left-2.5 top-2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.637Z" />
+                </svg>
+              </div>
+            }
           </div>
 
           <!-- Filtros Rápidos de Estado -->
@@ -324,13 +338,13 @@ type HistoryRangeOption = {
                       }
                     </button>
 
-                    <button (click)="openEditForm(selectedMonitor()!)"
+                    <button (click)="openEditForm(selectedMonitor()!)" aria-label="Editar monitor" title="Editar monitor"
                       class="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 rounded-xl text-zinc-400 hover:text-white transition-all shadow-md">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
                       </svg>
                     </button>
-                    <button (click)="onDelete(selectedMonitor()!.id)"
+                    <button (click)="onDelete(selectedMonitor()!.id)" aria-label="Eliminar monitor" title="Eliminar monitor"
                       class="p-2 bg-zinc-900 hover:bg-rose-950/20 border border-zinc-850 hover:border-rose-900 rounded-xl text-zinc-400 hover:text-rose-500 transition-all shadow-md">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -687,7 +701,7 @@ type HistoryRangeOption = {
                 <h3 class="text-lg font-black text-orange-500">{{ isEditing() ? lang.t('monitor.modal.editTitle') : lang.t('monitor.modal.addTitle') }}</h3>
                 <p class="text-xs text-zinc-500 mt-1">{{ lang.t('monitor.modal.subtitle') }}</p>
               </div>
-              <button (click)="closeForm()" class="text-zinc-500 hover:text-zinc-200">
+              <button (click)="closeForm()" aria-label="Cerrar formulario" title="Cerrar formulario" class="text-zinc-500 hover:text-zinc-200">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                 </svg>
@@ -1057,6 +1071,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
   private chart: echarts.ECharts | null = null;
   private groupChart: echarts.ECharts | null = null;
+  private unsubscribeHeartbeat: (() => void) | null = null;
 
   readonly authService = inject(AuthService);
   private readonly monitorService = inject(MonitorService);
@@ -1065,6 +1080,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   public readonly lang = inject(LanguageService);
+  private readonly themeService = inject(ThemeService);
 
   // Estados de carga e interfaz
   readonly isLoading = signal(true);
@@ -1106,8 +1122,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // Control colapsable de grupos en el sidebar
   readonly collapsedGroups = signal<Record<string, boolean>>({});
 
-  // Control de tema claro/oscuro — persiste en localStorage para sobrevivir al F5
-  readonly isLightTheme = signal(typeof window !== 'undefined' && localStorage.getItem('azkin-theme') === 'light');
+  // Control de tema claro/oscuro — delega en ThemeService (AZ-022, compartido con toda la app)
+  readonly isLightTheme = this.themeService.isLightTheme;
+
+  // AZ-027: Modo TV/Kiosko para sesiones isTvSessionEnabled — oculta controles no esenciales
+  readonly isKioskMode = computed(() => this.authService.currentUser()?.isTvSessionEnabled ?? false);
 
   // Easter egg NyanCat — persistido en localStorage para máxima robustez
   readonly isNyanCatMode = signal(typeof window !== 'undefined' && localStorage.getItem('azkin-nyancat') === 'true');
@@ -1173,7 +1192,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.selectionMode.set(false);
       },
       error: (err) => {
-        this.showSuccessToast(err?.error?.error?.message || 'Error al eliminar los monitores.');
+        this.showSuccessToast(extractApiErrorMessage(err, 'Error al eliminar los monitores.'));
         this.showBulkDeleteConfirm.set(false);
       }
     });
@@ -1310,20 +1329,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    if (this.isKioskMode()) {
+      document.body.classList.add('kiosk-mode');
+    }
+
     this.loadData();
     this.notificationService.loadChannels().subscribe();
     this.loadRecentIncidents();
 
-    // Restaurar el tema guardado en localStorage al cargar el componente
-    if (this.isLightTheme()) {
-      document.body.classList.add('light-theme');
-    } else {
-      document.body.classList.remove('light-theme');
-    }
-
     // Conectar WebSocket y escuchar actualizaciones en tiempo real
     this.realtimeService.connect();
-    this.realtimeService.onHeartbeat((hb: any) => {
+    this.unsubscribeHeartbeat = this.realtimeService.onHeartbeat((hb: any) => {
       this.monitorService.applyHeartbeat(hb);
 
       // Si estamos en la vista de Quick Stats consolidada, recargar incidentes recientes
@@ -1334,9 +1350,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       // Si el heartbeat corresponde al monitor seleccionado, actualizar su detalle e historial
       const current = this.selectedMonitor();
       if (current && current.id === hb.monitorId) {
-        let statusStr: 'UP' | 'DOWN' | 'PENDING' = 'PENDING';
-        if (hb.status === 1 || hb.status === 'UP') statusStr = 'UP';
-        else if (hb.status === 0 || hb.status === 'DOWN') statusStr = 'DOWN';
+        const statusStr = normalizeMonitorStatus(hb.status);
 
         this.selectedMonitor.set({
           ...current,
@@ -1365,9 +1379,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       if (currentGroup && currentGroup.monitors.some((m: any) => m.id === hb.monitorId)) {
         const updatedMonitors = currentGroup.monitors.map((m: any) => {
           if (m.id === hb.monitorId) {
-            let statusStr: 'UP' | 'DOWN' | 'PENDING' = 'PENDING';
-            if (hb.status === 1 || hb.status === 'UP') statusStr = 'UP';
-            else if (hb.status === 0 || hb.status === 'DOWN') statusStr = 'DOWN';
+            const statusStr = normalizeMonitorStatus(hb.status);
 
             return {
               ...m,
@@ -1413,6 +1425,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    document.body.classList.remove('kiosk-mode');
+    this.unsubscribeHeartbeat?.();
     this.realtimeService.disconnect();
     this.chart?.dispose();
     this.groupChart?.dispose();
@@ -2194,18 +2208,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   togglePause(monitor: IMonitor): void {
     const newActiveState = !monitor.isActive;
     this.monitorService.update(monitor.id, { isActive: newActiveState }).subscribe({
-      next: (updated: any) => {
-        let statusStr: 'UP' | 'DOWN' | 'PENDING' = 'PENDING';
-        const ls = updated.lastStatus;
-        if (ls === 1 || ls === 'UP') statusStr = 'UP';
-        else if (ls === 0 || ls === 'DOWN') statusStr = 'DOWN';
-
-        const mapped = {
-          ...updated,
-          status: statusStr
-        };
-        // Actualizar el monitor seleccionado
-        this.selectedMonitor.set(mapped);
+      next: (updated) => {
+        // monitorService.update() ya normaliza `status` — no hay necesidad de rederivarlo aquí.
+        this.selectedMonitor.set(updated);
         this.showSuccessToast(newActiveState ? 'Monitoreo reanudado con éxito.' : 'Monitoreo pausado con éxito.');
       },
       error: () => this.showSuccessToast('Error al cambiar el estado del monitoreo.')
@@ -2258,7 +2263,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
             preferences: { ...(current.preferences || {}), nyanCatMode: newValue }
           };
           this.authService.currentUser.set(updated);
-          localStorage.setItem('azkin_user', JSON.stringify(updated));
         }
       },
       error: () => {}
@@ -2268,56 +2272,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   toggleTheme(event: MouseEvent): void {
-    const doc = document as any;
-    const isLight = !this.isLightTheme();
-
-    // Persistir la preferencia para sobrevivir al F5
-    localStorage.setItem('azkin-theme', isLight ? 'light' : 'dark');
-
-    if (!doc.startViewTransition) {
-      // Fallback sin View Transitions API
-      this.isLightTheme.set(isLight);
-      if (isLight) {
-        document.body.classList.add('light-theme');
-      } else {
-        document.body.classList.remove('light-theme');
-      }
-      return;
-    }
-
-    const x = event.clientX;
-    const y = event.clientY;
-    const endRadius = Math.hypot(
-      Math.max(x, window.innerWidth - x),
-      Math.max(y, window.innerHeight - y)
-    );
-
-    const transition = doc.startViewTransition(() => {
-      this.isLightTheme.set(isLight);
-      if (isLight) {
-        document.body.classList.add('light-theme');
-      } else {
-        document.body.classList.remove('light-theme');
-      }
-    });
-
-    transition.ready.then(() => {
-      // Siempre animar la vista NUEVA como un círculo que crece desde el cursor,
-      // independientemente de si se va a claro u oscuro.
-      // Esto garantiza el mismo efecto visual en ambas direcciones.
-      document.documentElement.animate(
-        {
-          clipPath: [
-            `circle(0px at ${x}px ${y}px)`,
-            `circle(${endRadius}px at ${x}px ${y}px)`
-          ]
-        },
-        {
-          duration: 450,
-          easing: 'ease-out',
-          pseudoElement: '::view-transition-new(root)'
-        }
-      );
-    });
+    this.themeService.toggle(event);
   }
 }

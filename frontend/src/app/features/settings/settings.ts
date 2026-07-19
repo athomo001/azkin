@@ -4,10 +4,14 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { UserService, IViewer, IViewerPermission } from '../../core/services/user.service';
+import { UserService, IViewer, IViewerPermission, IAdmin } from '../../core/services/user.service';
 import { NotificationService, INotificationChannel, AlertEventType, ALERT_EVENT_TYPES, INotificationTemplate } from '../../core/services/notification.service';
 import { MonitorService } from '../../core/services/monitor.service';
 import { LanguageService } from '../../core/services/language.service';
+import { ThemeService } from '../../core/services/theme.service';
+import { AuthService } from '../../core/services/auth.service';
+import { extractApiErrorMessage } from '../../core/utils/api-error.util';
+import { FileDownloadService } from '../../core/services/file-download.service';
 
 @Component({
   selector: 'app-settings',
@@ -28,9 +32,22 @@ import { LanguageService } from '../../core/services/language.service';
           <span class="text-zinc-700">/</span>
           <span class="text-zinc-300 font-semibold text-sm">{{ lang.t('settings.title') }}</span>
         </div>
-        <button (click)="lang.toggleLanguage()" class="text-zinc-400 hover:text-orange-500 transition-colors px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-950/40 text-[10px] font-black uppercase tracking-wider" [title]="lang.currentLang() === 'es' ? 'Switch to English' : 'Cambiar a Español'">
-          {{ lang.currentLang() }}
-        </button>
+        <div class="flex items-center gap-2">
+          <button (click)="themeService.toggle($event)" class="text-zinc-400 hover:text-orange-500 transition-colors p-1.5 rounded-lg border border-zinc-800 bg-zinc-950/40" title="Cambiar tema">
+            @if (themeService.isLightTheme()) {
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-amber-500">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M3 12h2.25m-.386-6.364 1.591 1.591M12 7.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" />
+              </svg>
+            } @else {
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+              </svg>
+            }
+          </button>
+          <button (click)="lang.toggleLanguage()" class="text-zinc-400 hover:text-orange-500 transition-colors px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-950/40 text-[10px] font-black uppercase tracking-wider" [title]="lang.currentLang() === 'es' ? 'Switch to English' : 'Cambiar a Español'">
+            {{ lang.currentLang() }}
+          </button>
+        </div>
       </nav>
 
       <!-- Toast de feedback -->
@@ -61,11 +78,6 @@ import { LanguageService } from '../../core/services/language.service';
             class="transition-all relative z-10 px-1">
             {{ lang.t('settings.tabViewers') }}
           </button>
-          <button (click)="activeTab.set('profile')" 
-            [class]="activeTab() === 'profile' ? 'border-b-2 border-orange-500 text-white font-bold pb-3 -mb-[2px]' : 'text-zinc-400 hover:text-zinc-200 pb-3 -mb-[2px] transition-colors'" 
-            class="transition-all relative z-10 px-1">
-            {{ lang.t('settings.tabProfile') }}
-          </button>
           <button (click)="activeTab.set('backups')"
             [class]="activeTab() === 'backups' ? 'border-b-2 border-orange-500 text-white font-bold pb-3 -mb-[2px]' : 'text-zinc-400 hover:text-zinc-200 pb-3 -mb-[2px] transition-colors'"
             class="transition-all relative z-10 px-1">
@@ -76,165 +88,196 @@ import { LanguageService } from '../../core/services/language.service';
             class="transition-all relative z-10 px-1">
             TLS / HTTPS
           </button>
+          <button (click)="activeTab.set('api')"
+            [class]="activeTab() === 'api' ? 'border-b-2 border-orange-500 text-white font-bold pb-3 -mb-[2px]' : 'text-zinc-400 hover:text-zinc-200 pb-3 -mb-[2px] transition-colors'"
+            class="transition-all relative z-10 px-1">
+            API
+          </button>
+          <button (click)="activeTab.set('audit'); loadAuditLog()"
+            [class]="activeTab() === 'audit' ? 'border-b-2 border-orange-500 text-white font-bold pb-3 -mb-[2px]' : 'text-zinc-400 hover:text-zinc-200 pb-3 -mb-[2px] transition-colors'"
+            class="transition-all relative z-10 px-1">
+            Auditoría
+          </button>
         </div>
 
         <div class="pt-2 animate-fade-in">
           
           <!-- ================= PESTAÑA: CANALES DE ALERTA ================= -->
           @if (activeTab() === 'alerts') {
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <!-- Formulario de canal -->
-              <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg h-fit">
+            <div class="grid grid-cols-1 xl:grid-cols-5 gap-8">
+              <!-- Formulario de canal: layout de 2 columnas (AZ-025) basado en el ancho real de la
+                   tarjeta (@container), no en el viewport — evita que se corte cuando la tarjeta
+                   ocupa solo una fracción angosta de una pantalla ancha. -->
+              <div class="@container xl:col-span-2 bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg h-fit">
                 <div class="p-6 space-y-4">
                   <div>
                     <h3 class="text-sm font-bold text-white tracking-tight">{{ isEditingChannel() ? lang.t('settings.alerts.editChannel') : lang.t('settings.alerts.newChannel') }}</h3>
                     <p class="text-[11px] text-zinc-500 mt-0.5">{{ lang.t('settings.alerts.channelDesc') }}</p>
                   </div>
-                  
-                  <div class="space-y-4 pt-2">
-                    <div>
-                      <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">{{ lang.t('settings.alerts.name') }}</label>
-                      <input type="text" [(ngModel)]="channelForm.name" placeholder="Ej. Slack Operaciones"
-                        class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
-                    </div>
-                    
-                    <div>
-                      <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">{{ lang.t('settings.alerts.type') }}</label>
-                      <select [(ngModel)]="channelForm.type" (change)="onChannelTypeChange()"
-                        class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
-                        <option value="slack">Slack Webhook</option>
-                        <option value="discord">Discord Webhook</option>
-                        <option value="telegram">Telegram Bot</option>
-                        <option value="webhook">Webhook REST (JSON)</option>
-                        <option value="email">Email (SMTP)</option>
-                      </select>
-                    </div>
 
-                    <!-- Configs dinámicas según tipo -->
-                    @if (channelForm.type === 'slack' || channelForm.type === 'discord' || channelForm.type === 'webhook') {
+                  <div class="grid grid-cols-1 @3xl:grid-cols-2 gap-6 pt-2">
+                    <!-- Columna izquierda: campos agnósticos al canal, altura fija -->
+                    <div class="space-y-4">
                       <div>
-                        <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Webhook URL</label>
-                        <input type="url" [(ngModel)]="channelForm.webhookUrl" placeholder="https://hooks.slack.com/services/..."
+                        <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">{{ lang.t('settings.alerts.name') }}</label>
+                        <input type="text" [(ngModel)]="channelForm.name" placeholder="Ej. Slack Operaciones"
                           class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
                       </div>
-                    }
 
-                    @if (channelForm.type === 'telegram') {
-                      <div class="space-y-4">
-                        <div>
-                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Bot Token</label>
-                          <input type="text" [(ngModel)]="channelForm.botToken" placeholder="Ej. 123456:ABC-def..."
-                            class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
-                        </div>
-                        <div>
-                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Chat ID</label>
-                          <input type="text" [(ngModel)]="channelForm.chatId" placeholder="Ej. -1001234567"
-                            class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
-                        </div>
+                      <div>
+                        <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">{{ lang.t('settings.alerts.type') }}</label>
+                        <select [(ngModel)]="channelForm.type" (change)="onChannelTypeChange()"
+                          class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
+                          <option value="slack">Slack Webhook</option>
+                          <option value="discord">Discord Webhook</option>
+                          <option value="telegram">Telegram Bot</option>
+                          <option value="webhook">Webhook REST (JSON)</option>
+                          <option value="email">Email (SMTP)</option>
+                        </select>
                       </div>
-                    }
 
-                    @if (channelForm.type === 'email') {
-                      <div class="space-y-4 p-4 bg-zinc-950/40 rounded-lg border border-zinc-900">
+                      <!-- AZ-007: Enrutamiento centralizado por evento -->
+                      <div class="space-y-2 border-t border-zinc-850 pt-4">
+                        <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Alcance de alertas</span>
+                        <div class="flex flex-wrap gap-4 text-xs">
+                          <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="eventsScope" value="all" [(ngModel)]="channelForm.eventsScope" class="text-orange-500 focus:ring-0">
+                            Todas las alertas
+                          </label>
+                          <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="eventsScope" value="selected" [(ngModel)]="channelForm.eventsScope" class="text-orange-500 focus:ring-0">
+                            Solo seleccionadas
+                          </label>
+                        </div>
+                        @if (channelForm.eventsScope === 'selected') {
+                          <div class="flex flex-wrap gap-3 pt-1">
+                            @for (evt of alertEventTypes; track evt) {
+                              <label class="flex items-center gap-1.5 text-[11px] text-zinc-300 cursor-pointer">
+                                <input type="checkbox" [checked]="channelForm.selectedEvents.includes(evt)" (change)="toggleSelectedEvent(evt)"
+                                  class="rounded border-zinc-800 bg-zinc-950 text-orange-500 focus:ring-0">
+                                {{ evt }}
+                              </label>
+                            }
+                          </div>
+                        }
+                      </div>
+                    </div>
+
+                    <!-- Columna derecha: campos específicos del canal + plantillas, todo el reflow queda contenido aquí -->
+                    <div class="space-y-4 @3xl:border-l @3xl:border-zinc-850 @3xl:pl-6">
+                      @if (channelForm.type === 'slack' || channelForm.type === 'discord' || channelForm.type === 'webhook') {
                         <div>
-                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">{{ lang.t('settings.alerts.recipientEmail') }}</label>
-                          <input type="email" [(ngModel)]="channelForm.emailRecipient" placeholder="alertas@empresa.com"
+                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Webhook URL</label>
+                          <input type="url" [(ngModel)]="channelForm.webhookUrl" placeholder="https://hooks.slack.com/services/..."
                             class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
                         </div>
-                        
-                        <div class="border-t border-zinc-900 pt-3">
-                          <span class="block text-[9px] font-black text-zinc-500 uppercase tracking-wider mb-2">{{ lang.t('settings.alerts.smtpServer') }}</span>
-                          
-                          <div class="space-y-3">
-                            <div>
-                              <label class="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('settings.alerts.smtpHost') }}</label>
-                              <input type="text" [(ngModel)]="channelForm.smtpHost" placeholder="Ej. mail.smtp.com"
-                                class="w-full bg-zinc-950/60 border border-zinc-850 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
-                            </div>
-                            <div class="grid grid-cols-2 gap-2">
+                      }
+
+                      @if (channelForm.type === 'telegram') {
+                        <div class="space-y-4">
+                          <div>
+                            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Bot Token</label>
+                            <input type="text" [(ngModel)]="channelForm.botToken" placeholder="Ej. 123456:ABC-def..."
+                              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
+                          </div>
+                          <div>
+                            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Chat ID</label>
+                            <input type="text" [(ngModel)]="channelForm.chatId" placeholder="Ej. -1001234567"
+                              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
+                          </div>
+                        </div>
+                      }
+
+                      @if (channelForm.type === 'email') {
+                        <div class="space-y-4 p-4 bg-zinc-950/40 rounded-lg border border-zinc-900">
+                          <div>
+                            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">{{ lang.t('settings.alerts.recipientEmail') }}</label>
+                            <input type="email" [(ngModel)]="channelForm.emailRecipient" placeholder="alertas@empresa.com"
+                              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
+                          </div>
+
+                          <div class="border-t border-zinc-900 pt-3">
+                            <span class="block text-[9px] font-black text-zinc-500 uppercase tracking-wider mb-2">{{ lang.t('settings.alerts.smtpServer') }}</span>
+
+                            <div class="space-y-3">
                               <div>
-                                <label class="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('settings.alerts.smtpPort') }}</label>
-                                <input type="number" [(ngModel)]="channelForm.smtpPort" placeholder="587"
+                                <label class="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('settings.alerts.smtpHost') }}</label>
+                                <input type="text" [(ngModel)]="channelForm.smtpHost" placeholder="Ej. mail.smtp.com"
                                   class="w-full bg-zinc-950/60 border border-zinc-850 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
                               </div>
-                              <div class="flex items-center gap-1.5 pt-4">
-                                <input type="checkbox" [(ngModel)]="channelForm.smtpSecure" id="smtpSecure" class="rounded border-zinc-800 bg-zinc-950 text-orange-500 focus:ring-0">
-                                <label for="smtpSecure" class="text-[10px] font-semibold text-zinc-400 cursor-pointer">SSL/TLS</label>
+                              <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label class="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('settings.alerts.smtpPort') }}</label>
+                                  <input type="number" [(ngModel)]="channelForm.smtpPort" placeholder="587"
+                                    class="w-full bg-zinc-950/60 border border-zinc-850 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
+                                </div>
+                                <div class="flex items-center gap-1.5 pt-4">
+                                  <input type="checkbox" [(ngModel)]="channelForm.smtpSecure" id="smtpSecure" class="rounded border-zinc-800 bg-zinc-950 text-orange-500 focus:ring-0">
+                                  <label for="smtpSecure" class="text-[10px] font-semibold text-zinc-400 cursor-pointer">SSL/TLS</label>
+                                </div>
                               </div>
-                            </div>
-                            <div>
-                              <label class="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('settings.alerts.smtpUser') }}</label>
-                              <input type="text" [(ngModel)]="channelForm.smtpUsername" placeholder="alertas@azkin.io"
-                                class="w-full bg-zinc-950/60 border border-zinc-850 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
-                            </div>
-                            <div>
-                              <label class="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('settings.alerts.smtpPass') }}</label>
-                              <input type="password" [(ngModel)]="channelForm.smtpPassword" placeholder="••••••••"
-                                class="w-full bg-zinc-950/60 border border-zinc-850 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
-                            </div>
-                            <div>
-                              <label class="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('settings.alerts.smtpFrom') }}</label>
-                              <input type="email" [(ngModel)]="channelForm.smtpFrom" placeholder="alertas@azkin.io"
-                                class="w-full bg-zinc-950/60 border border-zinc-850 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
+                              <div>
+                                <label class="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('settings.alerts.smtpUser') }}</label>
+                                <input type="text" [(ngModel)]="channelForm.smtpUsername" placeholder="alertas@azkin.io"
+                                  class="w-full bg-zinc-950/60 border border-zinc-850 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
+                              </div>
+                              <div>
+                                <label class="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('settings.alerts.smtpPass') }}</label>
+                                <input type="password" [(ngModel)]="channelForm.smtpPassword" placeholder="••••••••"
+                                  class="w-full bg-zinc-950/60 border border-zinc-850 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
+                              </div>
+                              <div>
+                                <label class="block text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('settings.alerts.smtpFrom') }}</label>
+                                <input type="email" [(ngModel)]="channelForm.smtpFrom" placeholder="alertas@azkin.io"
+                                  class="w-full bg-zinc-950/60 border border-zinc-850 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    }
+                      }
 
-                    <!-- AZ-007: Enrutamiento centralizado por evento -->
-                    <div class="space-y-2 border-t border-zinc-850 pt-4">
-                      <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Alcance de alertas</span>
-                      <div class="flex gap-4 text-xs">
-                        <label class="flex items-center gap-1.5 cursor-pointer">
-                          <input type="radio" name="eventsScope" value="all" [(ngModel)]="channelForm.eventsScope" class="text-orange-500 focus:ring-0">
-                          Todas las alertas
-                        </label>
-                        <label class="flex items-center gap-1.5 cursor-pointer">
-                          <input type="radio" name="eventsScope" value="selected" [(ngModel)]="channelForm.eventsScope" class="text-orange-500 focus:ring-0">
-                          Solo seleccionadas
-                        </label>
-                      </div>
-                      @if (channelForm.eventsScope === 'selected') {
-                        <div class="flex flex-wrap gap-3 pt-1">
+                      <!-- AZ-004/AZ-026: Plantillas por evento con cheatsheet de variables y selector de emojis -->
+                      <div class="space-y-2 border-t border-zinc-850 pt-4">
+                        <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Plantilla de mensaje</span>
+                        <select [(ngModel)]="channelForm.activeTemplateEvent"
+                          class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500">
                           @for (evt of alertEventTypes; track evt) {
-                            <label class="flex items-center gap-1.5 text-[11px] text-zinc-300 cursor-pointer">
-                              <input type="checkbox" [checked]="channelForm.selectedEvents.includes(evt)" (change)="toggleSelectedEvent(evt)"
-                                class="rounded border-zinc-800 bg-zinc-950 text-orange-500 focus:ring-0">
-                              {{ evt }}
-                            </label>
+                            <option [value]="evt">{{ evt }}</option>
                           }
-                        </div>
-                      }
-                    </div>
+                        </select>
 
-                    <!-- AZ-004: Plantillas por evento -->
-                    <div class="space-y-2 border-t border-zinc-850 pt-4">
-                      <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Plantilla de mensaje</span>
-                      <select [(ngModel)]="channelForm.activeTemplateEvent"
-                        class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500">
-                        @for (evt of alertEventTypes; track evt) {
-                          <option [value]="evt">{{ evt }}</option>
+                        @if (channelForm.type === 'email') {
+                          <input #subjectInput type="text" [ngModel]="channelForm.templates[channelForm.activeTemplateEvent]?.subject ?? ''"
+                            (ngModelChange)="setTemplateSubject($event)" (focus)="setActiveTemplateField(subjectInput)" placeholder="Asunto del correo"
+                            class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500">
                         }
-                      </select>
 
-                      @if (channelForm.type === 'email') {
-                        <input type="text" [ngModel]="channelForm.templates[channelForm.activeTemplateEvent]?.subject ?? ''"
-                          (ngModelChange)="setTemplateSubject($event)" placeholder="Asunto del correo"
-                          class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500">
-                      }
-                      <textarea rows="4" [ngModel]="channelForm.templates[channelForm.activeTemplateEvent]?.body ?? ''"
-                        (ngModelChange)="setTemplateBody($event)"
-                        [placeholder]="templateBodyPlaceholder()"
-                        class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-orange-500"></textarea>
-                      <p class="text-[9px] text-zinc-600">Variables: monitor, url, status, previousStatus, datetime, httpCode, ping, detail</p>
-
-                      @if (currentTemplateBody()) {
-                        <div class="bg-zinc-950/80 border border-zinc-900 rounded-lg p-2">
-                          <span class="block text-[9px] font-bold text-zinc-500 uppercase mb-1">Vista previa</span>
-                          <pre class="text-[10px] text-zinc-400 whitespace-pre-wrap font-mono">{{ renderPreview(currentTemplateBody()) }}</pre>
+                        <!-- Cheatsheet de variables clickeable -->
+                        <div class="flex flex-wrap gap-1">
+                          @for (v of templateVariableChips; track v.name) {
+                            <button type="button" (click)="insertAtCursor(v.token)"
+                              class="text-[9px] bg-zinc-950 border border-zinc-800 hover:border-orange-500/50 hover:text-orange-400 text-zinc-400 px-1.5 py-0.5 rounded font-mono transition-colors">
+                              {{ v.token }}
+                            </button>
+                          }
+                          <button type="button" (click)="showEmojiPicker.set(true)"
+                            class="text-[9px] bg-zinc-950 border border-zinc-800 hover:border-orange-500/50 text-zinc-400 px-1.5 py-0.5 rounded font-mono transition-colors">
+                            😀 Emoji
+                          </button>
                         </div>
-                      }
+
+                        <textarea #bodyTextarea rows="4" [ngModel]="channelForm.templates[channelForm.activeTemplateEvent]?.body ?? ''"
+                          (ngModelChange)="setTemplateBody($event)" (focus)="setActiveTemplateField(bodyTextarea)"
+                          [placeholder]="templateBodyPlaceholder()"
+                          class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-orange-500"></textarea>
+
+                        @if (currentTemplateBody()) {
+                          <div class="bg-zinc-950/80 border border-zinc-900 rounded-lg p-2">
+                            <span class="block text-[9px] font-bold text-zinc-500 uppercase mb-1">Vista previa</span>
+                            <pre class="text-[10px] text-zinc-400 whitespace-pre-wrap font-mono">{{ renderPreview(currentTemplateBody()) }}</pre>
+                          </div>
+                        }
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -250,7 +293,7 @@ import { LanguageService } from '../../core/services/language.service';
               </div>
 
               <!-- Listado de canales -->
-              <div class="col-span-2 space-y-4">
+              <div class="xl:col-span-3 space-y-4">
                 <div class="flex items-center justify-between">
                   <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">{{ lang.t('settings.alerts.activeChannels') }}</h3>
                   <span class="text-[10px] text-zinc-500 font-mono font-bold">{{ notificationService.channels().length }} {{ lang.t('settings.alerts.configured') }}</span>
@@ -355,40 +398,58 @@ import { LanguageService } from '../../core/services/language.service';
                     @if (!viewerForm.asAdmin) {
                     <div class="space-y-3 border-t border-zinc-850 pt-4">
                       <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">{{ lang.t('settings.viewers.granularPerms') }}</span>
-                      
-                      <div class="flex gap-2">
-                        <select [(ngModel)]="tempPermissionType" class="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500">
-                          <option value="all">{{ lang.t('settings.viewers.viewAll') }}</option>
-                          <option value="group">{{ lang.t('settings.viewers.viewGroup') }}</option>
-                          <option value="monitor">{{ lang.t('settings.viewers.viewMonitor') }}</option>
-                        </select>
-                        <button (click)="addTempPermission()" class="px-3 py-1.5 rounded-lg bg-zinc-850 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-white transition-colors">{{ lang.t('settings.viewers.addPerm') }}</button>
-                      </div>
 
-                      @if (tempPermissionType === 'group') {
-                        <select [(ngModel)]="tempPermissionValue" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500 animate-fade-in">
-                          <option value="">{{ lang.t('settings.viewers.selectGroup') }}</option>
-                          @for (g of uniqueGroups(); track g) {
-                            <option [value]="g">{{ g }}</option>
-                          }
-                        </select>
-                      }
-                      @if (tempPermissionType === 'monitor') {
-                        <select [(ngModel)]="tempPermissionValue" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500 animate-fade-in">
-                          <option value="">{{ lang.t('settings.viewers.selectMonitor') }}</option>
-                          @for (m of monitorService.monitors(); track m.id) {
-                            <option [value]="m.id">{{ m.name }}</option>
-                          }
-                        </select>
+                      <label class="flex items-center gap-2 bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-850 cursor-pointer">
+                        <input type="checkbox" [checked]="isAllSelected()" (change)="setAllSelected($any($event.target).checked)"
+                          class="rounded border-zinc-800 bg-zinc-950 text-orange-500 focus:ring-0">
+                        <span class="text-[11px] text-zinc-200 font-semibold">{{ lang.t('settings.viewers.viewAll') }}</span>
+                      </label>
+
+                      @if (!isAllSelected()) {
+                        <div class="space-y-2 animate-fade-in">
+                          <div>
+                            <span class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1">{{ lang.t('settings.viewers.viewGroup') }}</span>
+                            @if (uniqueGroups().length === 0) {
+                              <p class="text-[10px] text-zinc-600">No hay grupos de monitores definidos.</p>
+                            }
+                            <div class="space-y-1 max-h-28 overflow-y-auto pr-1">
+                              @for (g of uniqueGroups(); track g) {
+                                <label class="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
+                                  <input type="checkbox" [checked]="isGroupChecked(g)" (change)="toggleGroup(g)"
+                                    class="rounded border-zinc-800 bg-zinc-950 text-orange-500 focus:ring-0">
+                                  <span class="text-[11px] text-zinc-300 font-mono">{{ g }}</span>
+                                </label>
+                              }
+                            </div>
+                          </div>
+                          <div>
+                            <span class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1">{{ lang.t('settings.viewers.viewMonitor') }}</span>
+                            @if (monitorService.monitors().length === 0) {
+                              <p class="text-[10px] text-zinc-600">No hay monitores creados todavía.</p>
+                            }
+                            <div class="space-y-1 max-h-28 overflow-y-auto pr-1">
+                              @for (m of monitorService.monitors(); track m.id) {
+                                <label class="flex items-center gap-2 px-1 py-0.5 cursor-pointer">
+                                  <input type="checkbox" [checked]="isMonitorChecked(m.id)" (change)="toggleMonitor(m.id)"
+                                    class="rounded border-zinc-800 bg-zinc-950 text-orange-500 focus:ring-0">
+                                  <span class="text-[11px] text-zinc-300">{{ m.name }}</span>
+                                </label>
+                              }
+                            </div>
+                          </div>
+                        </div>
                       }
 
-                      <!-- Permisos añadidos -->
-                      <div class="space-y-1.5 mt-2 max-h-32 overflow-y-auto pr-1">
+                      <!-- Resumen de lo que se guardará -->
+                      <div class="space-y-1.5 mt-2 max-h-24 overflow-y-auto pr-1 border-t border-zinc-850 pt-2">
+                        @if (viewerForm.permissions.length === 0) {
+                          <p class="text-[10px] text-rose-400">Sin permisos seleccionados — este viewer no verá ningún monitor.</p>
+                        }
                         @for (p of viewerForm.permissions; track $index) {
                           <div class="flex items-center justify-between bg-zinc-950/80 border border-zinc-850 px-3 py-2 rounded-lg text-[10px] animate-fade-in">
                             <div class="flex items-center gap-2">
                               <span class="text-orange-500 uppercase tracking-widest text-[8px] font-black bg-orange-500/10 px-1 py-0.5 rounded">{{ p.type }}</span>
-                              <span class="text-zinc-300 font-mono font-semibold">{{ p.value || 'Todo' }}</span>
+                              <span class="text-zinc-300 font-mono font-semibold">{{ p.type === 'monitor' ? monitorNameById(p.value) : (p.value || 'Todo') }}</span>
                             </div>
                             <button (click)="removeTempPermission($index)" class="text-rose-500 hover:text-rose-400 font-bold">{{ lang.t('settings.alerts.delete') }}</button>
                           </div>
@@ -417,11 +478,30 @@ import { LanguageService } from '../../core/services/language.service';
                     <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Administradores</h3>
                     <span class="text-[10px] text-zinc-500 font-mono font-bold">{{ userService.admins().length }} activos</span>
                   </div>
-                  <div class="flex flex-wrap gap-2">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     @for (a of userService.admins(); track a.id) {
-                      <span class="text-[10px] bg-orange-500/10 border border-orange-500/20 text-orange-400 px-2.5 py-1 rounded-lg font-mono font-semibold">
-                        {{ a.email }}
-                      </span>
+                      <div class="bg-zinc-900/20 border rounded-xl p-4 flex flex-col gap-3 transition-all"
+                        [class.border-zinc-850]="!a.isBlocked" [class.border-rose-900/50]="a.isBlocked">
+                        <div class="flex justify-between items-center gap-2">
+                          <span class="text-xs font-black text-zinc-200 truncate" [title]="a.email">{{ a.email }}</span>
+                          @if (a.isBlocked) {
+                            <span class="text-[9px] bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded font-mono uppercase font-bold shrink-0">Bloqueado</span>
+                          } @else {
+                            <span class="text-[9px] bg-orange-500/10 border border-orange-500/20 text-orange-400 px-2 py-0.5 rounded font-mono uppercase font-bold shrink-0">Admin</span>
+                          }
+                        </div>
+                        <div class="flex items-center justify-between border-t border-zinc-900 pt-3 text-[10px] font-bold">
+                          <span class="text-zinc-600 font-mono text-[9px]">{{ a.id === authService.currentUser()?.userId ? 'Tu cuenta' : '' }}</span>
+                          <div class="flex items-center space-x-3">
+                            <button (click)="onEditAdmin(a)" class="text-zinc-400 hover:text-zinc-200 transition-colors">{{ lang.t('common.edit') }}</button>
+                            <button (click)="onPromptResetAdminPassword(a)" class="text-orange-500 hover:text-orange-400 transition-colors">{{ lang.t('settings.viewers.key') }}</button>
+                            @if (a.id !== authService.currentUser()?.userId) {
+                              <button (click)="onToggleAdminBlocked(a)" class="text-amber-500 hover:text-amber-400 transition-colors">{{ a.isBlocked ? 'Desbloquear' : 'Bloquear' }}</button>
+                              <button (click)="onDeleteAdmin(a)" class="text-rose-500 hover:text-rose-400 transition-colors">{{ lang.t('common.delete') }}</button>
+                            }
+                          </div>
+                        </div>
+                      </div>
                     }
                   </div>
                 </div>
@@ -480,37 +560,6 @@ import { LanguageService } from '../../core/services/language.service';
                     }
                   </div>
                 }
-              </div>
-            </div>
-          }
-
-          <!-- ================= PESTAÑA: MI PERFIL ================= -->
-          @if (activeTab() === 'profile') {
-            <div class="max-w-xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
-              <div class="p-6 space-y-6">
-                <div>
-                  <h3 class="text-sm font-bold text-white tracking-tight">{{ lang.t('settings.profile.changeTitle') }}</h3>
-                  <p class="text-[11px] text-zinc-500 mt-0.5">{{ lang.t('settings.profile.changeDesc') }}</p>
-                </div>
-                
-                <div class="space-y-4">
-                  <div>
-                    <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">{{ lang.t('settings.profile.newPass') }}</label>
-                    <input type="password" [(ngModel)]="profileForm.newPassword" [placeholder]="lang.t('settings.viewers.minChars')"
-                      class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
-                  </div>
-                  <div>
-                    <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">{{ lang.t('settings.profile.confirmPass') }}</label>
-                    <input type="password" [(ngModel)]="profileForm.confirmPassword" placeholder="••••••••"
-                      class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
-                  </div>
-                </div>
-              </div>
-              
-              <div class="bg-zinc-950/60 px-6 py-4 border-t border-zinc-850 flex items-center justify-end">
-                <button (click)="onChangeOwnPassword()" class="px-5 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-xs font-bold transition-all shadow-md">
-                  {{ lang.t('settings.profile.saveBtn') }}
-                </button>
               </div>
             </div>
           }
@@ -576,6 +625,45 @@ import { LanguageService } from '../../core/services/language.service';
                     }
                   }
                 </div>
+
+                <!-- AZ-028: importación masiva de monitores vía CSV -->
+                <div class="border-t border-zinc-850 pt-4 space-y-3">
+                  <div class="flex items-center justify-between">
+                    <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Importar monitores (CSV)</span>
+                    <button (click)="downloadCsvTemplate()" class="text-[10px] text-orange-500 hover:text-orange-400 font-bold">Descargar plantilla CSV</button>
+                  </div>
+
+                  <div class="relative"
+                    (dragover)="$event.preventDefault()"
+                    (drop)="onCsvDrop($event)">
+                    <input type="file" (change)="onCsvFileSelected($event)" accept=".csv" id="csvImportFile" class="hidden">
+                    <label for="csvImportFile"
+                      class="flex flex-col items-center justify-center p-6 rounded-xl bg-zinc-950/40 hover:bg-zinc-950 border border-dashed border-zinc-800 hover:border-orange-500/50 text-center transition-all cursor-pointer">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-zinc-500 mb-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
+                      </svg>
+                      <span class="text-xs font-black text-white">Arrastra un CSV o haz clic para subir</span>
+                      <span class="text-[10px] text-zinc-500 mt-1 font-medium">Columnas: name, type, target, port, interval, retries, retryInterval, group, tags</span>
+                    </label>
+                  </div>
+
+                  @if (isImportingCsv()) {
+                    <p class="text-[11px] text-zinc-500">Importando...</p>
+                  }
+
+                  @if (csvImportResult(); as result) {
+                    <div class="bg-zinc-950/60 border border-zinc-900 rounded-lg p-3 text-[11px] space-y-2">
+                      <p class="text-zinc-300">Creados: <span class="font-bold text-emerald-500">{{ result.createdCount }}</span> · Actualizados: <span class="font-bold text-orange-400">{{ result.updatedCount }}</span> · Errores: <span class="font-bold" [class.text-rose-500]="result.errors.length > 0">{{ result.errors.length }}</span></p>
+                      @if (result.errors.length > 0) {
+                        <div class="max-h-32 overflow-y-auto space-y-1 border-t border-zinc-900 pt-2">
+                          @for (e of result.errors; track e.row) {
+                            <p class="text-rose-400 font-mono text-[10px]">Fila {{ e.row }}: {{ e.message }}</p>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
               </div>
             </div>
           }
@@ -600,17 +688,29 @@ import { LanguageService } from '../../core/services/language.service';
                 }
 
                 <div>
-                  <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Certificado (PEM)</label>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Certificado (PEM)</label>
+                    <input type="file" (change)="onTlsFileSelected($event, 'certPem')" accept=".pem,.crt,.cer,.txt" id="tlsCertFile" class="hidden">
+                    <label for="tlsCertFile" class="text-[9px] text-orange-500 hover:text-orange-400 font-bold cursor-pointer uppercase tracking-wider">Subir archivo</label>
+                  </div>
                   <textarea rows="4" [(ngModel)]="tlsForm.certPem" placeholder="-----BEGIN CERTIFICATE-----"
                     class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-[10px] text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-orange-500"></textarea>
                 </div>
                 <div>
-                  <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Clave privada (PEM)</label>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Clave privada (PEM)</label>
+                    <input type="file" (change)="onTlsFileSelected($event, 'keyPem')" accept=".pem,.key,.txt" id="tlsKeyFile" class="hidden">
+                    <label for="tlsKeyFile" class="text-[9px] text-orange-500 hover:text-orange-400 font-bold cursor-pointer uppercase tracking-wider">Subir archivo</label>
+                  </div>
                   <textarea rows="4" [(ngModel)]="tlsForm.keyPem" placeholder="-----BEGIN PRIVATE KEY-----"
                     class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-[10px] text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-orange-500"></textarea>
                 </div>
                 <div>
-                  <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Cadena intermedia (opcional)</label>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Cadena intermedia (opcional)</label>
+                    <input type="file" (change)="onTlsFileSelected($event, 'chainPem')" accept=".pem,.crt,.cer,.txt" id="tlsChainFile" class="hidden">
+                    <label for="tlsChainFile" class="text-[9px] text-orange-500 hover:text-orange-400 font-bold cursor-pointer uppercase tracking-wider">Subir archivo</label>
+                  </div>
                   <textarea rows="3" [(ngModel)]="tlsForm.chainPem" placeholder="-----BEGIN CERTIFICATE-----"
                     class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-[10px] text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-orange-500"></textarea>
                 </div>
@@ -633,9 +733,147 @@ import { LanguageService } from '../../core/services/language.service';
                 </button>
               </div>
             </div>
+
+            <!-- AZ-031: estado del SMTP de aplicación (recuperación de contraseña) -->
+            <div class="max-w-xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg mt-6">
+              <div class="p-6 space-y-4">
+                <div>
+                  <h3 class="text-sm font-bold text-white tracking-tight">SMTP de Aplicación</h3>
+                  <p class="text-[11px] text-zinc-500 mt-0.5">
+                    Usado para correos transaccionales (recuperación de contraseña). Se configura vía variables de entorno del servidor.
+                  </p>
+                </div>
+
+                @if (smtpStatus()?.configured) {
+                  <div class="bg-zinc-950/60 border border-emerald-900/40 rounded-lg p-3 text-[11px] space-y-1">
+                    <p class="text-emerald-400 font-semibold">Configurado</p>
+                    <p class="text-zinc-300">Host: <span class="font-mono">{{ smtpStatus()?.host }}:{{ smtpStatus()?.port }}</span></p>
+                    <p class="text-zinc-500">TLS: {{ smtpStatus()?.secure ? 'activado' : 'desactivado' }}</p>
+                  </div>
+                } @else {
+                  <div class="bg-zinc-950/60 border border-rose-900/40 rounded-lg p-3 text-[11px]">
+                    <p class="text-rose-400 font-semibold">No configurado</p>
+                    <p class="text-zinc-500 mt-0.5">La recuperación de contraseña no podrá enviar correos hasta configurar AZKIN_SMTP_* en el servidor.</p>
+                  </div>
+                }
+
+                <div class="flex items-end gap-3 border-t border-zinc-850 pt-4">
+                  <div class="flex-1">
+                    <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Correo de prueba</label>
+                    <input type="email" [(ngModel)]="smtpTestRecipient" placeholder="tu-correo@ejemplo.com"
+                      class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500">
+                  </div>
+                  <button (click)="onSendTestEmail()" [disabled]="isSendingTestEmail()"
+                    class="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:bg-orange-800 text-xs font-bold transition-all shadow-md">
+                    {{ isSendingTestEmail() ? 'Enviando...' : 'Enviar prueba' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- ================= PESTAÑA: API PÚBLICA (AZ-029) ================= -->
+          @if (activeTab() === 'api') {
+            <div class="max-w-2xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
+              <div class="p-6 space-y-4">
+                <div>
+                  <h3 class="text-sm font-bold text-white tracking-tight">API Pública</h3>
+                  <p class="text-[11px] text-zinc-500 mt-0.5">
+                    Genera API Keys para integrar sistemas externos con Azkin vía <code class="text-orange-400">X-API-Key</code>. Ver <code class="text-orange-400">docs/api-publica.md</code> para ejemplos.
+                  </p>
+                </div>
+
+                <div class="flex items-end gap-3 border-t border-zinc-850 pt-4">
+                  <div class="flex-1">
+                    <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Nombre de la key</label>
+                    <input type="text" [(ngModel)]="apiKeyForm.name" placeholder="Ej. Integración Grafana"
+                      class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500">
+                  </div>
+                  <label class="flex items-center gap-1.5 text-[11px] text-zinc-300 cursor-pointer pb-2.5">
+                    <input type="checkbox" [(ngModel)]="apiKeyForm.canWrite" class="rounded border-zinc-800 bg-zinc-950 text-orange-500 focus:ring-0">
+                    Permitir escritura
+                  </label>
+                  <button (click)="onCreateApiKey()" class="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-xs font-bold transition-all shadow-md">Generar</button>
+                </div>
+
+                <div class="border-t border-zinc-850 pt-4 space-y-2">
+                  <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Keys activas</span>
+                  @if (apiKeys().length === 0) {
+                    <p class="text-[11px] text-zinc-600">Aún no hay API Keys generadas.</p>
+                  } @else {
+                    @for (k of apiKeys(); track k.id) {
+                      <div class="flex items-center justify-between bg-zinc-950/60 border border-zinc-900 px-3 py-2 rounded-lg text-[11px]">
+                        <div class="space-y-0.5">
+                          <span class="text-zinc-200 font-semibold">{{ k.name }}</span>
+                          <span class="block text-zinc-600 font-mono text-[10px]">{{ k.keyPrefix }}••••••••</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                          <span class="text-[9px] bg-zinc-950 px-1.5 py-0.5 border border-zinc-800/80 text-zinc-500 rounded font-mono uppercase font-bold">{{ k.scopes.join('/') }}</span>
+                          @if (k.revokedAt) {
+                            <span class="text-[9px] text-rose-500 font-bold uppercase">Revocada</span>
+                          } @else {
+                            <button (click)="onRevokeApiKey(k.id)" class="text-rose-500 hover:text-rose-400 font-bold">Revocar</button>
+                          }
+                        </div>
+                      </div>
+                    }
+                  }
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- ================= PESTAÑA: AUDITORÍA (AZ-030) ================= -->
+          @if (activeTab() === 'audit') {
+            <div class="max-w-3xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
+              <div class="p-6 space-y-4">
+                <div>
+                  <h3 class="text-sm font-bold text-white tracking-tight">Historial de Auditoría</h3>
+                  <p class="text-[11px] text-zinc-500 mt-0.5">
+                    Acciones administrativas sensibles registradas por el sistema (borrado masivo de monitores, cambios de TLS, recuperación de contraseña).
+                  </p>
+                </div>
+
+                @if (auditLogEntries().length === 0) {
+                  <p class="text-[11px] text-zinc-600 border-t border-zinc-850 pt-4">Aún no hay eventos de auditoría registrados.</p>
+                } @else {
+                  <div class="space-y-2 border-t border-zinc-850 pt-4">
+                    @for (e of auditLogEntries(); track e.id) {
+                      <div class="bg-zinc-950/60 border border-zinc-900 rounded-lg p-3 text-[11px] space-y-1">
+                        <div class="flex items-center justify-between">
+                          <span class="text-[9px] bg-orange-500/10 border border-orange-500/20 text-orange-400 px-2 py-0.5 rounded font-mono uppercase font-bold">{{ e.action }}</span>
+                          <span class="text-zinc-600 font-mono text-[10px]">{{ e.createdAt | date:'short' }}</span>
+                        </div>
+                        <p class="text-zinc-300">
+                          <span class="font-semibold">{{ e.actorEmail }}</span>
+                          <span class="text-zinc-600"> — {{ e.targetType }}</span>
+                          @if (e.targetIds && e.targetIds.length > 0) {
+                            <span class="text-zinc-600"> ({{ e.targetIds.length }} elemento(s))</span>
+                          }
+                        </p>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
           }
         </div>
       </main>
+
+      <!-- Modal: API Key generada (se muestra una única vez) -->
+      @if (newlyCreatedApiKey(); as created) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+          <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl max-w-md w-full shadow-2xl relative z-10 animate-fade-in space-y-4">
+            <h4 class="text-sm font-bold text-white font-black">API Key generada</h4>
+            <p class="text-[11px] text-rose-400 font-semibold">Cópiala ahora — no se puede recuperar de nuevo.</p>
+            <div class="bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-orange-400 break-all select-all">{{ created.plainKey }}</div>
+            <button (click)="copyApiKey(created.plainKey)" class="w-full py-2 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 rounded-xl text-xs font-bold transition-all text-zinc-300">Copiar al portapapeles</button>
+            <button (click)="newlyCreatedApiKey.set(null)" class="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold transition-all shadow-md">Ya la copié, cerrar</button>
+          </div>
+        </div>
+      }
 
       <!-- Custom Confirm Modal -->
       @if (showConfirmModal()) {
@@ -654,6 +892,74 @@ import { LanguageService } from '../../core/services/language.service';
             <div class="flex gap-3 pt-2">
               <button (click)="closeConfirm()" class="flex-1 py-2 bg-zinc-950 border border-zinc-800 hover:bg-zinc-900 rounded-xl text-xs font-bold transition-all text-zinc-300">{{ lang.t('common.cancel') }}</button>
               <button (click)="executeConfirm()" class="flex-1 py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold transition-all shadow-lg">{{ lang.t('common.confirm') }}</button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Modal Selector de Emojis (AZ-026) -->
+      @if (showEmojiPicker()) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" (click)="showEmojiPicker.set(false)"></div>
+          <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl max-w-sm w-full shadow-2xl relative z-10 animate-fade-in space-y-4">
+            <h4 class="text-sm font-bold text-white font-black">Selecciona un emoji</h4>
+            <div class="grid grid-cols-8 gap-1.5 max-h-64 overflow-y-auto pr-1">
+              @for (e of emojiOptions; track e) {
+                <button type="button" (click)="insertAtCursor(e); showEmojiPicker.set(false)"
+                  class="text-lg p-1.5 rounded-lg hover:bg-zinc-800 transition-colors">{{ e }}</button>
+              }
+            </div>
+            <button (click)="showEmojiPicker.set(false)" class="w-full py-2 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 rounded-xl text-xs font-bold transition-all text-zinc-300">{{ lang.t('common.cancel') }}</button>
+          </div>
+        </div>
+      }
+
+      <!-- Modal Editar Email de Administrador -->
+      @if (showEditAdminModal()) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" (click)="showEditAdminModal.set(false)"></div>
+          <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl max-w-sm w-full shadow-2xl relative z-10 animate-fade-in space-y-4">
+            <div>
+              <h4 class="text-sm font-bold text-white font-black">Editar Administrador</h4>
+              <p class="text-[10px] text-zinc-500">{{ adminEditTarget?.email }}</p>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Correo electrónico</label>
+              <input type="email" [(ngModel)]="adminEditEmail" placeholder="admin@ejemplo.com"
+                class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500">
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button (click)="showEditAdminModal.set(false)" class="flex-1 py-2 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 rounded-xl text-xs font-bold transition-all text-zinc-300">{{ lang.t('common.cancel') }}</button>
+              <button (click)="onConfirmEditAdmin()" class="flex-1 py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold transition-all shadow-md">{{ lang.t('common.save') }}</button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Modal Resetear Contraseña de Administrador -->
+      @if (showAdminPasswordModal()) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" (click)="showAdminPasswordModal.set(false)"></div>
+          <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl max-w-sm w-full shadow-2xl relative z-10 animate-fade-in space-y-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-500 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+              </div>
+              <div>
+                <h4 class="text-sm font-bold text-white font-black">Restablecer contraseña</h4>
+                <p class="text-[10px] text-zinc-500">{{ adminPasswordTarget?.email }}</p>
+              </div>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">{{ lang.t('settings.profile.newPass') }}</label>
+              <input type="password" [(ngModel)]="adminNewPassword" [placeholder]="lang.t('settings.viewers.minChars')"
+                class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500">
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button (click)="showAdminPasswordModal.set(false)" class="flex-1 py-2 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 rounded-xl text-xs font-bold transition-all text-zinc-300">{{ lang.t('common.cancel') }}</button>
+              <button (click)="onConfirmResetAdminPassword()" class="flex-1 py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold transition-all shadow-md">{{ lang.t('common.save') }}</button>
             </div>
           </div>
         </div>
@@ -703,9 +1009,12 @@ export class SettingsComponent implements OnInit {
   readonly notificationService = inject(NotificationService);
   readonly monitorService = inject(MonitorService);
   public readonly lang = inject(LanguageService);
+  public readonly themeService = inject(ThemeService);
+  private readonly fileDownload = inject(FileDownloadService);
+  public readonly authService = inject(AuthService);
 
   readonly toast = signal<string | null>(null);
-  readonly activeTab = signal<'alerts' | 'viewers' | 'profile' | 'backups' | 'tls'>('alerts');
+  readonly activeTab = signal<'alerts' | 'viewers' | 'backups' | 'tls' | 'api' | 'audit'>('alerts');
 
   // --- Formulario de Canales ---
   readonly isEditingChannel = signal(false);
@@ -717,13 +1026,19 @@ export class SettingsComponent implements OnInit {
   editingViewerId: string | null = null;
   viewerForm = this.getEmptyViewerForm();
 
-  // --- Formulario de Perfil (Cambio de contraseña propia) ---
-  profileForm = { newPassword: '', confirmPassword: '' };
-
   // --- Modal de Cambio de Contraseña de Viewer ---
   readonly showViewerPasswordModal = signal(false);
   viewerPasswordTarget: IViewer | null = null;
   viewerNewPassword = '';
+
+  // --- Modales de gestión de otros Administradores (AZ-023) ---
+  readonly showEditAdminModal = signal(false);
+  adminEditTarget: IAdmin | null = null;
+  adminEditEmail = '';
+
+  readonly showAdminPasswordModal = signal(false);
+  adminPasswordTarget: IAdmin | null = null;
+  adminNewPassword = '';
 
   // --- Modal de Confirmación Personalizado ---
   readonly showConfirmModal = signal(false);
@@ -739,9 +1054,43 @@ export class SettingsComponent implements OnInit {
     return [...new Set(groups)];
   });
 
-  // Variables auxiliares para añadir permisos al array temporal
-  tempPermissionType: 'all' | 'group' | 'monitor' = 'all';
-  tempPermissionValue = '';
+  // ================= Permisos granulares (checkboxes, sin paso intermedio de "Añadir") =================
+  isAllSelected(): boolean {
+    return this.viewerForm.permissions.some(p => p.type === 'all');
+  }
+
+  setAllSelected(checked: boolean): void {
+    this.viewerForm.permissions = checked ? [{ type: 'all' }] : [];
+  }
+
+  isGroupChecked(group: string): boolean {
+    return this.viewerForm.permissions.some(p => p.type === 'group' && p.value === group);
+  }
+
+  toggleGroup(group: string): void {
+    if (this.isGroupChecked(group)) {
+      this.viewerForm.permissions = this.viewerForm.permissions.filter(p => !(p.type === 'group' && p.value === group));
+    } else {
+      this.viewerForm.permissions = [...this.viewerForm.permissions, { type: 'group', value: group }];
+    }
+  }
+
+  isMonitorChecked(monitorId: string): boolean {
+    return this.viewerForm.permissions.some(p => p.type === 'monitor' && p.value === monitorId);
+  }
+
+  toggleMonitor(monitorId: string): void {
+    if (this.isMonitorChecked(monitorId)) {
+      this.viewerForm.permissions = this.viewerForm.permissions.filter(p => !(p.type === 'monitor' && p.value === monitorId));
+    } else {
+      this.viewerForm.permissions = [...this.viewerForm.permissions, { type: 'monitor', value: monitorId }];
+    }
+  }
+
+  monitorNameById(id?: string): string {
+    if (!id) return 'Todo';
+    return this.monitorService.monitors().find(m => m.id === id)?.name ?? id;
+  }
 
   ngOnInit(): void {
     this.userService.loadViewers().subscribe();
@@ -750,6 +1099,8 @@ export class SettingsComponent implements OnInit {
     this.monitorService.loadMonitors().subscribe();
     this.loadBackups();
     this.loadTlsStatus();
+    this.loadSmtpStatus();
+    this.loadApiKeys();
   }
 
   showToastFeedback(msg: string): void {
@@ -848,6 +1199,53 @@ export class SettingsComponent implements OnInit {
     return body.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key: string) =>
       this.previewSampleContext[key] ?? match
     );
+  }
+
+  // ================= AZ-026: cheatsheet de variables + selector de emojis =================
+  readonly templateVariableChips = ['monitor', 'url', 'status', 'previousStatus', 'datetime', 'httpCode', 'ping', 'detail']
+    .map(name => ({ name, token: `{{${name}}}` }));
+
+  readonly emojiOptions = ['🚨', '✅', '❌', '⚠️', '🔴', '🟢', '🟡', '🕒', '📉', '📈', '🔥', '💥', '🌐', '🔒', '🔔', '📡', '🛑', '⏱️', '📊', '💡', '🚀', '👀', '📌', '🧯'];
+
+  readonly showEmojiPicker = signal(false);
+  private activeTemplateEl: HTMLInputElement | HTMLTextAreaElement | null = null;
+
+  setActiveTemplateField(el: HTMLInputElement | HTMLTextAreaElement): void {
+    this.activeTemplateEl = el;
+  }
+
+  /** Inserta texto (variable o emoji) en la posición del cursor del campo de plantilla enfocado. */
+  insertAtCursor(text: string): void {
+    const el = this.activeTemplateEl;
+    const isSubject = el?.tagName === 'INPUT';
+    const current = isSubject
+      ? (this.channelForm.templates[this.channelForm.activeTemplateEvent]?.subject ?? '')
+      : this.currentTemplateBody();
+
+    let updated: string;
+    let cursorPos: number;
+    if (el && document.activeElement === el && el.selectionStart !== null) {
+      const start = el.selectionStart ?? current.length;
+      const end = el.selectionEnd ?? current.length;
+      updated = current.slice(0, start) + text + current.slice(end);
+      cursorPos = start + text.length;
+    } else {
+      updated = current + text;
+      cursorPos = updated.length;
+    }
+
+    if (isSubject) {
+      this.setTemplateSubject(updated);
+    } else {
+      this.setTemplateBody(updated);
+    }
+
+    if (el) {
+      setTimeout(() => {
+        el.focus();
+        el.setSelectionRange(cursorPos, cursorPos);
+      });
+    }
   }
 
   onChannelTypeChange(): void {
@@ -964,7 +1362,7 @@ export class SettingsComponent implements OnInit {
     this.showToastFeedback('Enviando notificación de prueba...');
     this.notificationService.testChannel(id, this.testEventFor(id)).subscribe({
       next: (res) => this.showToastFeedback(res.message || 'Prueba enviada correctamente.'),
-      error: (err) => this.showToastFeedback(err?.error?.error?.message || 'Error al enviar la prueba.')
+      error: (err) => this.showToastFeedback(extractApiErrorMessage(err, 'Error al enviar la prueba.'))
     });
   }
 
@@ -984,8 +1382,6 @@ export class SettingsComponent implements OnInit {
     this.isEditingViewer.set(false);
     this.editingViewerId = null;
     this.viewerForm = this.getEmptyViewerForm();
-    this.tempPermissionType = 'all';
-    this.tempPermissionValue = '';
   }
 
   onPromptChangeViewerPassword(viewer: IViewer): void {
@@ -1008,39 +1404,9 @@ export class SettingsComponent implements OnInit {
         this.showToastFeedback('Contraseña del Viewer actualizada exitosamente.');
       },
       error: (err) => {
-        this.showToastFeedback(err?.error?.error || 'Error al cambiar contraseña.');
+        this.showToastFeedback(extractApiErrorMessage(err, 'Error al cambiar contraseña.'));
       }
     });
-  }
-
-  onChangeOwnPassword(): void {
-    const { newPassword, confirmPassword } = this.profileForm;
-    if (!newPassword || newPassword.length < 8) {
-      this.showToastFeedback('La contraseña debe tener al menos 8 caracteres.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      this.showToastFeedback('Las contraseñas no coinciden.');
-      return;
-    }
-    this.http.put('/api/v1/users/profile/password', { newPassword }).subscribe({
-      next: () => {
-        this.profileForm = { newPassword: '', confirmPassword: '' };
-        this.showToastFeedback('Contraseña actualizada exitosamente.');
-      },
-      error: (err) => {
-        this.showToastFeedback(err?.error?.error || 'Error al cambiar contraseña.');
-      }
-    });
-  }
-
-  addTempPermission(): void {
-    const p: IViewerPermission = {
-      type: this.tempPermissionType,
-      value: this.tempPermissionType !== 'all' ? this.tempPermissionValue : undefined
-    };
-    this.viewerForm.permissions.push(p);
-    this.tempPermissionValue = '';
   }
 
   removeTempPermission(idx: number): void {
@@ -1061,6 +1427,19 @@ export class SettingsComponent implements OnInit {
   }
 
   onSaveViewer(): void {
+    // Aviso de seguridad: guardar un viewer sin ningún permiso lo deja sin poder ver nada.
+    if (!this.viewerForm.asAdmin && this.viewerForm.permissions.length === 0) {
+      this.openConfirm(
+        'Guardar sin permisos',
+        'No seleccionaste ningún permiso (ni "Ver todo", ni grupos, ni monitores). Este usuario no podrá ver ningún monitor. ¿Guardar de todas formas?',
+        () => this.proceedSaveViewer()
+      );
+      return;
+    }
+    this.proceedSaveViewer();
+  }
+
+  private proceedSaveViewer(): void {
     if (this.isEditingViewer() && this.editingViewerId) {
       this.userService.updatePermissions(this.editingViewerId, {
         permissions: this.viewerForm.permissions,
@@ -1071,7 +1450,7 @@ export class SettingsComponent implements OnInit {
           this.showToastFeedback('Permisos del Viewer actualizados.');
         },
         error: (err) => {
-          this.showToastFeedback(err?.error?.error?.message || 'Error al actualizar los permisos del Viewer.');
+          this.showToastFeedback(extractApiErrorMessage(err, 'Error al actualizar los permisos del Viewer.'));
         }
       });
     } else if (this.viewerForm.asAdmin) {
@@ -1085,11 +1464,12 @@ export class SettingsComponent implements OnInit {
         password: this.viewerForm.password
       }).subscribe({
         next: () => {
+          this.userService.loadAdmins().subscribe();
           this.resetViewerForm();
           this.showToastFeedback('Administrador creado exitosamente.');
         },
         error: (err) => {
-          this.showToastFeedback(err?.error?.error?.message || 'Error al crear el administrador.');
+          this.showToastFeedback(extractApiErrorMessage(err, 'Error al crear el administrador.'));
         }
       });
     } else {
@@ -1110,7 +1490,7 @@ export class SettingsComponent implements OnInit {
           this.showToastFeedback('Usuario Viewer creado exitosamente.');
         },
         error: (err) => {
-          this.showToastFeedback(err?.error?.error?.message || 'Error al crear el Viewer.');
+          this.showToastFeedback(extractApiErrorMessage(err, 'Error al crear el Viewer.'));
         }
       });
     }
@@ -1128,20 +1508,90 @@ export class SettingsComponent implements OnInit {
     );
   }
 
+  // ================= ACCIONES DE OTROS ADMINISTRADORES (AZ-023) =================
+  onEditAdmin(admin: IAdmin): void {
+    this.adminEditTarget = admin;
+    this.adminEditEmail = admin.email;
+    this.showEditAdminModal.set(true);
+  }
+
+  onConfirmEditAdmin(): void {
+    if (!this.adminEditTarget || !this.adminEditEmail.trim()) {
+      this.showToastFeedback('El correo no puede estar vacío.');
+      return;
+    }
+    this.userService.updateAdminEmail(this.adminEditTarget.id, this.adminEditEmail.trim()).subscribe({
+      next: () => {
+        this.showEditAdminModal.set(false);
+        this.adminEditTarget = null;
+        this.showToastFeedback('Correo del administrador actualizado.');
+      },
+      error: (err) => {
+        this.showToastFeedback(extractApiErrorMessage(err, 'Error al actualizar el correo.'));
+      }
+    });
+  }
+
+  onPromptResetAdminPassword(admin: IAdmin): void {
+    this.adminPasswordTarget = admin;
+    this.adminNewPassword = '';
+    this.showAdminPasswordModal.set(true);
+  }
+
+  onConfirmResetAdminPassword(): void {
+    if (!this.adminPasswordTarget || this.adminNewPassword.length < 8) {
+      this.showToastFeedback('La contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+    this.userService.resetAdminPassword(this.adminPasswordTarget.id, this.adminNewPassword).subscribe({
+      next: () => {
+        this.showAdminPasswordModal.set(false);
+        this.adminPasswordTarget = null;
+        this.adminNewPassword = '';
+        this.showToastFeedback('Contraseña del administrador actualizada.');
+      },
+      error: (err) => {
+        this.showToastFeedback(extractApiErrorMessage(err, 'Error al cambiar contraseña.'));
+      }
+    });
+  }
+
+  onToggleAdminBlocked(admin: IAdmin): void {
+    const nextState = !admin.isBlocked;
+    this.openConfirm(
+      nextState ? '¿Bloquear administrador?' : '¿Desbloquear administrador?',
+      nextState
+        ? `${admin.email} no podrá iniciar sesión mientras esté bloqueado.`
+        : `${admin.email} podrá volver a iniciar sesión normalmente.`,
+      () => {
+        this.userService.toggleAdminBlocked(admin.id, nextState).subscribe({
+          next: () => this.showToastFeedback(nextState ? 'Administrador bloqueado.' : 'Administrador desbloqueado.'),
+          error: (err) => {
+            this.showToastFeedback(extractApiErrorMessage(err, 'Error al cambiar el estado de bloqueo.'));
+          }
+        });
+      }
+    );
+  }
+
+  onDeleteAdmin(admin: IAdmin): void {
+    this.openConfirm(
+      '¿Eliminar Administrador?',
+      `¿Estás seguro de eliminar la cuenta de ${admin.email}? Esta acción no se puede deshacer.`,
+      () => {
+        this.userService.deleteAdmin(admin.id).subscribe({
+          next: () => this.showToastFeedback('Administrador eliminado.'),
+          error: (err) => {
+            this.showToastFeedback(extractApiErrorMessage(err, 'Error al eliminar el administrador.'));
+          }
+        });
+      }
+    );
+  }
+
   // ================= RESPALDOS E IMPORTACIÓN =================
   backupStrategy: 'accumulate' | 'replace' = 'accumulate';
   readonly savedBackups = signal<{ id: string; strategy: string; createdAt: string }[]>([]);
-
-  private downloadJson(data: unknown, filenamePrefix: string): void {
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
 
   loadBackups(): void {
     this.http.get<{ id: string; strategy: string; createdAt: string }[]>('/api/v1/backup').subscribe({
@@ -1153,7 +1603,7 @@ export class SettingsComponent implements OnInit {
   createBackup(): void {
     this.http.post<any>('/api/v1/backup', { strategy: this.backupStrategy }).subscribe({
       next: (res) => {
-        this.downloadJson(res.payload, 'azkin-backup');
+        this.fileDownload.downloadJson(res.payload, 'azkin-backup');
         this.showToastFeedback(
           this.backupStrategy === 'replace'
             ? `Respaldo creado (se reemplazaron ${res.deletedCount} anteriores).`
@@ -1167,9 +1617,57 @@ export class SettingsComponent implements OnInit {
 
   downloadBackup(id: string): void {
     this.http.get(`/api/v1/backup/${id}`).subscribe({
-      next: (payload) => this.downloadJson(payload, 'azkin-backup'),
+      next: (payload) => this.fileDownload.downloadJson(payload, 'azkin-backup'),
       error: () => this.showToastFeedback('Error al descargar el respaldo.')
     });
+  }
+
+  // ================= AZ-028: Importación masiva de monitores vía CSV =================
+  readonly isImportingCsv = signal(false);
+  readonly csvImportResult = signal<{ createdCount: number; updatedCount: number; errors: { row: number; message: string }[] } | null>(null);
+
+  downloadCsvTemplate(): void {
+    const csv = [
+      'name,type,target,port,interval,retries,retryInterval,group,tags',
+      'Sitio de ejemplo,http,https://ejemplo.com,,60,0,60,General,web;produccion',
+    ].join('\n');
+    this.fileDownload.downloadText(csv, 'text/csv', 'azkin-monitores-plantilla.csv');
+  }
+
+  onCsvDrop(event: DragEvent): void {
+    event.preventDefault();
+    const file = event.dataTransfer?.files?.[0];
+    if (file) this.processCsvFile(file);
+  }
+
+  onCsvFileSelected(event: any): void {
+    const file = event.target.files[0];
+    if (file) this.processCsvFile(file);
+    event.target.value = '';
+  }
+
+  private processCsvFile(file: File): void {
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      const csv = String(e.target.result);
+      this.isImportingCsv.set(true);
+      this.csvImportResult.set(null);
+      this.http.post<{ createdCount: number; updatedCount: number; errors: { row: number; message: string }[] }>(
+        '/api/v1/monitors/bulk-import', { csv }
+      ).subscribe({
+        next: (result) => {
+          this.isImportingCsv.set(false);
+          this.csvImportResult.set(result);
+          this.monitorService.loadMonitors().subscribe();
+          this.showToastFeedback(`Importación completada: ${result.createdCount} creados, ${result.updatedCount} actualizados.`);
+        },
+        error: (err) => {
+          this.isImportingCsv.set(false);
+          this.showToastFeedback(extractApiErrorMessage(err, 'Error al importar el CSV.'));
+        }
+      });
+    };
+    reader.readAsText(file);
   }
 
   // ================= TLS / HTTPS (AZ-006) =================
@@ -1182,6 +1680,52 @@ export class SettingsComponent implements OnInit {
       next: (status) => this.tlsStatus.set(status),
       error: () => {}
     });
+  }
+
+  // ================= AZ-031: SMTP de aplicación =================
+  readonly smtpStatus = signal<{ configured: boolean; host?: string; port?: number; secure?: boolean } | null>(null);
+  readonly isSendingTestEmail = signal(false);
+  smtpTestRecipient = '';
+
+  loadSmtpStatus(): void {
+    this.http.get<{ configured: boolean; host?: string; port?: number; secure?: boolean }>('/api/v1/system/smtp').subscribe({
+      next: (status) => this.smtpStatus.set(status),
+      error: () => {}
+    });
+  }
+
+  onSendTestEmail(): void {
+    if (!this.smtpTestRecipient.trim() || !this.smtpTestRecipient.includes('@')) {
+      this.showToastFeedback('Ingresa un correo destinatario válido.');
+      return;
+    }
+    this.isSendingTestEmail.set(true);
+    this.http.post<{ message: string }>('/api/v1/system/smtp/test', { recipient: this.smtpTestRecipient }).subscribe({
+      next: (res) => {
+        this.isSendingTestEmail.set(false);
+        this.showToastFeedback(res.message);
+      },
+      error: (err) => {
+        this.isSendingTestEmail.set(false);
+        this.showToastFeedback(extractApiErrorMessage(err, 'Error al enviar el correo de prueba.'));
+      }
+    });
+  }
+
+  onTlsFileSelected(event: any, field: 'certPem' | 'keyPem' | 'chainPem'): void {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      this.tlsForm[field] = String(e.target.result).trim();
+      event.target.value = '';
+    };
+    reader.onerror = () => {
+      this.showToastFeedback('No se pudo leer el archivo seleccionado.');
+      event.target.value = '';
+    };
+    reader.readAsText(file);
   }
 
   applyTlsConfig(): void {
@@ -1204,7 +1748,7 @@ export class SettingsComponent implements OnInit {
       },
       error: (err) => {
         this.isApplyingTls.set(false);
-        this.showToastFeedback(err?.error?.error?.message || 'Error al aplicar la configuración TLS.');
+        this.showToastFeedback(extractApiErrorMessage(err, 'Error al aplicar la configuración TLS.'));
       }
     });
   }
@@ -1224,7 +1768,7 @@ export class SettingsComponent implements OnInit {
             event.target.value = ''; // Limpiar input file
           },
           error: (err) => {
-            this.showToastFeedback(err?.error?.error?.message || 'Error al importar los datos en el servidor.');
+            this.showToastFeedback(extractApiErrorMessage(err, 'Error al importar los datos en el servidor.'));
             event.target.value = '';
           }
         });
@@ -1235,4 +1779,73 @@ export class SettingsComponent implements OnInit {
     };
     reader.readAsText(file);
   }
+
+  // ================= API PÚBLICA (AZ-029) =================
+  readonly apiKeys = signal<{ id: string; name: string; keyPrefix: string; scopes: ('read' | 'write')[]; lastUsedAt: string | null; createdAt: string; revokedAt: string | null }[]>([]);
+  readonly newlyCreatedApiKey = signal<{ plainKey: string; name: string } | null>(null);
+  apiKeyForm = { name: '', canWrite: false };
+
+  loadApiKeys(): void {
+    this.http.get<any[]>('/api/v1/api-keys').subscribe({
+      next: (data) => this.apiKeys.set(data),
+      error: () => {}
+    });
+  }
+
+  onCreateApiKey(): void {
+    if (!this.apiKeyForm.name.trim()) {
+      this.showToastFeedback('El nombre de la key es obligatorio.');
+      return;
+    }
+    const scopes: ('read' | 'write')[] = this.apiKeyForm.canWrite ? ['read', 'write'] : ['read'];
+    this.http.post<any>('/api/v1/api-keys', { name: this.apiKeyForm.name, scopes }).subscribe({
+      next: (res) => {
+        this.newlyCreatedApiKey.set({ plainKey: res.plainKey, name: res.name });
+        this.apiKeyForm = { name: '', canWrite: false };
+        this.loadApiKeys();
+      },
+      error: (err) => {
+        this.showToastFeedback(extractApiErrorMessage(err, 'Error al generar la API Key.'));
+      }
+    });
+  }
+
+  onRevokeApiKey(id: string): void {
+    this.openConfirm(
+      '¿Revocar API Key?',
+      'Cualquier sistema que use esta key dejará de poder autenticarse inmediatamente.',
+      () => {
+        this.http.delete(`/api/v1/api-keys/${id}`).subscribe({
+          next: () => {
+            this.showToastFeedback('API Key revocada.');
+            this.loadApiKeys();
+          },
+          error: () => this.showToastFeedback('Error al revocar la API Key.')
+        });
+      }
+    );
+  }
+
+  copyApiKey(key: string): void {
+    navigator.clipboard.writeText(key).then(() => this.showToastFeedback('Copiada al portapapeles.'));
+  }
+
+  // ================= AUDITORÍA (AZ-030) =================
+  readonly auditLogEntries = signal<AuditLogEntry[]>([]);
+
+  loadAuditLog(): void {
+    this.http.get<AuditLogEntry[]>('/api/v1/audit-log').subscribe({
+      next: (data) => this.auditLogEntries.set(data),
+      error: () => {}
+    });
+  }
+}
+
+interface AuditLogEntry {
+  id: string;
+  actorEmail: string;
+  action: string;
+  targetType: string;
+  targetIds?: string[];
+  createdAt: string;
 }

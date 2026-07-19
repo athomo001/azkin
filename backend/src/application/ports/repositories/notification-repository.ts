@@ -24,10 +24,14 @@ export interface UpdateNotificationData {
  * Puerto (interfaz) para el repositorio que gestionará la persistencia de canales de alertas (Notification).
  * Define las operaciones CRUD desacopladas de la infraestructura subyacente.
  */
+/**
+ * Sin aislamiento por tenant entre Admins (spec/03-modelo-datos.md §8): todos los canales de
+ * notificación son un único pool global. `userId` en el documento es solo trazabilidad de creación.
+ */
 export interface INotificationRepository {
   create(data: CreateNotificationData): Promise<INotification>;
-  findAllByUser(userId: string): Promise<INotification[]>;
-  findById(userId: string, id: string): Promise<INotification | null>;
-  update(userId: string, id: string, data: UpdateNotificationData): Promise<INotification | null>;
-  delete(userId: string, id: string): Promise<boolean>;
+  findAll(): Promise<INotification[]>;
+  findById(id: string): Promise<INotification | null>;
+  update(id: string, data: UpdateNotificationData): Promise<INotification | null>;
+  delete(id: string): Promise<boolean>;
 }

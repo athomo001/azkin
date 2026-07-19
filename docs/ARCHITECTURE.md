@@ -105,3 +105,85 @@ MongoDB 8.x se ejecuta en contenedores Docker Compose con el control de acceso a
 
 1. **Inicialización:** La primera vez que el volumen se levanta, se crean los usuarios raíz basados en `AZKIN_MONGO_USER` y `AZKIN_MONGO_PASSWORD` inyectados desde el entorno.
 2. **URI de Conexión:** El backend se autentica contra la base de datos `azkin` utilizando la base de autenticación `admin` mediante el parámetro de consulta `?authSource=admin`.
+
+---
+
+## 6. Autenticación de sesión: access token en memoria + refresh cookie
+
+Azkin usa un modelo híbrido JWT + cookie `HttpOnly`, no bearer-token puro ni cookies puras:
+
+```mermaid
+sequenceDiagram
+    participant SPA as Angular SPA
+    participant API as Backend Express
+    participant DB as MongoDB
+
+    SPA->>API: POST /auth/login (credenciales)
+    API->>DB: Verifica hash de contraseña
+    API-->>SPA: 200 { token, user } + Set-Cookie: refreshToken (HttpOnly, 7d/1a)
+    Note over SPA: access token se guarda solo en memoria (nunca localStorage)
+    SPA->>API: Requests subsiguientes con Authorization: Bearer <token>
+    Note over SPA,API: Al recargar la página, o si el access token expira (401)...
+    SPA->>API: POST /auth/refresh (sin body; el navegador envía la cookie)
+    API->>API: Verifica y rota el refresh token
+    API-->>SPA: 200 { token, user } + Set-Cookie: refreshToken (rotado)
+    SPA->>API: POST /auth/logout
+    API-->>SPA: 200 + Set-Cookie: refreshToken="" (expirada)
+```
+
+* **Access token:** JWT de vida corta (`AZKIN_JWT_EXPIRES_IN`, default 2 h; 1 año para sesiones `isTvSessionEnabled`), viaja en el header `Authorization: Bearer` y vive **solo en memoria** en el cliente (`AuthService`), nunca en `localStorage`/`sessionStorage` — mitiga el robo de sesión vía XSS.
+* **Refresh token:** JWT de vida larga (7 días, 1 año en sesiones TV), persistido como cookie `refreshToken` (`HttpOnly`, `SameSite=Lax`, `path=/api/v1/auth`), inaccesible a JavaScript. Se rota en cada uso de `POST /auth/refresh`.
+* **Rehidratación tras recargar la página:** como el access token no sobrevive un refresh completo del navegador (vive en memoria), el `authGuard` del frontend llama automáticamente a `POST /auth/refresh` si no encuentra sesión activa; si la cookie es válida, la sesión se restaura sin pedir credenciales de nuevo.
+* **Cuentas bloqueadas:** `login` y `refresh` verifican `user.isBlocked` y responden `403 ACCOUNT_BLOCKED`, cerrando la sesión de un Admin bloqueado por otro Admin de forma inmediata en su próximo refresh.
+* **Sin revocación server-side de JWT ya emitidos:** al ser stateless, un access token filtrado sigue siendo válido hasta su propio `exp` (ventana corta, 2 h). `logout` solo limpia la cookie de refresh — evita que la sesión se *renueve*, no invalida el access token ya emitido.
+
+## 7. API pública (API Keys)
+
+Para integrar sistemas externos sin usar una sesión de usuario, Azkin expone un prefijo de rutas
+alternativo autenticado por API Key:
+
+* **Prefijo:** `/api/public/v1/monitors`, montado sobre el **mismo** `MonitorController`/`monitorRoutes`
+  que usa la sesión normal — cero duplicación de lógica de negocio, solo cambia el middleware de
+  autenticación (`apiKeyAuth` en vez de `authGuard`).
+* **Autenticación:** header `X-API-Key`. La key se hashea con SHA-256 antes de comparar/persistir —
+  nunca se guarda en claro. El valor completo solo se muestra una vez, al crearla.
+* **Scopes:** `read` (habilita `GET`) y `write` (habilita `POST`/`PUT`/`PATCH`/`DELETE`), verificados
+  por método HTTP en el middleware.
+* **Gestión de keys:** `POST/GET /api/v1/api-keys`, `DELETE /api/v1/api-keys/:id` (requieren sesión de
+  Admin), UI en `/settings` → pestaña **API**.
+
+Ver [`docs/api-publica.md`](./api-publica.md) para el contrato completo y ejemplos `curl`.
+
+## 8. Gestión multi-administrador y auditoría
+
+Consistente con el diseño "sin aislamiento por tenant" (todos los Admins comparten el mismo pool
+global de monitores/canales/respaldos, ver §3 del modelo de datos): cualquier Admin autenticado
+puede administrar las cuentas de **otros** Admins (editar email, resetear contraseña, bloquear,
+eliminar), con protección explícita contra auto-bloqueo/auto-eliminación accidental en el propio
+caso de uso (`actorId === targetId` → `ForbiddenError`).
+
+Las acciones administrativas sensibles (borrado masivo de monitores, cambio de configuración TLS,
+solicitud/cambio de contraseña) se registran en una colección de auditoría mínima
+(`IAuditLogRepository`) y son consultables desde `/settings` → pestaña **Auditoría** o
+`GET /api/v1/audit-log`, resolviendo el email del actor para cada entrada.
+
+## 9. Notificaciones: plantillas, enmascarado de secretos y prueba SMTP
+
+* **Plantillas por evento** (`DOWN`, `RECOVERED`, `LATENCY_HIGH`, `DEFACEMENT`) con variables
+  `{{monitor}}`, `{{url}}`, `{{status}}`, etc., insertables con un clic desde un cheatsheet, más un
+  selector de emojis — ambos widgets insertan en la posición del cursor del campo enfocado.
+* **Enmascarado de secretos:** los campos `webhookUrl`/`botToken`/`smtpPassword` del `config` de un
+  canal nunca viajan en texto plano en las respuestas de la API — se devuelven enmascarados
+  (`••••` + últimos 4 caracteres). El formulario de edición reconoce ese formato: si el campo no fue
+  modificado, el backend conserva el secreto real en vez de sobrescribirlo con el placeholder.
+* **SMTP de aplicación** (usado solo para recuperación de contraseña, independiente del SMTP por
+  canal de notificación) expone su estado (configurado/no, host, puerto — nunca la contraseña) y
+  permite enviar un correo de prueba real desde `/settings`, sin esperar a que un usuario lo necesite.
+
+## 10. Modo TV / Kiosko
+
+Las cuentas Viewer con `isTvSessionEnabled` están pensadas para pantallas de sala de monitoreo sin
+interacción humana frecuente: reciben un access token y refresh token de 1 año (evita
+re-autenticaciones constantes) y el frontend activa una clase `body.kiosk-mode` con fuentes y
+espaciados ampliados para lectura a distancia en TVs 4K, ocultando controles no esenciales (ej. la
+barra de búsqueda) que no aplican a una pantalla de solo lectura.

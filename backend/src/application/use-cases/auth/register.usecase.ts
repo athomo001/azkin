@@ -3,6 +3,7 @@ import { IUserRepository } from "../../ports/repositories/user-repository";
 import { IPasswordHasher, ITokenService } from "../../ports/services/security";
 import { EmailTakenError, ForbiddenError } from "../../../domain/errors/domain-error";
 import { AuthOutput } from "../../dtos/auth-output";
+import { REFRESH_TOKEN_EXPIRES_IN_SECONDS } from "./login.usecase";
 
 export interface RegisterInput {
   email: string;
@@ -36,9 +37,11 @@ export class RegisterUseCase {
     const passwordHash = await this.hasher.hash(input.password);
     const user = await this.users.create({ email: input.email, passwordHash });
     const token = this.tokens.sign(user.id, user.role, user.adminId, user.permissions);
+    const refreshToken = this.tokens.sign(user.id, user.role, user.adminId, user.permissions, REFRESH_TOKEN_EXPIRES_IN_SECONDS);
 
     return {
       token,
+      refreshToken,
       user: {
         id: user.id,
         email: user.email,

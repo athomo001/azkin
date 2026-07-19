@@ -8,7 +8,7 @@ import { IBackup } from "../../../domain/entities/backup";
 export class ListBackupsUseCase {
   constructor(private readonly backups: IBackupRepository) {}
 
-  async execute(userId: string): Promise<IBackup[]> {
-    return this.backups.findAllByUser(userId);
+  async execute(): Promise<IBackup[]> {
+    return this.backups.findAll();
   }
 }

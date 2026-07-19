@@ -35,6 +35,10 @@ export interface IUserRepository {
   /** Cantidad total de cuentas con rol admin (usado para el auto-bootstrap de registro, AZ-002). */
   countAdmins(): Promise<number>;
   findAllAdmins(): Promise<IUser[]>;
+  // AZ-023: gestión de otras cuentas Admin
+  updateAdminEmail(id: string, email: string): Promise<IUser | null>;
+  setAdminBlocked(id: string, isBlocked: boolean): Promise<IUser | null>;
+  deleteAdmin(id: string): Promise<boolean>;
   setPasswordResetToken(userId: string, tokenHash: string, expiresAt: Date): Promise<void>;
   /** Busca por el hash del token vigente (no expirado). Null si no existe o ya expiró. */
   findByValidResetTokenHash(tokenHash: string): Promise<IUser | null>;

@@ -1,6 +1,7 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
-import { Component, signal } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { ThemeService } from './core/services/theme.service';
 
 @Component({
   selector: 'app-root',
@@ -10,4 +11,9 @@ import { RouterOutlet } from '@angular/router';
 })
 export class App {
   protected readonly title = signal('frontend');
+
+  constructor() {
+    // AZ-022: aplica el tema guardado al arrancar, sin importar la ruta de entrada/refresh.
+    inject(ThemeService).applyToDom();
+  }
 }

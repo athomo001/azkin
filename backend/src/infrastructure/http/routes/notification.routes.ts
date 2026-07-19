@@ -8,7 +8,7 @@ import { createNotificationSchema, updateNotificationSchema } from "../schemas/n
 
 export function notificationRoutes(controller: NotificationController): Router {
   const router = Router();
-  router.get("/", asyncHandler(controller.list));
+  router.get("/", requireRole("admin"), asyncHandler(controller.list));
   router.post("/", requireRole("admin"), validateBody(createNotificationSchema), asyncHandler(controller.create));
   router.put("/:id", requireRole("admin"), validateBody(updateNotificationSchema), asyncHandler(controller.update));
   router.delete("/:id", requireRole("admin"), asyncHandler(controller.remove));

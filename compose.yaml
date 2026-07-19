@@ -25,7 +25,7 @@ services:
     build:
       context: ./backend
       args:
-        APP_VERSION: ${AZKIN_VERSION:-1.1.0}
+        APP_VERSION: ${AZKIN_VERSION:-1.2.0}
     container_name: azkin-back
     restart: unless-stopped
     depends_on:
@@ -40,6 +40,7 @@ services:
       AZKIN_MONGO_URI: ${AZKIN_MONGO_URI}
       AZKIN_JWT_SECRET: ${AZKIN_JWT_SECRET}
       AZKIN_JWT_EXPIRES_IN: ${AZKIN_JWT_EXPIRES_IN}
+      AZKIN_BCRYPT_COST: ${AZKIN_BCRYPT_COST:-10}
       AZKIN_CHECK_CONCURRENCY: ${AZKIN_CHECK_CONCURRENCY}
       AZKIN_FIRST_CHECK_DELAY_MS: ${AZKIN_FIRST_CHECK_DELAY_MS}
       AZKIN_CORS_ORIGIN: ${AZKIN_CORS_ORIGIN}
@@ -57,7 +58,7 @@ services:
     build:
       context: ./frontend
       args:
-        APP_VERSION: ${AZKIN_VERSION:-1.1.0}
+        APP_VERSION: ${AZKIN_VERSION:-1.2.0}
     container_name: azkin-front
     restart: unless-stopped
     depends_on:

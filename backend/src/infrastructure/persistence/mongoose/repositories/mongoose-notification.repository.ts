@@ -7,6 +7,7 @@ import {
 } from "../../../../application/ports/repositories/notification-repository";
 import { INotification } from "../../../../domain/entities/notification";
 import { NotificationDoc, NotificationModel } from "../schemas/notification.schema";
+import { toDomainId } from "../to-domain-id";
 
 /**
  * Implementación Mongoose del repositorio de notificaciones.
@@ -26,40 +27,36 @@ export class MongooseNotificationRepository implements INotificationRepository {
     return this.toDomain(doc);
   }
 
-  async findAllByUser(userId: string): Promise<INotification[]> {
-    const docs = await NotificationModel.find({ userId });
+  async findAll(): Promise<INotification[]> {
+    const docs = await NotificationModel.find({});
     return docs.map((doc) => this.toDomain(doc));
   }
 
-  async findById(userId: string, id: string): Promise<INotification | null> {
+  async findById(id: string): Promise<INotification | null> {
     if (!Types.ObjectId.isValid(id)) return null;
-    const doc = await NotificationModel.findOne({ _id: id, userId });
+    const doc = await NotificationModel.findOne({ _id: id });
     return doc ? this.toDomain(doc) : null;
   }
 
-  async update(
-    userId: string,
-    id: string,
-    data: UpdateNotificationData,
-  ): Promise<INotification | null> {
+  async update(id: string, data: UpdateNotificationData): Promise<INotification | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await NotificationModel.findOneAndUpdate(
-      { _id: id, userId },
+      { _id: id },
       { $set: data },
       { new: true },
     );
     return doc ? this.toDomain(doc) : null;
   }
 
-  async delete(userId: string, id: string): Promise<boolean> {
+  async delete(id: string): Promise<boolean> {
     if (!Types.ObjectId.isValid(id)) return false;
-    const result = await NotificationModel.deleteOne({ _id: id, userId });
+    const result = await NotificationModel.deleteOne({ _id: id });
     return result.deletedCount > 0;
   }
 
   private toDomain(doc: HydratedDocument<NotificationDoc>): INotification {
     return {
-      id: String(doc._id),
+      id: toDomainId(doc._id),
       userId: String(doc.userId),
       name: doc.name,
       type: doc.type,

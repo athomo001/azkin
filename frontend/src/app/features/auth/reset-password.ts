@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { LanguageService } from '../../core/services/language.service';
+import { extractApiErrorMessage } from '../../core/utils/api-error.util';
 
 @Component({
   selector: 'app-reset-password',
@@ -93,7 +94,7 @@ export class ResetPasswordComponent implements OnInit {
       error: (err) => {
         this.isLoading.set(false);
         this.toastType.set('error');
-        this.toast.set(err?.error?.error?.message || this.lang.t('auth.resetPassword.error'));
+        this.toast.set(extractApiErrorMessage(err, this.lang.t('auth.resetPassword.error')));
       }
     });
   }

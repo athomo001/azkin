@@ -6,6 +6,7 @@ import { UpdateNotificationUseCase } from "../../../application/use-cases/notifi
 import { DeleteNotificationUseCase } from "../../../application/use-cases/notifications/delete-notification.usecase";
 import { TestNotificationUseCase } from "../../../application/use-cases/notifications/test-notification.usecase";
 import { isAlertEventType } from "../../../domain/value-objects/alert-event-type";
+import { toNotificationResponse } from "../presenters/notification.presenter";
 
 export class NotificationController {
   constructor(
@@ -16,18 +17,9 @@ export class NotificationController {
     private readonly testUseCase: TestNotificationUseCase,
   ) {}
 
-  list = async (req: Request, res: Response): Promise<void> => {
-    const userId = req.userId!;
-    const notifications = await this.listUseCase.execute(userId);
-    res.status(200).json(notifications.map(n => ({
-      id: n.id,
-      name: n.name,
-      type: n.type,
-      config: n.config,
-      isActive: n.isActive,
-      events: n.events,
-      templates: n.templates,
-    })));
+  list = async (_req: Request, res: Response): Promise<void> => {
+    const notifications = await this.listUseCase.execute();
+    res.status(200).json(notifications.map(toNotificationResponse));
   };
 
   create = async (req: Request, res: Response): Promise<void> => {
@@ -41,43 +33,25 @@ export class NotificationController {
       events: req.body.events,
       templates: req.body.templates,
     });
-    res.status(201).json({
-      id: notification.id,
-      name: notification.name,
-      type: notification.type,
-      config: notification.config,
-      isActive: notification.isActive,
-      events: notification.events,
-      templates: notification.templates,
-    });
+    res.status(201).json(toNotificationResponse(notification));
   };
 
   update = async (req: Request, res: Response): Promise<void> => {
-    const userId = req.userId!;
     const id = req.params.id as string;
     // req.body.type puede venir informado solo para validación de plantillas (el tipo de canal es inmutable).
-    const notification = await this.updateUseCase.execute(userId, id, {
+    const notification = await this.updateUseCase.execute(id, {
       name: req.body.name,
       config: req.body.config,
       isActive: req.body.isActive,
       events: req.body.events,
       templates: req.body.templates,
     });
-    res.status(200).json({
-      id: notification.id,
-      name: notification.name,
-      type: notification.type,
-      config: notification.config,
-      isActive: notification.isActive,
-      events: notification.events,
-      templates: notification.templates,
-    });
+    res.status(200).json(toNotificationResponse(notification));
   };
 
   remove = async (req: Request, res: Response): Promise<void> => {
-    const userId = req.userId!;
     const id = req.params.id as string;
-    await this.deleteUseCase.execute(userId, id);
+    await this.deleteUseCase.execute(id);
     res.status(204).send();
   };
 

@@ -15,21 +15,21 @@ export class DeleteNotificationUseCase {
     private readonly scheduler: IScheduler,
   ) {}
 
-  async execute(userId: string, id: string): Promise<void> {
-    const exists = await this.notifications.findById(userId, id);
+  async execute(id: string): Promise<void> {
+    const exists = await this.notifications.findById(id);
     if (!exists) {
       throw new NotFoundError("Canal de notificación no encontrado");
     }
 
     // 1. Elimina la notificación del repositorio
-    await this.notifications.delete(userId, id);
+    await this.notifications.delete(id);
 
-    // 2. Busca los monitores del usuario y remueve la asociación en cascada
-    const userMonitors = await this.monitors.findAllByUser(userId);
-    for (const monitor of userMonitors) {
+    // 2. Busca todos los monitores (sin aislamiento por tenant) y remueve la asociación en cascada
+    const allMonitors = await this.monitors.findAll();
+    for (const monitor of allMonitors) {
       if (monitor.notificationIds.includes(id)) {
         const filteredIds = monitor.notificationIds.filter((nid) => nid !== id);
-        const updated = await this.monitors.update(userId, monitor.id, {
+        const updated = await this.monitors.update(monitor.id, {
           notificationIds: filteredIds,
         });
         

@@ -11,9 +11,17 @@ export interface UserPayload {
   role: string;
   adminId?: string;
   permissions?: string[];
+  isTvSessionEnabled?: boolean;
   preferences?: {
     nyanCatMode: boolean;
   };
+}
+
+/** Respuesta de /login, /register y /refresh. El refresh token viaja solo como cookie HttpOnly. */
+export interface AuthResponse {
+  token?: string;
+  accessToken?: string;
+  user: UserPayload;
 }
 
 @Injectable({
@@ -37,20 +45,6 @@ export class AuthService {
     return role === 'admin';
   });
 
-  constructor() {
-    // Rehidratar sesión local al inicializar el servicio (Angular app startup)
-    try {
-      const storedToken = localStorage.getItem('azkin_token');
-      const storedUser = localStorage.getItem('azkin_user');
-      if (storedToken && storedUser) {
-        this.accessToken = storedToken;
-        this.currentUser.set(JSON.parse(storedUser));
-      }
-    } catch (e) {
-      console.error('[Auth] Error al restaurar la sesión local:', e);
-    }
-  }
-
   /**
    * Retorna el token de acceso en memoria
    */
@@ -61,8 +55,8 @@ export class AuthService {
   /**
    * Registra un nuevo administrador en el sistema
    */
-  register(name: string, email: string, password: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/register`, { name, email, password });
+  register(name: string, email: string, password: string): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/register`, { name, email, password });
   }
 
   /**
@@ -81,51 +75,46 @@ export class AuthService {
   }
 
   /**
-   * Inicia sesión y almacena el payload del token decodificado en memoria y localStorage
+   * Inicia sesión. El access token vive solo en memoria (nunca en localStorage, AZ-017);
+   * el backend persiste el refresh token como cookie HttpOnly, inaccesible a JS.
    */
-  login(identifier: string, password: string, isTvSessionEnabled = false): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/login`, { identifier, password, isTvSessionEnabled }).pipe(
+  login(identifier: string, password: string, isTvSessionEnabled = false): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/login`, { identifier, password, isTvSessionEnabled }).pipe(
       tap(res => {
         if (res && res.user) {
-          // Soporta el mapeo tanto de res.accessToken (spec) como de res.token (implementación)
-          this.accessToken = res.accessToken || res.token;
+          this.accessToken = res.accessToken || res.token || null;
           this.currentUser.set(res.user);
-
-          // Persistencia para rehidratar sesión
-          localStorage.setItem('azkin_token', this.accessToken ?? '');
-          localStorage.setItem('azkin_user', JSON.stringify(res.user));
         }
       })
     );
   }
 
   /**
-   * Intenta refrescar el token de acceso localmente si ya existe sesión válida
+   * Renueva la sesión llamando al backend, que lee la cookie HttpOnly de refresh (AZ-011).
+   * Usado al arrancar la app (rehidratación tras recargar la página) y ante un 401 en el interceptor.
    */
-  refresh(): Observable<any> {
-    const token = this.accessToken;
-    const user = this.currentUser();
-    if (token && user) {
-      return of({ token, user });
-    }
-
-    // Si no hay datos, limpiamos y arrojamos error
-    this.accessToken = null;
-    this.currentUser.set(null);
-    localStorage.removeItem('azkin_token');
-    localStorage.removeItem('azkin_user');
-    return throwError(() => new Error('Sesión no encontrada'));
+  refresh(): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/refresh`, {}).pipe(
+      tap(res => {
+        if (res && res.user) {
+          this.accessToken = res.accessToken || res.token || null;
+          this.currentUser.set(res.user);
+        }
+      }),
+      catchError(err => {
+        this.clearLocalSession();
+        return throwError(() => err);
+      })
+    );
   }
 
   /**
-   * Cierra la sesión activa limpiando el estado reactivo del cliente y localStorage
+   * Cierra la sesión: limpia el estado reactivo en memoria y pide al backend que borre la cookie de refresh.
    */
-  logout(): Observable<any> {
-    return this.http.post(`${this.apiUrl}/logout`, {}).pipe(
-      tap(() => {
-        this.clearLocalSession();
-      }),
-      catchError(err => {
+  logout(): Observable<{ message: string } | null> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/logout`, {}).pipe(
+      tap(() => this.clearLocalSession()),
+      catchError(() => {
         this.clearLocalSession();
         return of(null);
       })
@@ -135,8 +124,6 @@ export class AuthService {
   private clearLocalSession(): void {
     this.accessToken = null;
     this.currentUser.set(null);
-    localStorage.removeItem('azkin_token');
-    localStorage.removeItem('azkin_user');
   }
 
   /**

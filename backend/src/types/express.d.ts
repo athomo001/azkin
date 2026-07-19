@@ -1,5 +1,6 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import "express";
+import { IUserPermission } from "../domain/entities/user";
 
 declare global {
   namespace Express {
@@ -8,7 +9,7 @@ declare global {
       userId?: string;
       userRole?: string;
       adminId?: string;
-      permissions?: { type: string; value?: string }[];
+      permissions?: IUserPermission[];
     }
   }
 }

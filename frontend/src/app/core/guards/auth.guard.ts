@@ -26,6 +26,22 @@ export const authGuard: CanActivateFn = () => {
 };
 
 /**
+ * Guardián para restringir rutas exclusivas de Admin (ej. /settings).
+ * Un Viewer autenticado es redirigido al dashboard sin poder ver la pantalla.
+ */
+export const adminGuard: CanActivateFn = () => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
+
+  if (authService.isAuthenticated() && authService.isAdmin()) {
+    return true;
+  }
+
+  router.navigate(['/dashboard']);
+  return false;
+};
+
+/**
  * Guardián para evitar que usuarios logueados accedan a login/register
  */
 export const unauthGuard: CanActivateFn = () => {

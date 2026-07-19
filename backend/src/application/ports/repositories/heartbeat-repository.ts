@@ -12,6 +12,14 @@ export interface HeartbeatSummary {
   isLocalNetworkDown?: boolean;
 }
 
+export interface RecentEventRecord {
+  monitorId: string;
+  timestamp: Date;
+  status: number;
+  ping: number | null;
+  msg: string | null;
+}
+
 export interface IHeartbeatRepository {
   save(beat: IHeartbeat): Promise<void>;
   /** Heartbeats de las últimas 24 h, orden ascendente por timestamp. */
@@ -21,4 +29,6 @@ export interface IHeartbeatRepository {
   deleteByMonitor(monitorId: string): Promise<void>;
   /** Resumen de estado (última 24 h) por monitor, en una sola agregación. */
   getSummaries(monitorIds: string[]): Promise<Record<string, HeartbeatSummary>>;
+  /** Últimos N eventos (heartbeats) entre un conjunto de monitores, orden descendente por timestamp. */
+  findLastEventsForMonitors(monitorIds: string[], limit: number): Promise<RecentEventRecord[]>;
 }

@@ -8,6 +8,7 @@ import {
 import { IUser } from "../../../../domain/entities/user";
 import { UserDoc, UserModel } from "../schemas/user.schema";
 import { HydratedDocument, Types } from "mongoose";
+import { toDomainId } from "../to-domain-id";
 
 export class MongooseUserRepository implements IUserRepository {
   async create(data: CreateUserData): Promise<IUser> {
@@ -61,6 +62,32 @@ export class MongooseUserRepository implements IUserRepository {
   async findAllAdmins(): Promise<IUser[]> {
     const docs = await UserModel.find({ role: "admin" });
     return docs.map((doc) => this.toDomain(doc));
+  }
+
+  async updateAdminEmail(id: string, email: string): Promise<IUser | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
+    const doc = await UserModel.findOneAndUpdate(
+      { _id: id, role: "admin" },
+      { email: email.toLowerCase() },
+      { new: true },
+    );
+    return doc ? this.toDomain(doc) : null;
+  }
+
+  async setAdminBlocked(id: string, isBlocked: boolean): Promise<IUser | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
+    const doc = await UserModel.findOneAndUpdate(
+      { _id: id, role: "admin" },
+      { isBlocked },
+      { new: true },
+    );
+    return doc ? this.toDomain(doc) : null;
+  }
+
+  async deleteAdmin(id: string): Promise<boolean> {
+    if (!Types.ObjectId.isValid(id)) return false;
+    const result = await UserModel.deleteOne({ _id: id, role: "admin" });
+    return result.deletedCount > 0;
   }
 
   async setPasswordResetToken(userId: string, tokenHash: string, expiresAt: Date): Promise<void> {
@@ -146,7 +173,7 @@ export class MongooseUserRepository implements IUserRepository {
 
   private toDomain(doc: HydratedDocument<UserDoc>): IUser {
     return {
-      id: String(doc._id),
+      id: toDomainId(doc._id),
       email: doc.email,
       username: doc.username,
       passwordHash: doc.passwordHash ?? "",
@@ -157,6 +184,7 @@ export class MongooseUserRepository implements IUserRepository {
         value: p.value,
       })),
       isTvSessionEnabled: doc.isTvSessionEnabled,
+      isBlocked: doc.isBlocked ?? false,
       preferences: {
         nyanCatMode: doc.preferences?.nyanCatMode ?? false,
       },

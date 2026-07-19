@@ -1,29 +1,10 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Injectable, signal, effect } from '@angular/core';
 
-@Injectable({
-  providedIn: 'root'
-})
-export class LanguageService {
-  readonly currentLang = signal<'es' | 'en'>((localStorage.getItem('azkin-lang') as 'es' | 'en') || 'es');
-
-  constructor() {
-    effect(() => {
-      localStorage.setItem('azkin-lang', this.currentLang());
-    });
-  }
-
-  setLanguage(lang: 'es' | 'en') {
-    this.currentLang.set(lang);
-  }
-
-  toggleLanguage() {
-    this.currentLang.update(l => l === 'es' ? 'en' : 'es');
-  }
-
-  // Traducción basada en mapa de etiquetas básicas de la UI
-  t(key: string): string {
-    const dict: Record<string, Record<'es' | 'en', string>> = {
+// AZ-020: diccionario a nivel de módulo (antes se reconstruía en cada llamada a t()).
+// `TranslationKey` deriva de sus propias claves: un typo en `lang.t('clave.inexistente')`
+// ahora es un error de compilación en vez de devolver silenciosamente la clave cruda en runtime.
+const TRANSLATIONS = {
       'app.title': { es: 'Azkin', en: 'Azkin' },
       'nav.dashboard': { es: 'Dashboard', en: 'Dashboard' },
       'nav.settings': { es: 'Configuración', en: 'Settings' },
@@ -243,10 +224,32 @@ export class LanguageService {
       'group.detail.uptime': { es: 'Uptime Consolidado', en: 'Consolidated Uptime' },
       'group.detail.latency': { es: 'Latencia Promedio', en: 'Average Latency' },
       'group.detail.agents': { es: 'Agentes Activos', en: 'Active Agents' }
-    };
+} as const;
 
-    const translation = dict[key];
-    if (!translation) return key;
-    return translation[this.currentLang()];
+export type TranslationKey = keyof typeof TRANSLATIONS;
+
+@Injectable({
+  providedIn: 'root'
+})
+export class LanguageService {
+  readonly currentLang = signal<'es' | 'en'>((localStorage.getItem('azkin-lang') as 'es' | 'en') || 'es');
+
+  constructor() {
+    effect(() => {
+      localStorage.setItem('azkin-lang', this.currentLang());
+    });
+  }
+
+  setLanguage(lang: 'es' | 'en') {
+    this.currentLang.set(lang);
+  }
+
+  toggleLanguage() {
+    this.currentLang.update(l => l === 'es' ? 'en' : 'es');
+  }
+
+  // Traducción basada en mapa de etiquetas básicas de la UI
+  t(key: TranslationKey): string {
+    return TRANSLATIONS[key][this.currentLang()];
   }
 }

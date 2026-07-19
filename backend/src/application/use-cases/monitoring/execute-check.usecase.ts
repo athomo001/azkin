@@ -7,6 +7,7 @@ import { IMonitor } from "../../../domain/entities/monitor";
 import { IHeartbeat } from "../../../domain/entities/heartbeat";
 import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
 import { NetworkDiagnostics } from "../../../infrastructure/services/network-diagnostics";
+import { logger } from "../../../infrastructure/logger";
 
 /** Estado runtime que aporta el scheduler para decidir reintentos/transiciones. */
 export interface CheckContext {
@@ -93,7 +94,7 @@ export class ExecuteCheckUseCase {
             });
           }
         } else {
-          console.warn(
+          logger.warn(
             `[Diagnóstico de Red] Alerta omitida para monitor ${monitor.name} debido a ISP Outage local.`
           );
         }

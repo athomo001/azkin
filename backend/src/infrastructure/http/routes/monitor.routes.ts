@@ -11,6 +11,7 @@ export function monitorRoutes(controller: MonitorController): Router {
   router.get("/", asyncHandler(controller.list));
   router.post("/", requireRole("admin"), validateBody(createMonitorSchema), asyncHandler(controller.create));
   router.post("/bulk-delete", requireRole("admin"), asyncHandler(controller.bulkRemove));
+  router.post("/bulk-import", requireRole("admin"), asyncHandler(controller.bulkImportCsv));
   router.put("/:id", requireRole("admin"), validateBody(updateMonitorSchema), asyncHandler(controller.update));
   router.delete("/:id", requireRole("admin"), asyncHandler(controller.remove));
   return router;

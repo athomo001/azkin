@@ -25,6 +25,19 @@ La plataforma soporta múltiples tipos de verificación:
 - **Uptime 24h:** Cálculo de disponibilidad porcentual por monitor y por grupo para seguimiento operativo.
 
 Para conocer el diseño detallado de la arquitectura de Clean Architecture, el funcionamiento del bypass de Cloudflare WAF, la lógica del modo Nyan Cat y el modelado de datos, consulta la [Documentación de Arquitectura de Azkin](./docs/ARCHITECTURE.md).
+Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión de usuario, consulta la [Documentación de la API Pública](./docs/api-publica.md).
+
+---
+
+## ✨ Funcionalidades destacadas
+
+- **Multi-administrador sin aislamiento por tenant:** todos los Admins comparten el mismo pool de monitores, canales de notificación y respaldos; cualquier Admin puede editar, resetear la contraseña, bloquear o eliminar la cuenta de otro Admin desde `/settings` (con protección de auto-bloqueo/auto-eliminación).
+- **Viewers con permisos granulares:** cuentas de solo lectura con acceso a "todo", a un grupo específico o a un monitor puntual; incluyen un modo de sesión extendida (TV/Kiosko) con token de 1 año y una UI de fuentes/espaciados ampliados para pantallas grandes.
+- **API pública con API Keys:** integra Azkin con sistemas externos vía `X-API-Key` (scopes `read`/`write`), sin depender de una sesión de usuario. Ver [`docs/api-publica.md`](./docs/api-publica.md).
+- **Importación masiva de monitores (CSV):** carga por arrastrar y soltar con reporte de errores por fila, sin descartar el resto del lote ante una fila inválida.
+- **Historial de auditoría:** registro y consulta desde `/settings` de acciones administrativas sensibles (borrado masivo de monitores, cambios de TLS, recuperación de contraseña).
+- **Notificaciones multicanal con plantillas:** email, Slack, Discord, Telegram y webhooks genéricos, con plantillas configurables por tipo de evento, cheatsheet de variables clickeable y selector de emojis.
+- **Sesión segura:** el access token vive en memoria (nunca en `localStorage`); la sesión se renueva mediante una cookie `HttpOnly` de refresh, rotada en cada uso.
 
 ---
 
@@ -42,6 +55,19 @@ Para conocer el diseño detallado de la arquitectura de Clean Architecture, el f
 
 - **[frontend](./frontend)**: Cliente SPA moderno en Angular 21 con panel de control en tiempo real, gráficas comparativas de latencia, heatmap de bloques de disponibilidad y administración premium de configuración.
 - **[backend](./backend)**: Servidor API REST / WebSockets con motor de monitoreo concurrente mediante colas limitadas, máquina de reintentos y notificaciones multicanal.
+
+---
+
+## 📚 Documentación
+
+| Documento | Contenido |
+|---|---|
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Clean Architecture, bypass de Cloudflare WAF, modo Nyan Cat, autenticación, API pública, auditoría. |
+| [docs/api-publica.md](./docs/api-publica.md) | Autenticación por `X-API-Key`, endpoints disponibles, gestión de keys, ejemplos `curl`. |
+| `spec/` (local, no versionado en git) | Especificaciones funcionales por fase (Spec-Driven Development): modelo de datos, contratos de API, arquitectura. |
+| [CHANGELOG.md](./CHANGELOG.md) | Historial de versiones (Keep a Changelog + SemVer). |
+| [ISSUES.md](./ISSUES.md) | Backlog de bugs, deuda técnica y hallazgos de auditoría, con su resolución documentada. |
+| `.env.example` / `backend/.env.example` | Referencia completa de variables de entorno soportadas. |
 
 ---
 

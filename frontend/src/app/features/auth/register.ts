@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { extractApiErrorMessage } from '../../core/utils/api-error.util';
 import { LanguageService } from '../../core/services/language.service';
 
 type ToastType = 'error' | 'success';
@@ -148,8 +149,7 @@ export class RegisterComponent implements OnInit {
         setTimeout(() => this.router.navigate(['/login']), 1500);
       },
       error: (err) => {
-        const msg = err?.error?.message ?? this.lang.t('auth.register.error');
-        this.showToast(msg);
+        this.showToast(extractApiErrorMessage(err, this.lang.t('auth.register.error')));
         this.isLoading.set(false);
       }
     });

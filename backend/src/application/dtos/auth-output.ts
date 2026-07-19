@@ -14,5 +14,8 @@ export interface UserOutput {
 
 export interface AuthOutput {
   token: string;
+  /** Token de larga duración (7 días) para renovar la sesión — nunca se expone en el body de la
+   * respuesta; el controller lo extrae y lo persiste como cookie HttpOnly (AZ-011/AZ-017). */
+  refreshToken: string;
   user: UserOutput;
 }

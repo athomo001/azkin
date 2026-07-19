@@ -1,7 +1,8 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { Observable, map, tap } from 'rxjs';
+import { normalizeMonitorStatus } from '../utils/monitor-status.util';
 
 // Tipos del dominio alineados con el spec (spec/03-modelo-datos.md)
 export interface IMonitor {
@@ -58,6 +59,21 @@ export interface IMonitorGroup {
   monitors: IMonitor[];
 }
 
+/** DTO tal como llega del backend: `lastStatus` en vez del `status` normalizado del dominio. */
+type MonitorDto = Omit<IMonitor, 'status'> & { lastStatus: number | string | null };
+
+export interface IHeartbeatEvent {
+  monitorId: string;
+  status: number | string;
+  latency?: number;
+  ping?: number;
+  msg?: string | null;
+  timestamp: string;
+  certExpiry?: number | null;
+  domainExpiry?: number | null;
+  isLocalNetworkDown?: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class MonitorService {
   private readonly http = inject(HttpClient);
@@ -72,22 +88,9 @@ export class MonitorService {
    * Carga todos los monitores del admin autenticado y actualiza el Signal
    */
   loadMonitors(): Observable<IMonitor[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/monitors`).pipe(
-      tap((data: any[]) => {
-        const mapped = data.map((m: any) => {
-          let statusStr: 'UP' | 'DOWN' | 'PENDING' = 'PENDING';
-          const ls = m.lastStatus;
-          if (ls === 1 || ls === 'UP') statusStr = 'UP';
-          else if (ls === 0 || ls === 'DOWN') statusStr = 'DOWN';
-          else if (ls === 2 || ls === 'PENDING') statusStr = 'PENDING';
-
-          return {
-            ...m,
-            status: statusStr
-          };
-        });
-        this.monitors.set(mapped);
-      })
+    return this.http.get<MonitorDto[]>(`${this.apiUrl}/monitors`).pipe(
+      map((data) => data.map((m) => ({ ...m, status: normalizeMonitorStatus(m.lastStatus) }))),
+      tap((mapped) => this.monitors.set(mapped))
     );
   }
 
@@ -120,19 +123,9 @@ export class MonitorService {
    * Crea un nuevo monitor y actualiza el Signal local sin recargar todos
    */
   create(monitor: Partial<IMonitor>): Observable<IMonitor> {
-    return this.http.post<any>(`${this.apiUrl}/monitors`, monitor).pipe(
-      tap((created: any) => {
-        let statusStr: 'UP' | 'DOWN' | 'PENDING' = 'PENDING';
-        const ls = created.lastStatus;
-        if (ls === 1 || ls === 'UP') statusStr = 'UP';
-        else if (ls === 0 || ls === 'DOWN') statusStr = 'DOWN';
-
-        const mapped = {
-          ...created,
-          status: statusStr
-        };
-        this.monitors.update(list => [...list, mapped]);
-      })
+    return this.http.post<MonitorDto>(`${this.apiUrl}/monitors`, monitor).pipe(
+      map((created) => ({ ...created, status: normalizeMonitorStatus(created.lastStatus) })),
+      tap((mapped) => this.monitors.update(list => [...list, mapped]))
     );
   }
 
@@ -140,21 +133,9 @@ export class MonitorService {
    * Actualiza un monitor existente en el backend y en el Signal local
    */
   update(id: string, monitor: Partial<IMonitor>): Observable<IMonitor> {
-    return this.http.put<any>(`${this.apiUrl}/monitors/${id}`, monitor).pipe(
-      tap((updated: any) => {
-        let statusStr: 'UP' | 'DOWN' | 'PENDING' = 'PENDING';
-        const ls = updated.lastStatus;
-        if (ls === 1 || ls === 'UP') statusStr = 'UP';
-        else if (ls === 0 || ls === 'DOWN') statusStr = 'DOWN';
-
-        const mapped = {
-          ...updated,
-          status: statusStr
-        };
-        this.monitors.update(list =>
-          list.map(m => m.id === id ? mapped : m)
-        );
-      })
+    return this.http.put<MonitorDto>(`${this.apiUrl}/monitors/${id}`, monitor).pipe(
+      map((updated) => ({ ...updated, status: normalizeMonitorStatus(updated.lastStatus) })),
+      tap((mapped) => this.monitors.update(list => list.map(m => m.id === id ? mapped : m)))
     );
   }
 
@@ -179,28 +160,22 @@ export class MonitorService {
   /**
    * Actualiza el estado de un monitor en el Signal local al recibir eventos de Socket.io
    */
-  applyHeartbeat(heartbeat: any): void {
+  applyHeartbeat(heartbeat: IHeartbeatEvent): void {
     this.monitors.update(list =>
       list.map(m => {
-        if (m.id === heartbeat.monitorId) {
-          let statusStr: 'UP' | 'DOWN' | 'PENDING' = 'PENDING';
-          const hs = heartbeat.status;
-          if (hs === 1 || hs === 'UP') statusStr = 'UP';
-          else if (hs === 0 || hs === 'DOWN') statusStr = 'DOWN';
-          else if (hs === 2 || hs === 'PENDING') statusStr = 'PENDING';
+        if (m.id !== heartbeat.monitorId) return m;
 
-          return {
-            ...m,
-            status: statusStr,
-            lastCheckedAt: heartbeat.timestamp,
-            lastPing: heartbeat.latency ?? heartbeat.ping,
-            lastErrorMsg: hs === 0 || hs === 'DOWN' ? heartbeat.msg : null,
-            certExpiry: heartbeat.certExpiry !== undefined ? heartbeat.certExpiry : m.certExpiry,
-            domainExpiry: heartbeat.domainExpiry !== undefined ? heartbeat.domainExpiry : m.domainExpiry,
-            isLocalNetworkDown: heartbeat.isLocalNetworkDown
-          };
-        }
-        return m;
+        const statusStr = normalizeMonitorStatus(heartbeat.status);
+        return {
+          ...m,
+          status: statusStr,
+          lastCheckedAt: heartbeat.timestamp,
+          lastPing: heartbeat.latency ?? heartbeat.ping,
+          lastErrorMsg: statusStr === 'DOWN' ? heartbeat.msg ?? undefined : undefined,
+          certExpiry: heartbeat.certExpiry !== undefined ? heartbeat.certExpiry : m.certExpiry,
+          domainExpiry: heartbeat.domainExpiry !== undefined ? heartbeat.domainExpiry : m.domainExpiry,
+          isLocalNetworkDown: heartbeat.isLocalNetworkDown
+        };
       })
     );
   }

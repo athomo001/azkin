@@ -9,8 +9,8 @@ import { NotFoundError } from "../../../domain/errors/domain-error";
 export class GetBackupUseCase {
   constructor(private readonly backups: IBackupRepository) {}
 
-  async execute(userId: string, id: string): Promise<IBackup> {
-    const backup = await this.backups.findById(userId, id);
+  async execute(id: string): Promise<IBackup> {
+    const backup = await this.backups.findById(id);
     if (!backup) {
       throw new NotFoundError("Respaldo no encontrado");
     }

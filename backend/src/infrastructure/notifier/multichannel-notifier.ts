@@ -1,11 +1,12 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { INotifier, NotificationEvent } from "../../application/ports/services/notifier";
 import { INotificationRepository } from "../../application/ports/repositories/notification-repository";
-import { INotification } from "../../domain/entities/notification";
+import { INotification, SlackConfig, DiscordConfig, TelegramConfig, WebhookConfig, EmailConfig } from "../../domain/entities/notification";
 import { MonitorStatus } from "../../domain/value-objects/monitor-status";
 import { renderTemplate, TemplateContext } from "./template-renderer";
 import { defaultTemplateFor } from "./default-templates";
 import { logger } from "../logger";
+import { getErrorMessage } from "../../application/services/get-error-message";
 
 /**
  * Notificador multicanal (Strategy Pattern).
@@ -16,7 +17,7 @@ export class MultichannelNotifier implements INotifier {
   constructor(private readonly notificationRepo: INotificationRepository) {}
 
   async notify(event: NotificationEvent): Promise<void> {
-    const config = await this.notificationRepo.findById(event.monitor.userId, event.notificationId);
+    const config = await this.notificationRepo.findById(event.notificationId);
     if (!config) {
       logger.warn(`Canal de notificación ${event.notificationId} no encontrado para el usuario ${event.monitor.userId}`);
       return;
@@ -70,13 +71,13 @@ export class MultichannelNotifier implements INotifier {
         default:
           logger.warn(`Tipo de notificación no soportado en runtime: ${config.type}`);
       }
-    } catch (err: any) {
-      logger.error(`Error al enviar alerta por el canal ${config.type} (${config.id}): ${err.message || err}`);
+    } catch (err) {
+      logger.error(`Error al enviar alerta por el canal ${config.type} (${config.id}): ${getErrorMessage(err)}`);
     }
   }
 
   private async sendSlack(config: INotification, text: string): Promise<void> {
-    const conf = config.config as any;
+    const conf = config.config as unknown as SlackConfig;
     const url = conf?.webhookUrl;
     if (!url) throw new Error("Webhook URL de Slack faltante en la configuración");
 
@@ -92,7 +93,7 @@ export class MultichannelNotifier implements INotifier {
   }
 
   private async sendDiscord(config: INotification, content: string): Promise<void> {
-    const conf = config.config as any;
+    const conf = config.config as unknown as DiscordConfig;
     const url = conf?.webhookUrl;
     if (!url) throw new Error("Webhook URL de Discord faltante en la configuración");
 
@@ -108,7 +109,7 @@ export class MultichannelNotifier implements INotifier {
   }
 
   private async sendTelegram(config: INotification, text: string): Promise<void> {
-    const conf = config.config as any;
+    const conf = config.config as unknown as TelegramConfig;
     const botToken = conf?.botToken;
     const chatId = conf?.chatId;
     if (!botToken || !chatId) {
@@ -132,7 +133,7 @@ export class MultichannelNotifier implements INotifier {
   }
 
   private async sendWebhook(config: INotification, renderedJsonBody: string): Promise<void> {
-    const conf = config.config as any;
+    const conf = config.config as unknown as WebhookConfig;
     const url = conf?.webhookUrl;
     if (!url) throw new Error("Endpoint URL de Webhook faltante en la configuración");
 
@@ -149,8 +150,8 @@ export class MultichannelNotifier implements INotifier {
   }
 
   private async sendEmail(config: INotification, subject: string, body: string): Promise<void> {
-    const conf = config.config as any;
-    
+    const conf = config.config as unknown as EmailConfig;
+
     // Obtener los destinatarios (soporta campo email, emailRecipient, o array emails)
     let recipientList: string[] = [];
     if (typeof conf?.email === "string" && conf.email.trim().length > 0) {
@@ -166,7 +167,7 @@ export class MultichannelNotifier implements INotifier {
     }
 
     const host = conf?.smtpHost;
-    const port = conf?.smtpPort ? parseInt(conf.smtpPort, 10) : 587;
+    const port = conf?.smtpPort ? parseInt(String(conf.smtpPort), 10) : 587;
     const user = conf?.smtpUsername;
     const pass = conf?.smtpPassword;
     const secure = !!conf?.smtpSecure;
@@ -192,8 +193,8 @@ export class MultichannelNotifier implements INotifier {
           text: body,
         });
         logger.info(`[SMTP] Alerta de correo enviada exitosamente a ${recipientList.join(", ")}`);
-      } catch (err: any) {
-        logger.error(`[SMTP] Error al enviar correo real con nodemailer: ${err.message || err}. Fallback a mock.`);
+      } catch (err) {
+        logger.error(`[SMTP] Error al enviar correo real con nodemailer: ${getErrorMessage(err)}. Fallback a mock.`);
         // Fallback a mock
         this.logMockEmail(from, recipientList, subject, body);
       }

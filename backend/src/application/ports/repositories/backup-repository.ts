@@ -10,10 +10,14 @@ export interface CreateBackupData {
 /**
  * Puerto (interfaz) para la persistencia de respaldos de configuración de monitores.
  */
+/**
+ * Sin aislamiento por tenant entre Admins: los respaldos son un único historial global
+ * del pool de monitores compartido (spec/03-modelo-datos.md §8).
+ */
 export interface IBackupRepository {
   create(data: CreateBackupData): Promise<IBackup>;
-  findAllByUser(userId: string): Promise<IBackup[]>;
-  findById(userId: string, id: string): Promise<IBackup | null>;
-  /** Elimina todos los respaldos previos del usuario. Devuelve la cantidad eliminada. */
-  deleteAllByUser(userId: string): Promise<number>;
+  findAll(): Promise<IBackup[]>;
+  findById(id: string): Promise<IBackup | null>;
+  /** Elimina todos los respaldos previos. Devuelve la cantidad eliminada. */
+  deleteAll(): Promise<number>;
 }

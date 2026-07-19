@@ -64,7 +64,7 @@ test("MultichannelNotifier no envía si el canal no está suscrito al evento (AZ
   const channel = makeChannel({ events: ["RECOVERED"] });
   const repo: INotificationRepository = {
     create: async () => channel,
-    findAllByUser: async () => [channel],
+    findAll: async () => [channel],
     findById: async () => channel,
     update: async () => channel,
     delete: async () => true,
@@ -90,7 +90,7 @@ test("MultichannelNotifier envía cuando el evento está en la lista suscrita", 
   const channel = makeChannel({ events: ["DOWN"] });
   const repo: INotificationRepository = {
     create: async () => channel,
-    findAllByUser: async () => [channel],
+    findAll: async () => [channel],
     findById: async () => channel,
     update: async () => channel,
     delete: async () => true,

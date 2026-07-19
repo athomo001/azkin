@@ -1,7 +1,9 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
+import { IUserPermission } from "../../../domain/entities/user";
+
 export interface ITokenService {
-  sign(userId: string, role: string, adminId?: string, permissions?: any[]): string;
-  verify(token: string): { userId: string; role: string; adminId?: string; permissions?: any[] };
+  sign(userId: string, role: string, adminId?: string, permissions?: IUserPermission[], expiresInSecondsOverride?: number): string;
+  verify(token: string): { userId: string; role: string; adminId?: string; permissions?: IUserPermission[] };
 }
 
 export interface IPasswordHasher {

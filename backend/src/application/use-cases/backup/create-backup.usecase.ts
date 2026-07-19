@@ -26,7 +26,7 @@ export class CreateBackupUseCase {
   ) {}
 
   async execute(input: CreateBackupInput): Promise<CreateBackupOutput> {
-    const list = await this.monitors.findAllByUser(input.userId);
+    const list = await this.monitors.findAll();
     const mapped = list.map((m) => {
       const { id, userId: _userId, createdAt, updatedAt, ...rest } = m;
       return rest;
@@ -34,7 +34,7 @@ export class CreateBackupUseCase {
 
     let deletedCount = 0;
     if (input.strategy === "replace") {
-      deletedCount = await this.backups.deleteAllByUser(input.userId);
+      deletedCount = await this.backups.deleteAll();
     }
 
     const backup = await this.backups.create({

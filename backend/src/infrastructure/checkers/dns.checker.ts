@@ -2,6 +2,7 @@
 import { CheckResult, ICheckStrategy } from "../../application/ports/services/check-strategy";
 import { IMonitor } from "../../domain/entities/monitor";
 import { Resolver } from "dns/promises";
+import { getErrorMessage } from "../../application/services/get-error-message";
 
 /**
  * Estrategia de chequeo para resoluciones DNS (DnsChecker).
@@ -41,9 +42,8 @@ export class DnsChecker implements ICheckStrategy {
       // Devuelve éxito y una descripción ligera de los registros devueltos
       const count = Array.isArray(records) ? records.length : 1;
       return { ok: true, ping, msg: `Resuelto: ${count} registro(s) tipo ${recordType}` };
-    } catch (error: any) {
-      const reason = error instanceof Error ? error.message : "resolución fallida";
-      return { ok: false, ping: null, msg: reason };
+    } catch (error) {
+      return { ok: false, ping: null, msg: getErrorMessage(error, "resolución fallida") };
     }
   }
 }

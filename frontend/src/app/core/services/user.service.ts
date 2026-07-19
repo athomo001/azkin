@@ -18,6 +18,14 @@ export interface IViewer {
   isTvSessionEnabled: boolean;
 }
 
+export interface IAdmin {
+  id: string;
+  email: string;
+  role: string;
+  createdAt: string;
+  isBlocked: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class UserService {
   private readonly http = inject(HttpClient);
@@ -73,14 +81,48 @@ export class UserService {
   }
 
   // Signal reactivo con el listado de administradores del sistema
-  readonly admins = signal<{ id: string; email: string; role: string; createdAt: string }[]>([]);
+  readonly admins = signal<IAdmin[]>([]);
 
   /**
    * Carga el listado de todas las cuentas Admin del sistema (sin aislamiento por tenant).
    */
-  loadAdmins(): Observable<{ id: string; email: string; role: string; createdAt: string }[]> {
-    return this.http.get<{ id: string; email: string; role: string; createdAt: string }[]>(`${this.apiUrl}/admins`).pipe(
+  loadAdmins(): Observable<IAdmin[]> {
+    return this.http.get<IAdmin[]>(`${this.apiUrl}/admins`).pipe(
       tap(data => this.admins.set(data))
+    );
+  }
+
+  /**
+   * Edita el email de otra cuenta Admin.
+   */
+  updateAdminEmail(id: string, email: string): Observable<IAdmin> {
+    return this.http.put<IAdmin>(`${this.apiUrl}/admins/${id}`, { email }).pipe(
+      tap(updated => this.admins.update(list => list.map(a => a.id === id ? updated : a)))
+    );
+  }
+
+  /**
+   * Restablece la contraseña de otra cuenta Admin.
+   */
+  resetAdminPassword(id: string, newPassword: string): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${this.apiUrl}/admins/${id}/password`, { newPassword });
+  }
+
+  /**
+   * Bloquea o desbloquea otra cuenta Admin (impide su login mientras esté bloqueada).
+   */
+  toggleAdminBlocked(id: string, isBlocked: boolean): Observable<IAdmin> {
+    return this.http.put<IAdmin>(`${this.apiUrl}/admins/${id}/block`, { isBlocked }).pipe(
+      tap(updated => this.admins.update(list => list.map(a => a.id === id ? updated : a)))
+    );
+  }
+
+  /**
+   * Elimina permanentemente otra cuenta Admin.
+   */
+  deleteAdmin(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/admins/${id}`).pipe(
+      tap(() => this.admins.update(list => list.filter(a => a.id !== id)))
     );
   }
 }

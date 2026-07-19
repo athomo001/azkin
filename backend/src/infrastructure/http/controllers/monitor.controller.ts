@@ -5,6 +5,7 @@ import { ListMonitorsUseCase } from "../../../application/use-cases/monitors/lis
 import { UpdateMonitorUseCase } from "../../../application/use-cases/monitors/update-monitor.usecase";
 import { DeleteMonitorUseCase } from "../../../application/use-cases/monitors/delete-monitor.usecase";
 import { BulkDeleteMonitorsUseCase } from "../../../application/use-cases/monitors/bulk-delete-monitors.usecase";
+import { BulkImportMonitorsFromCsvUseCase } from "../../../application/use-cases/backup/bulk-import-monitors-from-csv.usecase";
 import { ValidationError } from "../../../domain/errors/domain-error";
 import { toMonitorResponse } from "../presenters/monitor.presenter";
 
@@ -15,6 +16,7 @@ export class MonitorController {
     private readonly updateUseCase: UpdateMonitorUseCase,
     private readonly deleteUseCase: DeleteMonitorUseCase,
     private readonly bulkDeleteUseCase: BulkDeleteMonitorsUseCase,
+    private readonly bulkImportCsvUseCase: BulkImportMonitorsFromCsvUseCase,
   ) {}
 
   list = async (req: Request, res: Response): Promise<void> => {
@@ -55,6 +57,15 @@ export class MonitorController {
       throw new ValidationError("Se requiere un arreglo 'ids' no vacío de strings");
     }
     const result = await this.bulkDeleteUseCase.execute(req.adminId!, ids);
+    res.status(200).json(result);
+  };
+
+  bulkImportCsv = async (req: Request, res: Response): Promise<void> => {
+    const csv = req.body.csv;
+    if (typeof csv !== "string" || !csv.trim()) {
+      throw new ValidationError("Se requiere el campo 'csv' con el contenido del archivo");
+    }
+    const result = await this.bulkImportCsvUseCase.execute({ userId: req.adminId!, csv });
     res.status(200).json(result);
   };
 }

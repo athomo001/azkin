@@ -1,6 +1,6 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Routes } from '@angular/router';
-import { authGuard, unauthGuard } from './core/guards/auth.guard';
+import { authGuard, unauthGuard, adminGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   // Ruta raíz redirige según el estado de sesión
@@ -41,8 +41,15 @@ export const routes: Routes = [
   },
   {
     path: 'settings',
-    canActivate: [authGuard],
+    // Exclusivo de Admin: bloquea la renderización completa para Viewers (AZ-021).
+    canActivate: [authGuard, adminGuard],
     loadComponent: () => import('./features/settings/settings').then(m => m.SettingsComponent)
+  },
+  {
+    path: 'profile',
+    // Disponible para cualquier rol autenticado: solo cambio de la propia contraseña.
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/profile/profile').then(m => m.ProfileComponent)
   },
 
   // Ruta comodín — redirige al dashboard

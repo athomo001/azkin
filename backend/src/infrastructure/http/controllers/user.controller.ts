@@ -6,6 +6,9 @@ import { UpdateViewerPermissionsUseCase } from "../../../application/use-cases/u
 import { DeleteViewerUseCase } from "../../../application/use-cases/users/delete-viewer.usecase";
 import { CreateAdminUseCase } from "../../../application/use-cases/users/create-admin.usecase";
 import { ListAdminsUseCase } from "../../../application/use-cases/users/list-admins.usecase";
+import { UpdateAdminUseCase } from "../../../application/use-cases/users/update-admin.usecase";
+import { SetAdminBlockedUseCase } from "../../../application/use-cases/users/set-admin-blocked.usecase";
+import { DeleteAdminUseCase } from "../../../application/use-cases/users/delete-admin.usecase";
 import { IUserRepository } from "../../../application/ports/repositories/user-repository";
 import { IPasswordHasher } from "../../../application/ports/services/security";
 
@@ -17,6 +20,9 @@ export class UserController {
     private readonly deleteUseCase: DeleteViewerUseCase,
     private readonly createAdminUseCase: CreateAdminUseCase,
     private readonly listAdminsUseCase: ListAdminsUseCase,
+    private readonly updateAdminUseCase: UpdateAdminUseCase,
+    private readonly setAdminBlockedUseCase: SetAdminBlockedUseCase,
+    private readonly deleteAdminUseCase: DeleteAdminUseCase,
     private readonly usersRepo: IUserRepository,
     private readonly hasher: IPasswordHasher,
   ) {}
@@ -106,7 +112,56 @@ export class UserController {
       email: a.email,
       role: a.role,
       createdAt: a.createdAt,
+      isBlocked: a.isBlocked ?? false,
     })));
+  };
+
+  updateAdmin = async (req: Request, res: Response): Promise<void> => {
+    const id = req.params.id as string;
+    const admin = await this.updateAdminUseCase.execute({ id, email: req.body.email });
+    res.status(200).json({
+      id: admin.id,
+      email: admin.email,
+      role: admin.role,
+      createdAt: admin.createdAt,
+      isBlocked: admin.isBlocked ?? false,
+    });
+  };
+
+  resetAdminPassword = async (req: Request, res: Response): Promise<void> => {
+    const id = req.params.id as string;
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 8) {
+      res.status(400).json({ error: "La contraseña debe tener al menos 8 caracteres" });
+      return;
+    }
+    const passwordHash = await this.hasher.hash(newPassword);
+    const success = await this.usersRepo.changePassword(id, passwordHash);
+    if (!success) {
+      res.status(404).json({ error: "Administrador no encontrado" });
+      return;
+    }
+    res.status(200).json({ message: "Contraseña actualizada exitosamente" });
+  };
+
+  setAdminBlocked = async (req: Request, res: Response): Promise<void> => {
+    const actorId = req.userId!;
+    const id = req.params.id as string;
+    const admin = await this.setAdminBlockedUseCase.execute(actorId, id, req.body.isBlocked);
+    res.status(200).json({
+      id: admin.id,
+      email: admin.email,
+      role: admin.role,
+      createdAt: admin.createdAt,
+      isBlocked: admin.isBlocked ?? false,
+    });
+  };
+
+  deleteAdmin = async (req: Request, res: Response): Promise<void> => {
+    const actorId = req.userId!;
+    const id = req.params.id as string;
+    await this.deleteAdminUseCase.execute(actorId, id);
+    res.status(204).send();
   };
 
   changeOwnPassword = async (req: Request, res: Response): Promise<void> => {

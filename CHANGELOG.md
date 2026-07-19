@@ -4,6 +4,42 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.2.0] - 2026-07-19
+
+Release grande: cierra una auditoría de seguridad crítica, un lote de 8 mejoras de UX/funcionalidad
+y una auditoría completa de calidad de código/deuda técnica (backend y frontend). Ver `ISSUES.md`
+para el detalle punto por punto de cada item (`AZ-008` a `AZ-032`).
+
+### Added
+- **API pública con API Keys:** nuevo prefijo `/api/public/v1/monitors` autenticado por header `X-API-Key` (scopes `read`/`write`), pensado para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión de usuario. Gestión de keys desde `/settings` → pestaña **API** (generar, listar por `keyPrefix`, revocar). Solo se persiste el hash SHA-256 de cada key; el valor en claro se muestra una única vez al crearla. Documentación completa con ejemplos `curl` en [`docs/api-publica.md`](docs/api-publica.md).
+- **Gestión de otras cuentas Administrador:** editar email, resetear contraseña, bloquear/desbloquear y eliminar otras cuentas Admin desde `/settings` (con protección de auto-bloqueo/auto-eliminación). Un admin bloqueado no puede iniciar sesión ni renovar su token.
+- **Importación masiva de monitores vía CSV:** arrastrar y soltar un `.csv` (o plantilla descargable) en la pestaña Respaldos; a diferencia de la restauración de un backup JSON, una fila inválida no descarta el resto del lote — se reportan los errores por fila y se importan las válidas.
+- **Historial de auditoría consultable:** nueva pestaña "Auditoría" en `/settings` y endpoint `GET /api/v1/audit-log` — antes los eventos sensibles (borrado masivo, cambios de TLS, recuperación de contraseña) se registraban en Mongo pero no había forma de consultarlos sin conectarse a la base de datos.
+- **Estado y prueba del SMTP de aplicación:** nueva sección en `/settings` que muestra si el SMTP usado para recuperación de contraseña está configurado (sin exponer la contraseña) y permite enviar un correo de prueba real antes de que un usuario lo necesite.
+- **Modo TV / Kiosko 4K:** las sesiones con `isTvSessionEnabled` ahora reciben un token de sesión de 1 año (antes el flag no tenía ningún efecto) y activan un modo visual con fuentes/espaciados ampliados para lectura a distancia, ocultando controles no esenciales.
+- **Certificados TLS por archivo:** además de pegar el PEM como texto, cada campo (certificado, clave privada, cadena intermedia) admite subir un archivo.
+- **Plantillas de notificación mejoradas:** cheatsheet de variables clickeable (inserta `{{variable}}` en la posición del cursor) y selector de emojis, dentro del editor de plantillas por evento.
+- **Sesión renovable vía cookie segura:** `POST /auth/refresh` y `POST /auth/logout` quedaron completamente implementados — el login ahora emite, además del access token, un refresh token de 7 días (1 año en sesiones TV) persistido como cookie `HttpOnly`/`SameSite=Lax`, rotado en cada renovación.
+
+### Changed
+- **El token de acceso ya no se persiste en `localStorage`:** vive solo en memoria; la sesión se rehidrata tras recargar la página llamando a `/auth/refresh` (que lee la cookie `HttpOnly`, inaccesible a JavaScript). Mitiga el robo de sesión vía XSS.
+- **Formulario de canal de alerta sin saltos visuales:** layout de 2 columnas basado en el ancho real de la tarjeta (`@container`, no en el viewport) — los campos específicos de cada canal (Slack/Telegram/Email/Webhook) ya no reordenan el resto del formulario al cambiar de tipo, y ya no se comprimen de forma ilegible cuando la tarjeta ocupa una fracción angosta de una pantalla ancha.
+- **Métricas Prometheus (`/metrics`) endurecidas:** sin credenciales por defecto en el código (antes usaba `prom_scraper`/una contraseña de ejemplo si no había nada configurado); comparación de credenciales en tiempo constante; la API Key solo se acepta por header (ya no por query string, que quedaba en logs de acceso).
+- **Rate limiting en autenticación:** `/register`, `/login`, `/forgot-password` y `/reset-password` limitan a 10 intentos cada 15 minutos por IP.
+- **Notificaciones:** `GET/POST/PUT /notifications` enmascaran los campos sensibles del `config` (`webhookUrl`, `botToken`, `smtpPassword`), mostrando solo los últimos 4 caracteres; el formulario de edición sigue funcionando de forma transparente (el backend reconoce el valor enmascarado y conserva el secreto real si no se modificó).
+- **`AZKIN_CORS_ORIGIN` ya no tiene un valor por defecto permisivo:** debe configurarse explícitamente (puede seguir siendo `"*"` en desarrollo, pero como decisión consciente, con warning de arranque).
+- **Costo de bcrypt configurable** vía `AZKIN_BCRYPT_COST` (antes fijo en 10).
+- Refactor amplio de calidad de código: unificación de la política de acceso a monitores en un único helper, eliminación de tipado `any` en el borde HTTP/JWT/notificador multicanal (tipos discriminados por canal), eliminación de lógica de negocio y acceso directo a Mongoose desde `composition-root.ts`/`stats.controller.ts`, helpers compartidos de mapeo Mongoose→dominio y extracción de mensajes de error, función única de normalización de estado de monitor (antes duplicada y divergente en 6 puntos) y de extracción de errores HTTP (antes producía literalmente `"[object Object]"` en un toast).
+
+### Fixed
+- **Vulnerabilidad crítica:** un usuario con rol Viewer podía navegar directamente a `/settings` y, en algunos endpoints, invocar rutas de administración — el frontend solo ocultaba los controles visualmente. Ahora `/settings` exige rol Admin (frontend y backend) y existe `/profile` para que cualquier rol autenticado gestione su propia cuenta.
+- **El tema claro/oscuro se reseteaba a oscuro** al refrescar la página en `/settings` o `/profile` (el tema solo se aplicaba desde el Dashboard).
+- **`domainExpiry` fabricado:** el "días hasta vencimiento del dominio" mostrado en la UI se calculaba con un hash determinístico del hostname, no con una consulta WHOIS/RDAP real. Se eliminó el cálculo falso; el campo ahora es `null` (mostrado como "no disponible") hasta que exista una fuente de datos real.
+- **Código de error de cuota indistinguible:** `QuotaExceededError` reutilizaba el mismo código que un error de validación genérico; ahora tiene su propio código (`QUOTA_EXCEEDED`).
+
+### Security
+- Ver la sección *Changed* — endurecimiento de `/metrics`, rate limiting, CORS explícito, costo de bcrypt configurable, enmascarado de secretos de canales de notificación y migración del token de sesión fuera de `localStorage` son, en conjunto, el cierre de la auditoría de seguridad de esta release.
+
 ## [1.1.0] - 2026-07-18
 
 ### Added

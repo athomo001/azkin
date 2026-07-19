@@ -7,6 +7,7 @@ import {
 } from "../../../../application/ports/repositories/monitor-repository";
 import { IMonitor } from "../../../../domain/entities/monitor";
 import { MonitorDoc, MonitorModel } from "../schemas/monitor.schema";
+import { toDomainId } from "../to-domain-id";
 
 export class MongooseMonitorRepository implements IMonitorRepository {
   async create(data: CreateMonitorData): Promise<IMonitor> {
@@ -67,12 +68,13 @@ export class MongooseMonitorRepository implements IMonitorRepository {
   async update(id: string, data: UpdateMonitorData): Promise<IMonitor | null> {
     if (!Types.ObjectId.isValid(id)) return null;
 
-    const updateObj: any = { ...data };
-    if (data.notificationIds) {
-      updateObj.notificationIds = data.notificationIds.map((nid) => new Types.ObjectId(nid));
+    const { notificationIds, headers, ...rest } = data;
+    const updateObj: Partial<MonitorDoc> = { ...rest };
+    if (notificationIds) {
+      updateObj.notificationIds = notificationIds.map((nid) => new Types.ObjectId(nid));
     }
-    if (data.headers) {
-      updateObj.headers = new Map(Object.entries(data.headers));
+    if (headers) {
+      updateObj.headers = new Map(Object.entries(headers));
     }
 
     const doc = await MonitorModel.findOneAndUpdate({ _id: id }, updateObj, { new: true });
@@ -104,7 +106,7 @@ export class MongooseMonitorRepository implements IMonitorRepository {
 
   private toDomain(doc: HydratedDocument<MonitorDoc>): IMonitor {
     return {
-      id: String(doc._id),
+      id: toDomainId(doc._id),
       userId: String(doc.userId),
       name: doc.name,
       type: doc.type,

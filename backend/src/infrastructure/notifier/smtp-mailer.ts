@@ -1,7 +1,8 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import nodemailer from "nodemailer";
-import { IMailer, SendMailInput } from "../../application/ports/services/mailer";
+import { IMailer, SendMailInput, SendMailOptions } from "../../application/ports/services/mailer";
 import { logger } from "../logger";
+import { getErrorMessage } from "../../application/services/get-error-message";
 
 export interface SmtpConfig {
   host?: string;
@@ -20,9 +21,12 @@ export interface SmtpConfig {
 export class SmtpMailer implements IMailer {
   constructor(private readonly config: SmtpConfig) {}
 
-  async send(input: SendMailInput): Promise<void> {
+  async send(input: SendMailInput, options?: SendMailOptions): Promise<void> {
     const { host, port, secure, user, password, from } = this.config;
     if (!host || !user || !password) {
+      if (options?.throwOnFailure) {
+        throw new Error("SMTP no configurado (falta host, usuario o contraseña)");
+      }
       this.logMock(input);
       return;
     }
@@ -40,8 +44,9 @@ export class SmtpMailer implements IMailer {
         subject: input.subject,
         text: input.text,
       });
-    } catch (err: any) {
-      logger.error(`[SMTP] Error al enviar correo transaccional: ${err.message ?? err}. Fallback a mock.`);
+    } catch (err) {
+      if (options?.throwOnFailure) throw err;
+      logger.error(`[SMTP] Error al enviar correo transaccional: ${getErrorMessage(err)}. Fallback a mock.`);
       this.logMock(input);
     }
   }

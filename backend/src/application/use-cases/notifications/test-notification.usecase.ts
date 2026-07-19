@@ -6,6 +6,7 @@ import { IMonitor } from "../../../domain/entities/monitor";
 import { IHeartbeat } from "../../../domain/entities/heartbeat";
 import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
 import { AlertEventType } from "../../../domain/value-objects/alert-event-type";
+import { getErrorMessage } from "../../services/get-error-message";
 
 const EVENT_TO_TRANSITION: Record<AlertEventType, { from: MonitorStatus; to: MonitorStatus }> = {
   DOWN: { from: MonitorStatus.UP, to: MonitorStatus.DOWN },
@@ -25,7 +26,7 @@ export class TestNotificationUseCase {
   ) {}
 
   async execute(userId: string, id: string, eventType: AlertEventType = "DOWN"): Promise<void> {
-    const notification = await this.notifications.findById(userId, id);
+    const notification = await this.notifications.findById(id);
     if (!notification) {
       throw new NotFoundError("Canal de notificación no encontrado");
     }
@@ -66,8 +67,8 @@ export class TestNotificationUseCase {
         beat: dummyBeat,
         isTest: true,
       });
-    } catch (err: any) {
-      throw new ValidationError(`Error al enviar la notificación de prueba: ${err.message ?? err}`);
+    } catch (err) {
+      throw new ValidationError(`Error al enviar la notificación de prueba: ${getErrorMessage(err)}`);
     }
   }
 }

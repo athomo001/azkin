@@ -3,6 +3,7 @@ import { HydratedDocument, Types } from "mongoose";
 import { ITlsConfigRepository, UpsertTlsConfigData } from "../../../../application/ports/repositories/tls-config-repository";
 import { ITlsConfig } from "../../../../domain/entities/tls-config";
 import { TLS_CONFIG_SINGLETON_ID, TlsConfigDoc, TlsConfigModel } from "../schemas/tls-config.schema";
+import { toDomainId } from "../to-domain-id";
 
 export class MongooseTlsConfigRepository implements ITlsConfigRepository {
   async getActive(): Promise<ITlsConfig | null> {
@@ -28,7 +29,7 @@ export class MongooseTlsConfigRepository implements ITlsConfigRepository {
 
   private toDomain(doc: HydratedDocument<TlsConfigDoc>): ITlsConfig {
     return {
-      id: String(doc._id),
+      id: toDomainId(doc._id),
       certPem: doc.certPem,
       keyPemEncrypted: doc.keyPemEncrypted,
       chainPem: doc.chainPem ?? undefined,

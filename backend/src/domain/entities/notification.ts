@@ -8,6 +8,39 @@ export interface INotificationTemplate {
   body: string; // texto (slack/discord/telegram/email) o JSON (webhook), con variables {{var}}
 }
 
+// AZ-009: tipos discriminados por canal para `config` — reemplazan los `as any` que existían en
+// multichannel-notifier.ts. `INotification.config` sigue siendo `Record<string, unknown>` en el
+// dominio (el shape real depende de `type`); estas interfaces documentan y tipan ese contrato en
+// el borde donde se conoce el canal (los senders de `MultichannelNotifier`).
+export interface SlackConfig {
+  webhookUrl?: string;
+}
+
+export interface DiscordConfig {
+  webhookUrl?: string;
+}
+
+export interface TelegramConfig {
+  botToken?: string;
+  chatId?: string;
+}
+
+export interface WebhookConfig {
+  webhookUrl?: string;
+}
+
+export interface EmailConfig {
+  email?: string;
+  emailRecipient?: string;
+  emails?: string[];
+  smtpHost?: string;
+  smtpPort?: string | number;
+  smtpUsername?: string;
+  smtpPassword?: string;
+  smtpSecure?: boolean;
+  smtpFrom?: string;
+}
+
 /**
  * Entidad pura que representa una configuración de canal de notificación (Notification) en el dominio de Azkin.
  * Define la estructura y el proveedor de notificaciones al cual se enviarán alertas sobre los monitores asociados.

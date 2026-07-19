@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import {
   HeartbeatSummary,
   IHeartbeatRepository,
+  RecentEventRecord,
 } from "../../../../application/ports/repositories/heartbeat-repository";
 import { IHeartbeat } from "../../../../domain/entities/heartbeat";
 import { MonitorStatus } from "../../../../domain/value-objects/monitor-status";
@@ -89,7 +90,7 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
           lastErrorMsg: !isUp ? (lastBeat.msg ?? null) : null,
           certExpiry: lastBeat.certExpiry ?? null,
           domainExpiry: lastBeat.domainExpiry ?? null,
-          isLocalNetworkDown: (lastBeat as any).isLocalNetworkDown ?? false,
+          isLocalNetworkDown: lastBeat.isLocalNetworkDown ?? false,
         };
       } else {
         result[id] = {
@@ -104,5 +105,22 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
       }
     }
     return result;
+  }
+
+  async findLastEventsForMonitors(monitorIds: string[], limit: number): Promise<RecentEventRecord[]> {
+    const objectIds = monitorIds.filter((id) => Types.ObjectId.isValid(id)).map((id) => new Types.ObjectId(id));
+    if (objectIds.length === 0) return [];
+
+    const docs = await HeartbeatModel.find({ monitorId: { $in: objectIds } })
+      .sort({ timestamp: -1 })
+      .limit(limit);
+
+    return docs.map((doc) => ({
+      monitorId: String(doc.monitorId),
+      timestamp: doc.timestamp,
+      status: doc.status,
+      ping: doc.ping ?? null,
+      msg: doc.msg ?? null,
+    }));
   }
 }

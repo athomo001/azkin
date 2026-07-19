@@ -135,3 +135,41 @@ body.light-theme .border-zinc-900\/60 {
 ::view-transition-new(root) {
   z-index: 9999;
 }
+
+/* ==============================================================================
+   AZ-027: Modo TV / Kiosko 4K (sesiones isTvSessionEnabled)
+   Escalado de fuente/espaciados basado en rem para lectura a distancia.
+   ============================================================================== */
+body.kiosk-mode {
+  font-size: 1.375rem;
+}
+body.kiosk-mode .text-\[9px\],
+body.kiosk-mode .text-\[10px\],
+body.kiosk-mode .text-\[11px\] {
+  font-size: 0.875rem !important;
+}
+body.kiosk-mode .text-xs {
+  font-size: 1rem !important;
+}
+body.kiosk-mode .text-sm {
+  font-size: 1.15rem !important;
+}
+body.kiosk-mode .text-lg,
+body.kiosk-mode .text-xl {
+  font-size: 1.75rem !important;
+}
+body.kiosk-mode .text-2xl {
+  font-size: 2.25rem !important;
+}
+body.kiosk-mode .p-2 { padding: 0.75rem !important; }
+body.kiosk-mode .p-3 { padding: 1.1rem !important; }
+body.kiosk-mode .p-4 { padding: 1.5rem !important; }
+body.kiosk-mode .p-5 { padding: 1.85rem !important; }
+body.kiosk-mode .p-6 { padding: 2.2rem !important; }
+body.kiosk-mode .gap-2 { gap: 0.75rem !important; }
+body.kiosk-mode .gap-3 { gap: 1.1rem !important; }
+body.kiosk-mode .gap-4 { gap: 1.5rem !important; }
+body.kiosk-mode svg {
+  width: 1.4em !important;
+  height: 1.4em !important;
+}

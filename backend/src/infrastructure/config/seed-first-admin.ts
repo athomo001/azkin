@@ -3,6 +3,7 @@ import { IUserRepository } from "../../application/ports/repositories/user-repos
 import { IPasswordHasher } from "../../application/ports/services/security";
 import { Env } from "./env";
 import mongoose from "mongoose";
+import { logger } from "../logger";
 
 /**
  * Seeder del primer administrador.
@@ -26,7 +27,7 @@ export async function seedFirstAdmin(
   // Comprobar si ya existe algún administrador en el sistema
   const existing = await users.findByEmail(env.firstAdminEmail);
   if (existing) {
-    console.info("[Seeder] El administrador inicial ya existe, seeder omitido.");
+    logger.info("[Seeder] El administrador inicial ya existe, seeder omitido.");
     return;
   }
 
@@ -54,12 +55,12 @@ export async function seedFirstAdmin(
   );
 
   if (result.modifiedCount > 0) {
-    console.info(
+    logger.info(
       `[Seeder] ${result.modifiedCount} monitor(es) huérfano(s) reasignados al admin ${env.firstAdminEmail}`,
     );
   }
 
-  console.info(
+  logger.info(
     `[Seeder] Administrador inicial creado: ${env.firstAdminEmail}`,
   );
 }

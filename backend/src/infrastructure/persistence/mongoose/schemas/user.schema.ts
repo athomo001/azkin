@@ -14,6 +14,7 @@ export interface UserDoc {
   isTvSessionEnabled: boolean;
   resetPasswordTokenHash?: string | null;
   resetPasswordExpiresAt?: Date | null;
+  isBlocked: boolean;
   preferences: {
     nyanCatMode: boolean;
   };
@@ -46,6 +47,7 @@ const userSchema = new Schema<UserDoc>(
     isTvSessionEnabled: { type: Boolean, default: false },
     resetPasswordTokenHash: { type: String, default: null, select: false, index: true },
     resetPasswordExpiresAt: { type: Date, default: null },
+    isBlocked: { type: Boolean, default: false },
     preferences: {
       nyanCatMode: { type: Boolean, default: false },
     },

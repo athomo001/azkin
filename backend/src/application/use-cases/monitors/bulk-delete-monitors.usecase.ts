@@ -21,10 +21,10 @@ export class BulkDeleteMonitorsUseCase {
     private readonly auditLog: IAuditLogRepository,
   ) {}
 
-  async execute(userId: string, ids: string[]): Promise<BulkDeleteMonitorsOutput> {
+  async execute(actorId: string, ids: string[]): Promise<BulkDeleteMonitorsOutput> {
     const owned: string[] = [];
     for (const id of ids) {
-      const monitor = await this.monitors.findById(userId, id);
+      const monitor = await this.monitors.findById(id);
       if (monitor) owned.push(id);
     }
 
@@ -36,14 +36,14 @@ export class BulkDeleteMonitorsUseCase {
       this.scheduler.unschedule(id);
     }
 
-    const deletedCount = await this.monitors.deleteMany(userId, owned);
+    const deletedCount = await this.monitors.deleteMany(owned);
 
     for (const id of owned) {
       await this.heartbeats.deleteByMonitor(id);
     }
 
     await this.auditLog.record({
-      actorId: userId,
+      actorId,
       action: "MONITORS_BULK_DELETE",
       targetType: "monitor",
       targetIds: owned,

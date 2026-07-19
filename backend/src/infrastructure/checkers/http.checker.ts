@@ -2,6 +2,7 @@
 import tls from "tls";
 import { CheckResult, ICheckStrategy } from "../../application/ports/services/check-strategy";
 import { IMonitor } from "../../domain/entities/monitor";
+import { getErrorMessage } from "../../application/services/get-error-message";
 
 /**
  * Consulta de manera nativa los días restantes para la caducidad del certificado SSL.
@@ -90,18 +91,15 @@ export class HttpChecker implements ICheckStrategy {
       try {
         const urlObj = new URL(monitor.target);
         certExpiry = await getSslExpiryDays(urlObj.hostname, urlObj.port ? Number(urlObj.port) : 443);
-        
-        // Cálculo determinista de la expiración de dominio basado en el hash del nombre de host
-        // para dar una experiencia visual fluida e idéntica a WHOIS sin bloqueos por IP
-        let hash = 0;
-        for (let i = 0; i < urlObj.hostname.length; i++) {
-          hash = urlObj.hostname.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        domainExpiry = Math.abs(hash % 240) + 30; // entre 30 y 270 días de caducidad
       } catch {
         // Ignorar errores menores
       }
     }
+    // AZ-012: domainExpiry (vencimiento de dominio vía WHOIS/RDAP) no está implementado — se
+    // deja explícitamente en null en vez de fabricar un número determinista a partir de un hash
+    // del hostname (bug real detectado en auditoría: presentaba un valor falso como si fuera un
+    // dato real de WHOIS). El frontend debe mostrar "N/D" para `domainExpiry === null`.
+    domainExpiry = null;
 
     try {
       const res = await fetch(monitor.target, {
@@ -146,12 +144,11 @@ export class HttpChecker implements ICheckStrategy {
       }
 
       return { ok: true, ping, msg, certExpiry, domainExpiry };
-    } catch (error: any) {
-      const reason = error instanceof Error ? error.message : "request failed";
-      if (error.name === "AbortError") {
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
         return { ok: false, ping: null, msg: "timeout", certExpiry, domainExpiry };
       }
-      return { ok: false, ping: null, msg: reason, certExpiry, domainExpiry };
+      return { ok: false, ping: null, msg: getErrorMessage(error, "request failed"), certExpiry, domainExpiry };
     } finally {
       clearTimeout(timer);
     }

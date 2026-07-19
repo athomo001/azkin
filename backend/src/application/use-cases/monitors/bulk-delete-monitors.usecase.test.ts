@@ -35,11 +35,11 @@ test("BulkDeleteMonitorsUseCase solo borra ids que pertenecen al usuario y regis
 
   const monitors: IMonitorRepository = {
     create: async () => makeMonitor("x"),
-    findAllByUser: async () => [],
-    findById: async (_userId, id) => (owned.has(id) ? makeMonitor(id) : null),
+    findAll: async () => [],
+    findById: async (id) => (owned.has(id) ? makeMonitor(id) : null),
     update: async () => null,
     delete: async () => true,
-    deleteMany: async (_userId, ids) => {
+    deleteMany: async (ids) => {
       deleteManyCalledWith = ids;
       return ids.length;
     },

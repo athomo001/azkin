@@ -16,7 +16,7 @@ import { AuthService } from '../../core/services/auth.service';
       <!-- Navbar -->
       <nav class="bg-zinc-900/50 backdrop-blur-md border-b border-zinc-800 px-6 py-4 flex items-center justify-between shadow-lg">
         <div class="flex items-center gap-3">
-          <button routerLink="/dashboard" class="text-zinc-500 hover:text-emerald-500 transition-colors">
+          <button routerLink="/dashboard" class="text-zinc-500 hover:text-emerald-500 transition-colors" aria-label="Volver al Dashboard" title="Volver al Dashboard">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
             </svg>

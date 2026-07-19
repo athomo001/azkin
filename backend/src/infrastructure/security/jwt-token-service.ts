@@ -2,6 +2,12 @@
 import jwt from "jsonwebtoken";
 import { ITokenService } from "../../application/ports/services/security";
 import { UnauthorizedError } from "../../domain/errors/domain-error";
+import { IUserPermission } from "../../domain/entities/user";
+
+interface AzkinJwtPayload extends jwt.JwtPayload {
+  adminId?: string;
+  permissions?: IUserPermission[];
+}
 
 export class JwtTokenService implements ITokenService {
   constructor(
@@ -9,13 +15,14 @@ export class JwtTokenService implements ITokenService {
     private readonly expiresInSeconds: number,
   ) {}
 
-  sign(userId: string, role: string, adminId?: string, permissions?: any[]): string {
-    return jwt.sign({ sub: userId, role, adminId, permissions }, this.secret, { expiresIn: this.expiresInSeconds });
+  sign(userId: string, role: string, adminId?: string, permissions?: IUserPermission[], expiresInSecondsOverride?: number): string {
+    const expiresIn = expiresInSecondsOverride ?? this.expiresInSeconds;
+    return jwt.sign({ sub: userId, role, adminId, permissions }, this.secret, { expiresIn });
   }
 
-  verify(token: string): { userId: string; role: string; adminId?: string; permissions?: any[] } {
+  verify(token: string): { userId: string; role: string; adminId?: string; permissions?: IUserPermission[] } {
     try {
-      const payload = jwt.verify(token, this.secret) as jwt.JwtPayload;
+      const payload = jwt.verify(token, this.secret) as AzkinJwtPayload;
       if (!payload.sub || typeof payload.sub !== "string" || !payload.role || typeof payload.role !== "string") {
         throw new UnauthorizedError("Token no válido o corrupto");
       }

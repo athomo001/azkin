@@ -30,3 +30,11 @@ export const updateViewerPermissionsSchema = z.object({
   ),
   isTvSessionEnabled: z.boolean().optional(),
 });
+
+export const updateAdminSchema = z.object({
+  email: z.string().email().transform((e) => e.toLowerCase()),
+});
+
+export const setAdminBlockedSchema = z.object({
+  isBlocked: z.boolean(),
+});

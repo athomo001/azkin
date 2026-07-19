@@ -10,5 +10,7 @@ export function systemRoutes(controller: SystemController): Router {
   const router = Router();
   router.get("/tls", requireRole("admin"), asyncHandler(controller.getTlsConfig));
   router.put("/tls", requireRole("admin"), validateBody(applyTlsConfigSchema), asyncHandler(controller.applyTlsConfig));
+  router.get("/smtp", requireRole("admin"), asyncHandler(controller.getSmtpStatus));
+  router.post("/smtp/test", requireRole("admin"), asyncHandler(controller.sendTestEmail));
   return router;
 }

@@ -2,6 +2,7 @@
 import dgram from "dgram";
 import { CheckResult, ICheckStrategy } from "../../application/ports/services/check-strategy";
 import { IMonitor } from "../../domain/entities/monitor";
+import { getErrorMessage } from "../../application/services/get-error-message";
 
 /**
  * Genera un buffer para un SNMP GetRequest v1/v2c (BER ASN.1 encoding).
@@ -168,12 +169,12 @@ export class SnmpChecker implements ICheckStrategy {
             resolve({ ok: false, ping: null, msg: err.message });
           }
         });
-      } catch (err: any) {
+      } catch (err) {
         if (!resolved) {
           resolved = true;
           clearTimeout(timer);
           socket.close();
-          resolve({ ok: false, ping: null, msg: err.message || "Error al construir paquete SNMP" });
+          resolve({ ok: false, ping: null, msg: getErrorMessage(err, "Error al construir paquete SNMP") });
         }
       }
     });

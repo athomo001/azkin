@@ -17,7 +17,16 @@ const schema = z.object({
   AZKIN_JWT_EXPIRES_IN: z.coerce.number().int().positive().default(7200),
   AZKIN_CHECK_CONCURRENCY: z.coerce.number().int().positive().default(50),
   AZKIN_FIRST_CHECK_DELAY_MS: z.coerce.number().int().nonnegative().default(1000),
-  AZKIN_CORS_ORIGIN: z.string().default("*"),
+  // AZ-010: sin default permisivo — se exige configuración explícita (puede ser "*" a propósito
+  // en desarrollo, pero debe ser una decisión consciente, no un fallback silencioso del código).
+  AZKIN_CORS_ORIGIN: z.string().min(1, "AZKIN_CORS_ORIGIN es requerido (usa '*' solo si es intencional)"),
+  // AZ-010: costo de bcrypt configurable por entorno (ej. reducirlo en tests, subirlo en prod).
+  AZKIN_BCRYPT_COST: z.coerce.number().int().min(4).max(15).default(10),
+  // AZ-010/013: credenciales de /metrics — sin fallback hardcodeado; si no están configuradas,
+  // el endpoint queda inaccesible en vez de aceptar una contraseña conocida de antemano.
+  AZKIN_PROMETHEUS_USER: z.preprocess(emptyToUndefined, z.string().optional()),
+  AZKIN_PROMETHEUS_PASS: z.preprocess(emptyToUndefined, z.string().optional()),
+  AZKIN_PROMETHEUS_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   // Variables del seeder: opcionales; si están presentes se crea el primer admin al arrancar
   AZKIN_FIRST_ADMIN_NAME: z.string().optional(),
   AZKIN_FIRST_ADMIN_EMAIL: z.preprocess(emptyToUndefined, z.string().email().optional()),
@@ -58,6 +67,10 @@ export interface Env {
   checkConcurrency: number;
   firstCheckDelayMs: number;
   corsOrigin: string;
+  bcryptCost: number;
+  prometheusUser?: string;
+  prometheusPass?: string;
+  prometheusApiKey?: string;
   // Datos del primer administrador para el seeder automático al arrancar
   firstAdminName?: string;
   firstAdminEmail?: string;
@@ -82,6 +95,10 @@ export const env: Env = {
   checkConcurrency: raw.AZKIN_CHECK_CONCURRENCY,
   firstCheckDelayMs: raw.AZKIN_FIRST_CHECK_DELAY_MS,
   corsOrigin: raw.AZKIN_CORS_ORIGIN,
+  bcryptCost: raw.AZKIN_BCRYPT_COST,
+  prometheusUser: raw.AZKIN_PROMETHEUS_USER,
+  prometheusPass: raw.AZKIN_PROMETHEUS_PASS,
+  prometheusApiKey: raw.AZKIN_PROMETHEUS_API_KEY,
   firstAdminName: raw.AZKIN_FIRST_ADMIN_NAME,
   firstAdminEmail: raw.AZKIN_FIRST_ADMIN_EMAIL,
   firstAdminPassword: raw.AZKIN_FIRST_ADMIN_PASSWORD,
@@ -96,3 +113,12 @@ export const env: Env = {
   },
   appUrl: raw.AZKIN_APP_URL,
 };
+
+// AZ-010: advertencia de arranque para configuraciones explícitas pero permisivas —
+// no bloquea el arranque (puede ser intencional en desarrollo), pero deja rastro visible.
+if (env.corsOrigin === "*") {
+  console.warn("[env] AZKIN_CORS_ORIGIN='*' permite cualquier origen. No usar en producción.");
+}
+if (!env.prometheusApiKey && !(env.prometheusUser && env.prometheusPass)) {
+  console.warn("[env] /metrics quedará inaccesible: no hay AZKIN_PROMETHEUS_API_KEY ni AZKIN_PROMETHEUS_USER+PASS configurados.");
+}

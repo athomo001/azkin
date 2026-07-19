@@ -3,12 +3,12 @@ import { INotificationRepository } from "../../ports/repositories/notification-r
 import { INotification } from "../../../domain/entities/notification";
 
 /**
- * Caso de uso para que un administrador liste todos sus canales de alertas.
+ * Caso de uso para listar todos los canales de alertas del sistema (sin aislamiento por tenant).
  */
 export class ListNotificationsUseCase {
   constructor(private readonly notifications: INotificationRepository) {}
 
-  async execute(userId: string): Promise<INotification[]> {
-    return this.notifications.findAllByUser(userId);
+  async execute(): Promise<INotification[]> {
+    return this.notifications.findAll();
   }
 }

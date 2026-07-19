@@ -61,6 +61,15 @@ export class ForbiddenError extends DomainError {
   }
 }
 
+export class AccountBlockedError extends DomainError {
+  readonly code = "ACCOUNT_BLOCKED";
+  readonly httpStatus = 403;
+
+  constructor(message = "Esta cuenta ha sido bloqueada por un administrador") {
+    super(message);
+  }
+}
+
 export class NotFoundError extends DomainError {
   readonly code = "NOT_FOUND";
   readonly httpStatus = 404;
@@ -71,7 +80,9 @@ export class NotFoundError extends DomainError {
 }
 
 export class QuotaExceededError extends DomainError {
-  readonly code = "VALIDATION_ERROR";
+  // AZ-014: código propio (antes reutilizaba "VALIDATION_ERROR"), para que el frontend pueda
+  // distinguir "cuota de 50 monitores superada" de un error de validación de campos sin parsear el mensaje.
+  readonly code = "QUOTA_EXCEEDED";
   readonly httpStatus = 400;
 
   constructor(message = "Se ha superado el límite máximo de 50 monitores por cuenta") {

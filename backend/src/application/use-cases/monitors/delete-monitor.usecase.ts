@@ -15,14 +15,14 @@ export class DeleteMonitorUseCase {
     private readonly scheduler: IScheduler,
   ) {}
 
-  async execute(userId: string, id: string): Promise<void> {
-    const monitor = await this.monitors.findById(userId, id);
+  async execute(_userId: string, id: string): Promise<void> {
+    const monitor = await this.monitors.findById(id);
     if (!monitor) {
       throw new NotFoundError("Monitor no encontrado");
     }
 
     this.scheduler.unschedule(id);
-    await this.monitors.delete(userId, id);
+    await this.monitors.delete(id);
     await this.heartbeats.deleteByMonitor(id); // Borrado en cascada de series de tiempo
   }
 }

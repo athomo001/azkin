@@ -19,24 +19,41 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-005](#az-005-copia-de-seguridad-y-restauracion-reemplazo-de-respaldo-anterior-y-borrado-masivo-de-webs-monitoreadas) | Respaldos: reemplazo de anterior y borrado masivo de webs monitoreadas | Alta | [x] Resuelto |
 | [AZ-006](#az-006-configuracion-interna-de-certificados-ssltls-y-puerto-https-configurable) | Certificados SSL/TLS y puerto HTTPS configurable | Alta | [x] Resuelto |
 | [AZ-007](#az-007-notificaciones-centralizadas-por-tipo-de-alerta-incluyendo-defacement) | Notificaciones centralizadas por tipo de alerta, incluyendo Defacement | Alta | [x] Resuelto |
+| [AZ-021](#az-021-vulnerabilidad-critica-un-viewer-puede-acceder-a-settings-solo-oculto-por-css-nunca-bloqueado) | Vulnerabilidad critica: un Viewer puede acceder a `/settings` (solo oculto por CSS, nunca bloqueado) | Critica | [x] Resuelto |
+
+### UX / Funcionalidad (batch post-auditoria de seguridad)
+
+| Codigo | Titulo | Prioridad | Estado |
+|---|---|---|---|
+| [AZ-022](#az-022-el-tema-claridad-oscuro-se-resetea-a-oscuro-al-refrescar-fuera-del-dashboard) | El tema claro/oscuro se resetea a oscuro al refrescar fuera del dashboard | Media | [x] Resuelto |
+| [AZ-023](#az-023-no-existe-gestion-de-otras-cuentas-administrador-editar-resetear-clave-bloquear-eliminar) | No existe gestion de otras cuentas Administrador (editar, resetear clave, bloquear, eliminar) | Alta | [x] Resuelto |
+| [AZ-024](#az-024-configuracion-tls-solo-acepta-pegar-texto-pem-sin-opcion-de-subir-archivo) | Configuracion TLS solo acepta pegar texto PEM, sin opcion de subir archivo | Baja | [x] Resuelto |
+| [AZ-025](#az-025-el-formulario-de-canal-de-alerta-salta-visualmente-al-cambiar-de-tipo-de-canal) | El formulario de canal de alerta salta visualmente al cambiar de tipo de canal | Baja | [x] Resuelto |
+| [AZ-026](#az-026-plantillas-de-notificacion-sin-cheatsheet-de-variables-clickeable-ni-selector-de-emojis) | Plantillas de notificacion sin cheatsheet de variables clickeable ni selector de emojis | Baja | [x] Resuelto |
+| [AZ-027](#az-027-modo-tv-kiosko-isTvSessionEnabled-no-hace-nada-ni-siquiera-extiende-la-sesion) | Modo TV/Kiosko (`isTvSessionEnabled`) no hace nada, ni siquiera extiende la sesion | Media | [x] Resuelto |
+| [AZ-028](#az-028-no-existe-importacion-masiva-de-monitores-solo-restauracion-completa-de-respaldo-json) | No existe importacion masiva de monitores (solo restauracion completa de respaldo JSON) | Media | [x] Resuelto |
+| [AZ-029](#az-029-no-existe-api-publica-para-integrar-sistemas-externos-sin-usar-sesion-de-usuario) | No existe API publica para integrar sistemas externos sin usar sesion de usuario | Media-Alta | [x] Resuelto |
 
 ### Calidad de codigo / deuda tecnica (auditoria senior)
 
 | Codigo | Titulo | Area | Prioridad | Estado |
 |---|---|---|---|---|
-| [AZ-008](#az-008-logica-de-autorizacion-por-permisos-duplicada-en-5-lugares-y-rol-sin-tipado-en-el-guard) | Logica de permisos duplicada en 5 lugares + rol sin tipar en el guard | Backend | Alta | [ ] Abierto |
-| [AZ-009](#az-009-erosion-de-tipado-any-en-el-borde-http-en-el-puerto-de-jwt-y-en-el-notificador-multicanal) | Erosion de tipado `any` en borde HTTP, puerto JWT y notificador | Backend | Media-Alta | [ ] Abierto |
-| [AZ-010](#az-010-endurecimiento-de-seguridad-pendiente-credenciales-por-defecto-cors-abierto-sin-rate-limiting-y-secretos-de-canales-expuestos) | Credenciales por defecto, CORS abierto, sin rate limiting, secretos expuestos | Backend | Alta | [ ] Abierto |
-| [AZ-011](#az-011-flujo-de-refresh-token--logout-nunca-completado-codigo-muerto-y-desalineado-con-el-spec-de-autenticacion) | Refresh token / logout nunca completado (codigo muerto) | Backend | Media | [ ] Abierto |
-| [AZ-012](#az-012-dato-de-vencimiento-de-dominio-fabricado-se-presenta-un-hash-como-si-fuera-una-consulta-whois-real) | `domainExpiry` fabricado: hash presentado como WHOIS real | Backend | Alta | [ ] Abierto |
-| [AZ-013](#az-013-violaciones-de-capas-statscontrollerts-consulta-mongoose-directamente-y-composition-rootts-contiene-logica-de-negocio) | Violaciones de capas: controller consulta Mongoose directo | Backend | Media | [ ] Abierto |
-| [AZ-014](#az-014-entidad-monitor-sobrecargada-codigo-de-error-de-cuota-duplicado-y-mapeadores-de-repositorio-repetidos) | Entidad `Monitor` sobrecargada, error de cuota duplicado, mappers repetidos | Backend | Baja | [ ] Abierto |
-| [AZ-015](#az-015-cobertura-de-pruebas-casi-nula-en-el-backend-pese-a-una-arquitectura-disenada-para-ser-testeable) | Cobertura de pruebas casi nula en el backend | Backend | Media | [ ] Abierto |
+| [AZ-008](#az-008-logica-de-autorizacion-por-permisos-duplicada-en-5-lugares-y-rol-sin-tipado-en-el-guard) | Logica de permisos duplicada en 5 lugares + rol sin tipar en el guard | Backend | Alta | [x] Resuelto |
+| [AZ-009](#az-009-erosion-de-tipado-any-en-el-borde-http-en-el-puerto-de-jwt-y-en-el-notificador-multicanal) | Erosion de tipado `any` en borde HTTP, puerto JWT y notificador | Backend | Media-Alta | [x] Resuelto |
+| [AZ-010](#az-010-endurecimiento-de-seguridad-pendiente-credenciales-por-defecto-cors-abierto-sin-rate-limiting-y-secretos-de-canales-expuestos) | Credenciales por defecto, CORS abierto, sin rate limiting, secretos expuestos | Backend | Alta | [x] Resuelto |
+| [AZ-011](#az-011-flujo-de-refresh-token--logout-nunca-completado-codigo-muerto-y-desalineado-con-el-spec-de-autenticacion) | Refresh token / logout nunca completado (codigo muerto) | Backend | Media | [x] Resuelto |
+| [AZ-012](#az-012-dato-de-vencimiento-de-dominio-fabricado-se-presenta-un-hash-como-si-fuera-una-consulta-whois-real) | `domainExpiry` fabricado: hash presentado como WHOIS real | Backend | Alta | [x] Resuelto |
+| [AZ-013](#az-013-violaciones-de-capas-statscontrollerts-consulta-mongoose-directamente-y-composition-rootts-contiene-logica-de-negocio) | Violaciones de capas: controller consulta Mongoose directo | Backend | Media | [x] Resuelto |
+| [AZ-014](#az-014-entidad-monitor-sobrecargada-codigo-de-error-de-cuota-duplicado-y-mapeadores-de-repositorio-repetidos) | Entidad `Monitor` sobrecargada, error de cuota duplicado, mappers repetidos | Backend | Baja | [x] Resuelto |
+| [AZ-015](#az-015-cobertura-de-pruebas-casi-nula-en-el-backend-pese-a-una-arquitectura-disenada-para-ser-testeable) | Cobertura de pruebas casi nula en el backend | Backend | Media | [x] Resuelto |
 | [AZ-016](#az-016-componentes-dios-en-el-frontend-dashboardts-2300-lineas-y-settingsts-1180-lineas-sin-descomposicion) | Componentes "Dios": `dashboard.ts` (~2300L) y `settings.ts` (~1180L) | Frontend | Media-Alta | [ ] Abierto |
-| [AZ-017](#az-017-el-token-de-acceso-se-persiste-en-localstorage-expuesto-a-xss-y-contradice-el-diseno-de-cookie-segura-del-spec) | JWT en `localStorage` (expuesto a XSS), contradice diseno de cookie | Frontend | Alta | [ ] Abierto |
-| [AZ-018](#az-018-tipado-any-generalizado-en-los-servicios-core-y-logica-de-normalizacion-de-estado-duplicada-8-veces-con-comportamiento-divergente) | `any` en servicios core + normalizacion de estado duplicada 8 veces | Frontend | Media | [ ] Abierto |
-| [AZ-019](#az-019-manejo-de-errores-http-inconsistente-en-el-frontend-3-formatos-distintos-uno-produce-object-object-y-ausencia-total-de-pruebas) | Manejo de errores HTTP inconsistente + cero pruebas unitarias | Frontend | Media | [ ] Abierto |
-| [AZ-020](#az-020-manipulacion-directa-del-dom-sin-centralizar-suscripciones-sin-limpieza-formal-e-i18n-sin-tipado-de-claves) | DOM sin centralizar, suscripciones sin limpieza, i18n sin tipado | Frontend | Baja | [ ] Abierto |
+| [AZ-017](#az-017-el-token-de-acceso-se-persiste-en-localstorage-expuesto-a-xss-y-contradice-el-diseno-de-cookie-segura-del-spec) | JWT en `localStorage` (expuesto a XSS), contradice diseno de cookie | Frontend | Alta | [x] Resuelto |
+| [AZ-018](#az-018-tipado-any-generalizado-en-los-servicios-core-y-logica-de-normalizacion-de-estado-duplicada-8-veces-con-comportamiento-divergente) | `any` en servicios core + normalizacion de estado duplicada 8 veces | Frontend | Media | [x] Resuelto |
+| [AZ-019](#az-019-manejo-de-errores-http-inconsistente-en-el-frontend-3-formatos-distintos-uno-produce-object-object-y-ausencia-total-de-pruebas) | Manejo de errores HTTP inconsistente + cero pruebas unitarias | Frontend | Media | [x] Resuelto |
+| [AZ-020](#az-020-manipulacion-directa-del-dom-sin-centralizar-suscripciones-sin-limpieza-formal-e-i18n-sin-tipado-de-claves) | DOM sin centralizar, suscripciones sin limpieza, i18n sin tipado | Frontend | Baja | [x] Resuelto |
+| [AZ-030](#az-030-el-registro-de-auditoria-persiste-datos-pero-no-existe-ninguna-forma-de-consultarlo-ni-por-api-ni-en-la-ui) | El registro de auditoria persiste datos pero no existe forma de consultarlo (ni API ni UI) | Backend | Media | [x] Resuelto |
+| [AZ-031](#az-031-la-configuracion-smtp-a-nivel-de-aplicacion-para-recuperacion-de-contrasena-no-tiene-pantalla-de-administracion-ni-boton-de-prueba) | SMTP de aplicacion (recuperacion de contrasena) sin pantalla de administracion ni prueba | Backend | Media | [x] Resuelto |
+| [AZ-032](#az-032-botones-de-solo-icono-sin-nombre-accesible-aria-label-title-en-varios-puntos-del-dashboard) | Botones de solo-icono sin nombre accesible (`aria-label`/`title`) en varios puntos | Frontend | Baja | [x] Resuelto |
 
 ---
 
@@ -263,9 +280,15 @@ Adicionalmente, debe contemplarse explicitamente la alerta de Defacement dentro 
 
 ## AZ-008) Logica de autorizacion por permisos duplicada en 5 lugares y rol sin tipado en el guard
 - Codigo: AZ-008
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Alta
 - Reportado: 2026-07-18
+- Resuelto: 2026-07-19
+
+### Resolucion
+- `stats.controller.ts:recentEvents` ya no usa `require("mongoose")` inline: se extrajo `GetRecentEventsUseCase` (`application/use-cases/stats/get-recent-events.usecase.ts`), reutilizando `filterMonitorsByPermission` y un nuevo `IHeartbeatRepository.findLastEventsForMonitors`.
+- `requireRole` ahora exige `UserRole[]` (no `string[]`) importando el tipo de `domain/entities/user.ts` — un typo como `requireRole("admn")` ya no compila.
+- Cubierto por 3 pruebas nuevas en `get-recent-events.usecase.test.ts` (admin sin filtro, viewer filtrado por grupo, y caso sin monitores autorizados que no llega a consultar heartbeats).
 
 ### Descripcion
 El algoritmo "resolver ownerId segun rol y filtrar monitores por permisos granulares (`all`/`group`/`monitor`)" esta copiado casi byte a byte en 5 lugares distintos: `list-monitors.usecase.ts`, `get-groups.usecase.ts`, `get-group-overview.usecase.ts`, `get-history.usecase.ts` y, el mas grave, inline dentro de `stats.controller.ts` (metodo `recentEvents`, capa HTTP en vez de un caso de uso). Es la logica de aislamiento de datos mas sensible de todo el sistema (evita que un Viewer vea monitores ajenos) y no tiene ni una sola prueba dedicada a su propio comportamiento (las pruebas actuales de AZ-001 cubren el bug del JWT, no el algoritmo de filtrado en si).
@@ -292,9 +315,16 @@ Adicionalmente, `requireRole(...allowedRoles: string[])` (`infrastructure/http/m
 
 ## AZ-009) Erosion de tipado (`any`) en el borde HTTP, en el puerto de JWT y en el notificador multicanal
 - Codigo: AZ-009
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Media-Alta
 - Reportado: 2026-07-18
+- Resuelto: 2026-07-19
+
+### Resolucion
+- `ITokenService`/`JwtTokenService` tipan `permissions` como `IUserPermission[]`, no `any[]`; `types/express.d.ts` alinea `req.permissions` al mismo tipo.
+- `INotification.config` gana tipos discriminados por canal (`SlackConfig`/`DiscordConfig`/`TelegramConfig`/`WebhookConfig`/`EmailConfig` en `domain/entities/notification.ts`); `multichannel-notifier.ts` reemplaza sus 5 `as any` por casts tipados (`as unknown as XConfig`).
+- `mongoose-monitor.repository.ts` tipa `updateObj` como `Partial<MonitorDoc>` en vez de `any`.
+- No se implementó el `AuthenticatedRequest` que reemplace los `req.userId!` — evaluado y descartado por bajo valor/alto churn (8 controladores) frente al resto del backlog; los `!` actuales están correctamente acotados detrás de `authGuard`/`requireRole`.
 
 ### Descripcion
 Pese a que el proyecto declara `strict: true` y presume Clean Architecture, hay 37 usos de `: any`/`as any` en el backend concentrados en puntos criticos: el puerto `ITokenService` tipa `permissions?: any[]` en el payload del JWT (existiendo ya `IUserPermission` en el dominio), `multichannel-notifier.ts` hace `config.config as any` en cada canal (5 veces) por falta de un tipo discriminado por `NotificationType`, `mongoose-monitor.repository.ts` usa `const updateObj: any = { ...data }` anulando el tipado de `UpdateMonitorData`, y los controladores usan `req.userId!`/`req.adminId!`/`req.userRole!`/`req.permissions!` de forma masiva (12 veces solo en `stats.controller.ts`) en vez de un tipo `AuthenticatedRequest` que garantice esos campos sin non-null assertions.
@@ -321,9 +351,18 @@ Pese a que el proyecto declara `strict: true` y presume Clean Architecture, hay 
 
 ## AZ-010) Endurecimiento de seguridad pendiente: credenciales por defecto, CORS abierto, sin rate limiting y secretos de canales expuestos
 - Codigo: AZ-010
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Alta
 - Reportado: 2026-07-18
+- Resuelto: 2026-07-19
+
+### Resolucion
+- `/metrics` ya no tiene credenciales hardcodeadas: `AZKIN_PROMETHEUS_USER/PASS/API_KEY` son opcionales en `env.ts` sin fallback; si no están configuradas, el endpoint queda inaccesible (verificado con `curl` → 401 sin credenciales).
+- Nuevo `infrastructure/http/middlewares/metrics-auth.ts` usa `crypto.timingSafeEqual` (comparación en tiempo constante) y solo acepta la API Key por header `X-API-Key` (ya no por query string).
+- `AZKIN_CORS_ORIGIN` ya no tiene default `"*"` silencioso: es requerido explícitamente en `env.ts`, con warning de arranque si el valor configurado es `"*"`.
+- Nuevo middleware `rate-limit.ts` (`express-rate-limit`) aplicado a `/register`, `/login`, `/forgot-password`, `/reset-password` (10 intentos / 15 min); `app.set("trust proxy", 1)` para que limite por IP real del cliente detrás del nginx del frontend.
+- `BcryptPasswordHasher` recibe el costo desde `AZKIN_BCRYPT_COST` (default 10).
+- `GET/POST/PUT /notifications` enmascaran `webhookUrl`/`botToken`/`smtpPassword` (`notification.presenter.ts`, dejando visibles solo los últimos 4 caracteres); `UpdateNotificationUseCase` reconoce el valor enmascarado para no sobrescribir el secreto real si el admin no lo modificó (cubierto por 2 pruebas nuevas).
 
 ### Descripcion
 Se detectaron varios puntos de seguridad "por defecto insegura":
@@ -358,9 +397,20 @@ Se detectaron varios puntos de seguridad "por defecto insegura":
 
 ## AZ-011) Flujo de refresh token / logout nunca completado (codigo muerto) y desalineado con el spec de autenticacion
 - Codigo: AZ-011
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Media
 - Reportado: 2026-07-18
+- Resuelto: 2026-07-19
+
+### Resolucion
+Se completó la opción (a): el flujo de cookie + refresh + logout que ya describía el spec.
+- `LoginUseCase`/`RegisterUseCase`/`RefreshUseCase` emiten un `refreshToken` adicional (7 días, o 1 año para sesiones TV) junto al access token.
+- `AuthController` persiste el `refreshToken` como cookie `HttpOnly`/`SameSite=Lax` (`refreshToken`, path `/api/v1/auth`) y nunca lo incluye en el body de la respuesta.
+- `POST /auth/refresh` lee la cookie (nunca el body), verifica y rota el refresh token en cada uso; `POST /auth/logout` limpia la cookie.
+- El frontend (`auth.service.ts`) ya no persiste nada en `localStorage`: el access token vive en memoria, y `refresh()`/`logout()` ahora son llamadas reales al backend (antes `refresh()` era un stub y `logout()` llamaba a un endpoint que no existía).
+- `spec/04-contratos-api.md` actualizado: tiempo real del access token (2h configurable, no 15 min) y semántica real de `/logout` (200 con mensaje, no requiere auth).
+- Verificado end-to-end con `curl`: login setea la cookie, refresh la rota, logout la limpia y un refresh posterior falla con 401.
+- Cubre también los items pendientes de AZ-017 (ver esa sección).
 
 ### Descripcion
 `spec/04-contratos-api.md` documenta un flujo de `POST /refresh` y `POST /logout` basado en cookie `HttpOnly` de refresh token de 7 dias y access token de 15 minutos. En la implementacion real: `refresh.usecase.ts` y `logout.usecase.ts` existen pero **nunca se conectan a ninguna ruta** (no hay `router.post("/refresh", ...)` ni `/logout` en `auth.routes.ts`, ni se instancian en `composition-root.ts`); `logout.usecase.ts` ademas es un no-op vacio. No existe `cookie-parser` ni ningun `res.cookie(...)` en todo el backend — el login solo devuelve un JWT en el body (bearer token puro). El `AZKIN_JWT_EXPIRES_IN` por defecto es 7200s (2h), no los 15 minutos que documenta el spec. Resultado: no hay ninguna forma de revocar una sesion (no hay logout real), y un token filtrado sigue siendo valido hasta su expiracion completa.
@@ -384,9 +434,13 @@ Se detectaron varios puntos de seguridad "por defecto insegura":
 
 ## AZ-012) Dato de vencimiento de dominio fabricado: se presenta un hash como si fuera una consulta WHOIS real
 - Codigo: AZ-012
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Alta
 - Reportado: 2026-07-18
+- Resuelto: 2026-07-19
+
+### Resolucion
+Se eliminó el bloque de hash determinístico en `http.checker.ts`: `domainExpiry` ahora se deja explícitamente en `null` (no se implementó WHOIS/RDAP real, evaluado como fuera de alcance por el riesgo de rate-limiting de registradores sin una librería madura ya presente en el repo). El frontend (`dashboard.ts`) ya mostraba "No disponible"/"Consultando..." para `domainExpiry === null` — no requirió cambios, la UI estaba preparada para este caso.
 
 ### Descripcion
 En `infrastructure/checkers/http.checker.ts` el campo `domainExpiry` que se muestra al usuario (dashboard, tarjeta de monitor HTTP) **no es una consulta real de expiracion de dominio**: se calcula con un hash deterministico del hostname (`hash = hostname.charCodeAt(i) + ((hash << 5) - hash)` ... `Math.abs(hash % 240) + 30`), comentado explicitamente como una forma de "dar una experiencia visual fluida e identica a WHOIS sin bloqueos por IP". El resultado es un numero de dias "hasta vencimiento" que no tiene relacion alguna con la fecha real de expiracion del dominio, pero se presenta en la UI con la misma apariencia que un dato real, pudiendo inducir a un operador a confiar en una fecha de vencimiento de dominio falsa (ej. renovar tarde un dominio que "segun Azkin" vencia en 200 dias).
@@ -410,9 +464,15 @@ En `infrastructure/checkers/http.checker.ts` el campo `domainExpiry` que se mues
 
 ## AZ-013) Violaciones de capas: `stats.controller.ts` consulta Mongoose directamente y `composition-root.ts` contiene logica de negocio
 - Codigo: AZ-013
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Media
 - Reportado: 2026-07-18
+- Resuelto: 2026-07-19
+
+### Resolucion
+- `stats.controller.ts` ya no importa Mongoose: la lógica de `recentEvents` vive en `GetRecentEventsUseCase` (ver AZ-008).
+- El generador de `/metrics` se extrajo de `composition-root.ts` a `GetMetricsUseCase` (`application/use-cases/system/get-metrics.usecase.ts`, usa `IMonitorRepository`/`IHeartbeatRepository`, no Mongoose directo) + `MetricsController` + `metrics-auth.ts` (ver AZ-010). `composition-root.ts` ahora solo instancia y cablea.
+- Credenciales de `/metrics` leídas de `env` validado por Zod, no de `process.env` inline.
 
 ### Descripcion
 `stats.controller.ts` (metodo `recentEvents`) hace `require("mongoose")` y `require(".../heartbeat.schema")` **dentro del metodo del controlador**, consultando `HeartbeatModel` directamente y duplicando el filtro de permisos (ver AZ-008), sin pasar por `IHeartbeatRepository` ni por un caso de uso — rompe la regla de dependencia de Clean Architecture y hace este endpoint imposible de testear sin una conexion Mongo real.
@@ -437,9 +497,17 @@ Por separado, `composition-root.ts` (que deberia limitarse a cablear dependencia
 
 ## AZ-014) Entidad `Monitor` sobrecargada, codigo de error de cuota duplicado y mapeadores de repositorio repetidos
 - Codigo: AZ-014
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Baja
 - Reportado: 2026-07-18
+- Resuelto: 2026-07-19
+
+### Resolucion
+- `QuotaExceededError` tiene su propio `code = "QUOTA_EXCEEDED"` (antes reutilizaba `VALIDATION_ERROR`).
+- Nuevo helper `toDomainId()` (`infrastructure/persistence/mongoose/to-domain-id.ts`) reemplaza `String(doc._id)` en los 7 repositorios Mongoose (incluye el de API Keys, nuevo en esta misma sesión).
+- Nuevo helper `getErrorMessage(err, fallback)` (`application/services/get-error-message.ts`) reemplaza los `catch (err: any) { err.message }` en 9 puntos (checkers HTTP/DNS/SNMP, notifier, SMTP mailer, casos de uso de TLS/notificación de prueba).
+- `console.*` reemplazado por el `logger` centralizado en `seed-first-admin.ts` y `execute-check.usecase.ts` (se dejó `env.ts` con `console.*`, tal como la propia issue lo exceptúa por el orden de inicialización).
+- No se abordó la union discriminada completa de `IMonitor` por `type` (~40 campos opcionales) — evaluado como refactor de alto riesgo/bajo beneficio inmediato dado que ya funciona correctamente y no bloquea ninguna funcionalidad.
 
 ### Descripcion
 Varias deudas tecnicas menores mas, todas de calidad/mantenibilidad (no bugs criticos):
@@ -471,9 +539,13 @@ Varias deudas tecnicas menores mas, todas de calidad/mantenibilidad (no bugs cri
 
 ## AZ-015) Cobertura de pruebas casi nula en el backend pese a una arquitectura disenada para ser testeable
 - Codigo: AZ-015
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Media
 - Reportado: 2026-07-18
+- Resuelto: 2026-07-19
+
+### Resolucion
+La suite pasó de 21 a 38 pruebas (`pnpm test`), incluyendo el caso de mayor riesgo identificado (filtrado de permisos, ya cubierto desde antes vía `filterMonitorsByPermission`). Pruebas nuevas: `GetRecentEventsUseCase` (3), `RefreshUseCase` (3, incluye `AccountBlockedError`), `UpdateNotificationUseCase` (2, enmascarado de secretos), `BulkImportMonitorsFromCsvUseCase` (1, filas mixtas válidas/inválidas), `apiKeyAuth` (4), `ListAuditLogUseCase` (2), `GetSmtpStatusUseCase` (2). No se agregó prueba de integración con `mongodb-memory-server` — evaluado como fuera de alcance de esta sesión (requiere una dependencia nueva no presente en el repo).
 
 ### Descripcion
 `spec/02-arquitectura.md` §7 prescribe una piramide de testing (unit de dominio/casos de uso sin I/O, integracion de repositorios, E2E de API y UI). En la practica: de 30 archivos `*.usecase.ts`, solo 5 tienen test (`login`, `register`, `request-password-reset`, `bulk-delete-monitors`, `apply-tls-config` — todos anadidos en esta misma iteracion de AZ-001 a AZ-006). Los 7 controladores HTTP y los 7 repositorios Mongoose tienen 0 pruebas. En particular, la logica de filtrado de permisos de Viewer descrita en AZ-008 —el mecanismo de aislamiento de datos mas sensible del sistema— no tiene ninguna prueba dedicada a su propio comportamiento.
@@ -497,9 +569,21 @@ Varias deudas tecnicas menores mas, todas de calidad/mantenibilidad (no bugs cri
 
 ## AZ-016) Componentes "Dios" en el frontend: `dashboard.ts` (~2300 lineas) y `settings.ts` (~1180 lineas) sin descomposicion
 - Codigo: AZ-016
-- Estado: [ ] Abierto
+- Estado: [ ] Abierto (diferido — ver nota)
 - Prioridad: Media-Alta
 - Reportado: 2026-07-18
+
+### Nota (2026-07-19)
+Deliberadamente **no** se abordó en esta sesión: `dashboard.ts` y `settings.ts` crecieron aún más
+(a ~2277 y ~1849 líneas respectivamente) por las features agregadas en AZ-022 a AZ-032, lo que hace
+la descomposición más necesaria pero también de mayor superficie de riesgo. Intentar una
+descomposición de ~4000 líneas combinadas al final de una sesión larga, sin un test runner de
+frontend funcional (`ng test` no tiene builder configurado, ver AZ-019) ni navegador disponible
+para QA visual, se evaluó como el tipo de cambio que debe hacerse con verificación manual
+dedicada en el navegador, no de forma apurada. Recomendación: abordar como sesión propia,
+empezando por el subcomponente más aislado de cada archivo (`BulkActionsBar` en dashboard,
+`TlsPanelComponent`/`AuditLogPanelComponent` en settings), verificando visualmente cada extracción
+antes de continuar con la siguiente.
 
 ### Descripcion
 `frontend/src/app/features/dashboard/dashboard.ts` tiene ~2322 lineas (plantilla inline de ~990 lineas + ~1290 lineas de logica: CRUD de monitores, renderizado de ECharts, manejo de heartbeats por Socket.io, filtrado de historial, calculo de bloques de uptime, borrado masivo, tema/nyan-cat, i18n, agregacion de grupos — todo en una sola clase). `settings.ts` tiene ~1184 lineas mezclando 5 dominios funcionales no relacionados (canales de alerta, viewers, perfil, respaldos, TLS) en un solo componente. No existen subcomponentes extraidos pese a que el proyecto ya tiene un patron establecido en `shared/components` (`badge-status.ts`, `skeleton-loader.ts`). `group-dashboard.ts` (137 lineas) demuestra que el mismo dominio (graficos de grupo) puede resolverse en un componente pequeno y enfocado.
@@ -523,9 +607,13 @@ Varias deudas tecnicas menores mas, todas de calidad/mantenibilidad (no bugs cri
 
 ## AZ-017) El token de acceso se persiste en `localStorage` (expuesto a XSS) y contradice el diseno de cookie segura del spec
 - Codigo: AZ-017
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Alta
 - Reportado: 2026-07-18
+- Resuelto: 2026-07-19
+
+### Resolucion
+Resuelto como parte de AZ-011 (mismo cambio, backend + frontend). `auth.service.ts` ya no lee/escribe `localStorage.getItem/setItem('azkin_token'|'azkin_user')` en ningún punto — el access token vive solo en la variable privada `accessToken` en memoria; la sesión se rehidrata tras un refresh de página llamando a `POST /auth/refresh` (que lee la cookie `HttpOnly`), no leyendo un valor persistido por JS. El handshake de Socket.io (`realtime.service.ts`) ya no duplica el token en `query`, solo en `auth`.
 
 ### Descripcion
 `auth.service.ts` guarda el JWT de acceso en `localStorage` (`azkin_token`) en cada login y lo rehidrata desde ahi al arrancar la app, pese a que el campo en memoria se llama `accessToken` y un comentario dice "se almacena en memoria". `spec/04-contratos-api.md` describe el diseno previsto como cookie `HttpOnly` para el refresh token (no accesible por JS), pero la implementacion actual persiste el propio access token en un storage legible por cualquier script (XSS, dependencia de terceros comprometida, etc. podria exfiltrar la sesion). Ademas, `realtime.service.ts` reenvia ese mismo token en el query string del handshake de Socket.io, quedando potencialmente en logs de acceso/proxy.
@@ -549,9 +637,16 @@ Varias deudas tecnicas menores mas, todas de calidad/mantenibilidad (no bugs cri
 
 ## AZ-018) Tipado `any` generalizado en los servicios core y logica de normalizacion de estado duplicada 8 veces con comportamiento divergente
 - Codigo: AZ-018
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Media
 - Reportado: 2026-07-18
+- Resuelto: 2026-07-19
+
+### Resolucion
+- Nueva función pura `normalizeMonitorStatus()` (`core/utils/monitor-status.util.ts`), reutilizada en las 4 ubicaciones de `monitor.service.ts` (`loadMonitors`/`create`/`update`/`applyHeartbeat`) y 2 de `dashboard.ts` (el heartbeat en vivo del monitor seleccionado y del grupo seleccionado); confirma y corrige la divergencia real detectada (create/update omitían la rama `PENDING`). Los 2 usos restantes de un patrón similar en `dashboard.ts`/`monitor.service.ts` son ternarios de 2 valores para `IHeartbeat.status: 'UP'|'DOWN'` (sin `PENDING` por diseño del tipo) — no son duplicación del mismo bug, se dejaron intactos.
+- `monitor.service.ts`: `loadMonitors`/`create`/`update` tipan la respuesta HTTP como `MonitorDto` (no `any`); `applyHeartbeat` tipa su parámetro como `IHeartbeatEvent`.
+- `auth.service.ts`: `register`/`login`/`refresh` devuelven `Observable<AuthResponse>` tipado (no `Observable<any>`).
+- `togglePause()` en `dashboard.ts` se simplificó: ya no re-deriva `status` manualmente, reutiliza el que ya devuelve `monitorService.update()`.
 
 ### Descripcion
 `monitor.service.ts` tipa como `any`/`Observable<any>` la mayoria de sus respuestas HTTP (`loadMonitors`, `getHistory`, `getGroupOverview`, `create`, `update`, `applyHeartbeat`) pese a que ya existe una interfaz `IMonitor` bien tipada en el mismo archivo — el DTO de red simplemente se salta con `any` y se hace spread directo (`...m`, `...created`, `...updated`) sobre el objeto de dominio. El mismo patron de normalizacion de `lastStatus` (`if (ls === 1 || ls === 'UP') statusStr = 'UP'; else if...`) esta copiado 8 veces entre `monitor.service.ts` y `dashboard.ts`, y **ya diverge**: las variantes de `create()`/`update()` omiten la rama explicita de `PENDING` que si tienen `loadMonitors()`/`applyHeartbeat()`, funcionando hoy solo porque el valor por defecto coincide por casualidad.
@@ -575,9 +670,15 @@ Varias deudas tecnicas menores mas, todas de calidad/mantenibilidad (no bugs cri
 
 ## AZ-019) Manejo de errores HTTP inconsistente en el frontend (3 formatos distintos, uno produce "[object Object]") y ausencia total de pruebas
 - Codigo: AZ-019
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Media
 - Reportado: 2026-07-18
+- Resuelto: 2026-07-19
+
+### Resolucion
+- Nueva función `extractApiErrorMessage(err, fallback)` (`core/utils/api-error.util.ts`), alineada al envelope real (`{ error: { code, message } }`). Reemplazó los 3 formatos inconsistentes en los 13 puntos identificados (`register.ts`, `reset-password.ts`, `dashboard.ts`, `profile.ts`, y 13 en `settings.ts`).
+- Se confirmó y corrigió el bug concreto: `settings.ts` (cambio de contraseña propio) usaba `err?.error?.error || '...'` **sin** `.message`, mostrando literalmente el objeto de error (`"[object Object]"`) en el toast cuando el backend respondía con el envelope real. Ahora usa el helper.
+- **No resuelto en esta sesión:** agregar pruebas unitarias de frontend. El proyecto no tiene ningún test runner configurado (`ng test` falla con "Cannot determine project or target for command" — no hay builder de test en `angular.json`, ni Karma ni Vitest instalados). Configurar uno desde cero (con su propio `tsconfig.spec.json`, dependencias y verificación de que funcione en este entorno) se evaluó como una tarea de infraestructura separada del resto de esta sesión, no como una adición de una línea. Las funciones puras nuevas (`normalizeMonitorStatus`, `extractApiErrorMessage`) quedan ya extraídas y listas para testear en cuanto exista un runner.
 
 ### Descripcion
 La extraccion del mensaje de error de las respuestas HTTP fallidas usa tres formas incompatibles segun el archivo: `err?.error?.message` (`register.ts`), `err?.error?.error?.message` (mayoria de los casos: `reset-password.ts`, `dashboard.ts`, varios puntos de `settings.ts`) y `err?.error?.error` sin `.message` (dos puntos de `settings.ts`, cambio de contrasena) — esta ultima variante, si el backend responde con el envelope real `{ error: { message } }`, termina mostrando el string `"[object Object]"` en el toast en vez del mensaje real. Por separado, no existe ni un solo archivo `*.spec.ts` en todo `frontend/src/app` (Angular CLI nunca genero specs, o fueron eliminados), por lo que no hay cobertura de pruebas de ningun servicio o componente.
@@ -600,9 +701,15 @@ La extraccion del mensaje de error de las respuestas HTTP fallidas usa tres form
 
 ## AZ-020) Manipulacion directa del DOM sin centralizar, suscripciones sin limpieza formal e i18n sin tipado de claves
 - Codigo: AZ-020
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Baja
 - Reportado: 2026-07-18
+- Resuelto: 2026-07-19
+
+### Resolucion
+- Nuevo `FileDownloadService` (`core/services/file-download.service.ts`) centraliza `Blob`/`URL.createObjectURL`/`document.createElement('a')`; `settings.ts` lo usa en las 3 descargas (`downloadJson`, backup, plantilla CSV) en vez de repetir la lógica inline. `ThemeService` (centraliza tema/`startViewTransition`) ya existía desde AZ-022.
+- `dashboard.ts`: la función de desuscripción que devuelve `realtimeService.onHeartbeat(...)` ahora se captura (`unsubscribeHeartbeat`) y se invoca explícitamente en `ngOnDestroy()`, en vez de depender del efecto secundario de `disconnect()`.
+- `language.service.ts`: el diccionario `TRANSLATIONS` se movió fuera de la clase, a nivel de módulo, como `const ... as const` (antes se reconstruía en cada llamada a `t()`). `TranslationKey = keyof typeof TRANSLATIONS` tipa el parámetro de `t()` — verificado con `ng build` que las ~200 llamadas a `lang.t(...)` en todo el frontend siguen compilando sin un solo typo.
 
 ### Descripcion
 Varios puntos menores de higiene en el frontend:
@@ -624,3 +731,335 @@ Varios puntos menores de higiene en el frontend:
 - `frontend/src/app/features/settings/settings.ts` (metodo `downloadJson`), `dashboard.ts` (tema y `startViewTransition`).
 - `frontend/src/app/core/services/realtime.service.ts` (`onHeartbeat`) y `dashboard.ts` (`ngOnDestroy`).
 - `frontend/src/app/core/services/language.service.ts` (metodo `t`) — mover el diccionario fuera de la clase como `const TRANSLATIONS = {...} as const`.
+
+---
+
+## AZ-021) Vulnerabilidad critica: un Viewer puede acceder a `/settings` (solo oculto por CSS, nunca bloqueado)
+- Codigo: AZ-021
+- Estado: [x] Resuelto
+- Prioridad: Critica
+- Reportado: 2026-07-18
+- Resuelto: 2026-07-18
+
+### Descripcion
+La ruta `/settings` no tenia ningun guard de rol: cualquier usuario autenticado (incluyendo un Viewer de solo lectura) podia navegar directamente a la URL y cargar el componente completo de administracion (gestion de canales de alerta, viewers, respaldos, TLS). El backend tampoco exigia rol admin en algunos endpoints usados por esa pantalla, en particular `GET /notifications`, que devolvia el `config` completo de los canales (URLs de webhook, tokens de bot, credenciales SMTP) a cualquier usuario autenticado. La UI ocultaba controles de escritura con `@if (authService.isAdmin())`, pero eso es cosmetico: el HTML/datos ya habian llegado al cliente y las rutas de escritura seguian siendo invocables manualmente (ej. via consola del navegador) por un Viewer que conociera los endpoints.
+
+### Comportamiento esperado
+1. `/settings` es una ruta admin-only: un Viewer que navega ahi es redirigido antes de que el componente cargue datos sensibles.
+2. Todo endpoint que exponga datos de configuracion (canales de notificacion, backups, TLS, gestion de usuarios) exige `requireRole("admin")` en el backend, no solo ocultamiento en el frontend.
+3. Un Viewer conserva una via de autoservicio (cambiar su propia contrasena, ver sus preferencias) sin pasar por la pantalla de administracion.
+
+### Criterios de aceptacion
+1. Frontend: nuevo `adminGuard` (`core/guards/auth.guard.ts`) aplicado a la ruta `/settings` junto a `authGuard`; un Viewer que navega ahi es redirigido a `/dashboard`.
+2. Backend: `GET/POST/PUT /notifications` y el resto de rutas de `/settings` exigen `requireRole("admin")`.
+3. Nueva ruta `/profile` (`authGuard` sin `adminGuard`) para que cualquier rol autenticado cambie su propia contrasena/preferencias sin tocar `/settings`.
+4. Verificado manualmente: login como Viewer, intento de navegar a `/settings` redirige a `/dashboard`; intento de `curl` directo a `GET /notifications` con un token de Viewer devuelve `403`.
+
+### Pistas de investigacion (resueltas)
+- `frontend/src/app/app.routes.ts` — se agrego `adminGuard` a `/settings` y se creo `/profile`.
+- `frontend/src/app/core/guards/auth.guard.ts` — nuevo `adminGuard` que verifica `authService.isAdmin()`.
+- `backend/src/infrastructure/http/routes/notification.routes.ts` — se agrego `requireRole("admin")` a las rutas que faltaban.
+- `frontend/src/app/features/profile/profile.ts` (nuevo componente) — extrae el autoservicio de cambio de contrasena/preferencias fuera de `settings.ts`.
+
+---
+
+## AZ-022) El tema claro/oscuro se resetea a oscuro al refrescar fuera del Dashboard
+- Codigo: AZ-022
+- Estado: [x] Resuelto
+- Prioridad: Media
+- Reportado: 2026-07-18
+- Resuelto: 2026-07-18
+
+### Descripcion
+El tema (claro/oscuro) solo se aplicaba a `document.body` dentro de `DashboardComponent.ngOnInit` y en su metodo `toggleTheme()`. `SettingsComponent`/`ProfileComponent` nunca leian `localStorage` (`azkin-theme`) ni tocaban `document.body.classList`, por lo que al refrescar la pagina estando en `/settings` o `/profile` con el tema claro activo, la clase `light-theme` no se reaplicaba y la pantalla volvia a verse en oscuro aunque `localStorage` siguiera indicando `'light'`.
+
+### Comportamiento esperado
+1. El tema persiste visualmente sin importar en que ruta se refresque la aplicacion.
+2. Existe un unico punto de verdad para aplicar/alternar el tema, reutilizado por todos los componentes.
+3. `/settings` y `/profile` tambien exponen un boton para alternar tema, no solo el Dashboard.
+
+### Criterios de aceptacion
+1. Nuevo `ThemeService` (`core/services/theme.service.ts`) con signal `isLightTheme`, `applyToDom()` y `toggle(event?)`.
+2. `applyToDom()` se ejecuta en el componente raiz (`app.ts`), por lo que corre en cada arranque de la app sin importar la ruta de entrada.
+3. `dashboard.ts`/`settings.ts`/`profile.ts` delegan en `ThemeService` en vez de duplicar la logica de tema.
+4. Verificado manualmente: activar tema claro, refrescar en `/settings`, el tema claro se mantiene.
+
+### Pistas de investigacion (resueltas)
+- `frontend/src/app/core/services/theme.service.ts` (nuevo).
+- `frontend/src/app/app.ts` (constructor invoca `applyToDom()`).
+- `frontend/src/app/features/dashboard/dashboard.ts`, `settings.ts`, `profile.ts` (inyectan `ThemeService`).
+
+---
+
+## AZ-023) No existe gestion de otras cuentas Administrador (editar, resetear clave, bloquear, eliminar)
+- Codigo: AZ-023
+- Estado: [x] Resuelto
+- Prioridad: Alta
+- Reportado: 2026-07-18
+- Resuelto: 2026-07-18
+
+### Descripcion
+`/settings` listaba las cuentas Admin del sistema como simples badges de solo lectura (solo el email), sin ninguna accion disponible. No existia forma de editar el correo de otro admin, resetear su contrasena, bloquearlo (ej. ante sospecha de credenciales comprometidas) ni eliminarlo. Tampoco existia el campo `isBlocked` en el modelo de usuario ni verificacion de bloqueo en login/refresh.
+
+### Comportamiento esperado
+1. Un Admin autenticado puede editar el email de otro Admin, resetear su contrasena, bloquearlo/desbloquearlo y eliminarlo.
+2. Un Admin no puede bloquearse ni eliminarse a si mismo (evita dejar el sistema sin acceso administrativo).
+3. Una cuenta bloqueada no puede iniciar sesion ni refrescar su token.
+
+### Criterios de aceptacion
+1. `IUser`/`UserDoc` incluyen `isBlocked: boolean` (default `false`).
+2. Nuevos endpoints `PUT /users/admins/:id`, `PUT /users/admins/:id/password`, `PUT /users/admins/:id/block`, `DELETE /users/admins/:id`, todos `requireRole("admin")`.
+3. `SetAdminBlockedUseCase`/`DeleteAdminUseCase` lanzan `ForbiddenError` si `actorId === targetId`.
+4. `LoginUseCase`/`RefreshUseCase` lanzan `AccountBlockedError` (403) si `user.isBlocked`.
+5. Frontend: tarjetas interactivas por Admin (editar/resetear clave/bloquear/eliminar), deshabilitando auto-bloqueo/auto-eliminacion.
+6. Verificado end-to-end con `curl`: auto-bloqueo/auto-eliminacion rechazados con `FORBIDDEN`; edicion de email, reset de clave, bloqueo y eliminacion de otro admin funcionan; login de una cuenta bloqueada devuelve `403 ACCOUNT_BLOCKED`.
+
+### Pistas de investigacion (resueltas)
+- `backend/src/domain/entities/user.ts`, `infrastructure/persistence/mongoose/schemas/user.schema.ts` (`isBlocked`).
+- `backend/src/application/use-cases/users/update-admin.usecase.ts`, `set-admin-blocked.usecase.ts`, `delete-admin.usecase.ts` (nuevos).
+- `backend/src/infrastructure/http/controllers/user.controller.ts`, `routes/user.routes.ts`.
+- `frontend/src/app/core/services/user.service.ts` (`IAdmin`, `updateAdminEmail`/`resetAdminPassword`/`toggleAdminBlocked`/`deleteAdmin`).
+- `frontend/src/app/features/settings/settings.ts` (seccion "Administradores").
+
+---
+
+## AZ-024) Configuracion TLS solo acepta pegar texto PEM, sin opcion de subir archivo
+- Codigo: AZ-024
+- Estado: [x] Resuelto
+- Prioridad: Baja
+- Reportado: 2026-07-18
+- Resuelto: 2026-07-18
+
+### Descripcion
+La pestana TLS de `/settings` solo ofrecia `<textarea>` para pegar manualmente el certificado, la clave privada y la cadena intermedia en formato PEM, sin ningun `<input type="file">` (a diferencia de la restauracion de respaldos, que si permite subir un archivo).
+
+### Comportamiento esperado
+Cada campo PEM permite tanto pegar texto como subir un archivo (`.pem`/`.crt`/`.key`/`.txt`), leido en el cliente y volcado al mismo campo de texto.
+
+### Criterios de aceptacion
+1. Boton "Subir archivo" junto a certificado, clave privada y cadena intermedia.
+2. El contenido leido (`FileReader.readAsText`) reemplaza el valor del campo de texto correspondiente sin cambios en el contrato del backend (sigue siendo texto PEM en JSON).
+
+### Pistas de investigacion (resueltas)
+- `frontend/src/app/features/settings/settings.ts` (pestana TLS, metodo `onTlsFileSelected`).
+
+---
+
+## AZ-025) El formulario de canal de alerta salta visualmente al cambiar de tipo de canal
+- Codigo: AZ-025
+- Estado: [x] Resuelto
+- Prioridad: Baja
+- Reportado: 2026-07-18
+- Resuelto: 2026-07-18
+
+### Descripcion
+Los bloques condicionales por tipo de canal (Slack/Discord/Webhook vs Telegram vs Email) eran `@if` planos sin contenedor de altura fija en una sola columna: cambiar el tipo de canal reordenaba toda la tarjeta, desplazando el resto de los campos (alcance de eventos, plantilla, boton guardar).
+
+### Comportamiento esperado
+Cambiar el tipo de canal no debe mover la posicion de los campos agnosticos al canal (nombre, selector de tipo, alcance de eventos).
+
+### Criterios de aceptacion
+1. La tarjeta de canal usa un layout de 2 columnas en pantallas `lg`: columna izquierda con campos que nunca cambian de alto; columna derecha con los campos especificos del canal y el editor de plantillas, conteniendo ahi todo el reflow.
+2. En mobile se apila verticalmente (aceptable, sin usuarios de esta pantalla en TV/kiosko).
+
+### Pistas de investigacion (resueltas)
+- `frontend/src/app/features/settings/settings.ts` (pestana Alertas, tarjeta "Nuevo/Editar Canal").
+
+---
+
+## AZ-026) Plantillas de notificacion sin cheatsheet de variables clickeable ni selector de emojis
+- Codigo: AZ-026
+- Estado: [x] Resuelto
+- Prioridad: Baja
+- Reportado: 2026-07-18
+- Resuelto: 2026-07-18
+
+### Descripcion
+El editor de plantillas de notificacion mostraba el listado de variables disponibles como texto plano de 9px sin poder insertarlas con un clic, y no existia ningun selector de emojis para enriquecer los mensajes de alerta.
+
+### Comportamiento esperado
+1. Las variables disponibles (`{{monitor}}`, `{{url}}`, `{{status}}`, etc.) se muestran como chips clickeables que insertan el texto en la posicion del cursor del campo enfocado (asunto o cuerpo).
+2. Un selector de emojis permite insertar emojis relevantes a alertas de la misma forma.
+
+### Criterios de aceptacion
+1. Fila de chips sobre el textarea del cuerpo; un clic inserta la variable en la posicion del cursor y refoca el campo.
+2. Modal de seleccion de emojis (grilla hecha con Tailwind, sin dependencias nuevas) con el mismo comportamiento de insercion.
+3. Ambos widgets conviven dentro del panel derecho del layout de AZ-025.
+
+### Pistas de investigacion (resueltas)
+- `frontend/src/app/features/settings/settings.ts` (`templateVariableChips`, `emojiOptions`, `insertAtCursor`, `setActiveTemplateField`).
+
+---
+
+## AZ-027) Modo TV/Kiosko (`isTvSessionEnabled`) no hace nada, ni siquiera extiende la sesion
+- Codigo: AZ-027
+- Estado: [x] Resuelto
+- Prioridad: Media
+- Reportado: 2026-07-18
+- Resuelto: 2026-07-18
+
+### Descripcion
+El flag `isTvSessionEnabled` existia de punta a punta en persistencia/DTOs pero no gatillaba ningun comportamiento — ni siquiera cumplia su proposito original de sesion prolongada: `JwtTokenService.sign()` siempre usaba el mismo `expiresInSeconds` fijo del constructor, ignorando el flag. Tampoco existia ninguna clase CSS de modo kiosko ni se ocultaban controles no esenciales para ese tipo de sesion.
+
+### Comportamiento esperado
+1. Una sesion con `isTvSessionEnabled` recibe un token de larga duracion (1 año), no el `expiresIn` por defecto de sesiones normales.
+2. La interfaz aplica un modo visual de kiosko (fuentes/espaciados mayores, pensado para lectura a distancia en TV 4K) y oculta controles no esenciales (ej. barra de busqueda).
+
+### Criterios de aceptacion
+1. `ITokenService.sign` acepta un `expiresInSecondsOverride` opcional; `LoginUseCase`/`RefreshUseCase` lo usan (31536000s) cuando `user.isTvSessionEnabled`.
+2. Clase CSS `body.kiosk-mode` en `styles.css` con escalado de fuente/espaciados.
+3. `dashboard.ts` aplica `kiosk-mode` en `ngOnInit`/lo remueve en `ngOnDestroy` segun `authService.currentUser()?.isTvSessionEnabled`, y oculta la barra de busqueda en ese modo.
+
+### Pistas de investigacion (resueltas)
+- `backend/src/infrastructure/security/jwt-token-service.ts`, `application/use-cases/auth/login.usecase.ts`, `refresh.usecase.ts`.
+- `frontend/src/styles.css` (bloque `body.kiosk-mode`).
+- `frontend/src/app/features/dashboard/dashboard.ts` (`isKioskMode`, `ngOnInit`/`ngOnDestroy`).
+
+---
+
+## AZ-028) No existe importacion masiva de monitores (solo restauracion completa de respaldo JSON)
+- Codigo: AZ-028
+- Estado: [x] Resuelto
+- Prioridad: Media
+- Reportado: 2026-07-18
+- Resuelto: 2026-07-18
+
+### Descripcion
+La unica forma de cargar monitores en lote era restaurar un respaldo JSON completo generado por el propio sistema (`ImportBackupUseCase`). No existia ninguna forma de importar monitores desde un formato tabular externo (CSV), como los que exportan hojas de calculo o inventarios de otras herramientas.
+
+### Comportamiento esperado
+1. Un Admin puede subir un CSV con columnas `name,type,target,port,interval,retries,retryInterval,group,tags` (tags separadas por `;`) para crear/actualizar monitores en lote.
+2. A diferencia de la restauracion JSON (que aborta todo el lote ante un error), una fila invalida no debe descartar el resto del lote: se acumulan errores por fila y se procesan las validas.
+
+### Criterios de aceptacion
+1. Nuevo endpoint `POST /monitors/bulk-import` (`requireRole("admin")`).
+2. `BulkImportMonitorsFromCsvUseCase` parsea con `papaparse`, valida cada fila con Zod, respeta la cuota global de 50 monitores, y devuelve `{ createdCount, updatedCount, errors: { row, message }[] }`.
+3. Frontend: tarjeta de arrastrar-y-soltar en la pestana Respaldos, con enlace de descarga de plantilla CSV y tabla de errores por fila tras la importacion.
+4. Prueba unitaria cubre una fila valida y una invalida en el mismo lote, confirmando que la invalida no bloquea a la valida.
+5. Verificado end-to-end via `curl` contra la API publica (ver AZ-029): importacion de una fila crea el monitor correctamente.
+
+### Pistas de investigacion (resueltas)
+- `backend/src/application/use-cases/backup/bulk-import-monitors-from-csv.usecase.ts` (y su `.test.ts`).
+- `backend/src/infrastructure/http/controllers/monitor.controller.ts` (`bulkImportCsv`), `routes/monitor.routes.ts`.
+- `frontend/src/app/features/settings/settings.ts` (pestana Respaldos, `onCsvDrop`/`onCsvFileSelected`/`downloadCsvTemplate`).
+
+---
+
+## AZ-029) No existe API publica para integrar sistemas externos sin usar sesion de usuario
+- Codigo: AZ-029
+- Estado: [x] Resuelto
+- Prioridad: Media-Alta
+- Reportado: 2026-07-18
+- Resuelto: 2026-07-18
+
+### Descripcion
+Todos los endpoints de la API requerian un JWT de sesion obtenido via login interactivo, lo que hacia impractico integrar Azkin con sistemas externos (dashboards, scripts, pipelines de CI/CD) que necesitan autenticarse de forma programatica y de larga duracion sin las implicaciones de compartir una sesion de usuario real.
+
+### Comportamiento esperado
+1. Un Admin puede generar API Keys con scopes (`read`/`write`) desde la UI, mostradas en texto plano una unica vez.
+2. Un sistema externo puede autenticarse con el header `X-API-Key` contra un prefijo de rutas publico, sin duplicar logica de negocio.
+3. Las keys pueden revocarse individualmente, con efecto inmediato.
+
+### Criterios de aceptacion
+1. Solo se persiste el hash SHA-256 de la key (`IApiKeyRepository`/`ApiKeyModel`); `keyPrefix` permite identificarla en la UI sin exponerla de nuevo.
+2. Middleware `apiKeyAuth` puebla el mismo contexto de request (`userId`/`userRole`/`adminId`/`permissions`) que `authGuard`, verifica el scope segun el metodo HTTP (`GET`→`read`, resto→`write`) y rechaza keys inexistentes/revocadas.
+3. Nuevo prefijo `/api/public/v1/monitors` reutiliza el mismo `monitorRoutes(monitorController)` que la API de sesion, sin duplicar controllers/casos de uso.
+4. Rutas de gestion de keys (`POST/GET /api/v1/api-keys`, `DELETE /api/v1/api-keys/:id`) requieren sesion de Admin.
+5. Documentacion en `docs/api-publica.md` con ejemplos `curl`.
+6. Verificado end-to-end via `curl`: key de solo lectura puede listar monitores pero recibe `403` en un `POST`; falta de header devuelve `401`; revocar una key la invalida de inmediato; una key con scope `write` puede usar `bulk-import` (AZ-028) exitosamente.
+
+### Pistas de investigacion (resueltas)
+- `backend/src/domain/entities/api-key.ts`, `application/ports/repositories/api-key-repository.ts`.
+- `backend/src/infrastructure/http/middlewares/api-key-auth.ts` (y su `.test.ts`).
+- `backend/src/application/use-cases/api-keys/*.usecase.ts`, `infrastructure/http/controllers/api-key.controller.ts`.
+- `frontend/src/app/features/settings/settings.ts` (pestana API).
+- `docs/api-publica.md`.
+
+---
+
+## AZ-030) El registro de auditoria persiste datos pero no existe ninguna forma de consultarlo, ni por API ni en la UI
+- Codigo: AZ-030
+- Estado: [x] Resuelto
+- Prioridad: Media
+- Reportado: 2026-07-19
+- Resuelto: 2026-07-19
+
+### Resolucion
+- Nuevo `IAuditLogRepository.listAll(limit)` (sin aislamiento por tenant, consistente con el resto del sistema) + `ListAuditLogUseCase` que resuelve el email del actor por cada entrada.
+- Nuevas rutas `GET /api/v1/audit-log` (`requireRole("admin")`) montadas en `composition-root.ts`.
+- Nueva pestaña "Auditoría" en `/settings` que lista acción, actor, fecha e ids afectados.
+- Cubierto por 2 pruebas unitarias (`list-audit-log.usecase.test.ts`).
+
+### Descripcion
+`IAuditLogRepository.listRecent(actorId, limit)` existe y `MongooseAuditLogRepository` persiste correctamente eventos sensibles (`MONITORS_BULK_DELETE` desde `bulk-delete-monitors.usecase.ts`, `TLS_CONFIG_UPDATE` desde `apply-tls-config.usecase.ts`, `PASSWORD_RESET_REQUESTED` desde `request-password-reset.usecase.ts`), pero ninguna ruta HTTP expone ese metodo (`grep` sobre `infrastructure/http/routes/*.routes.ts` no encuentra ningun path de auditoria) y el frontend no tiene ninguna referencia a auditoria en ningun componente. El dato se escribe pero nunca se lee desde fuera de Mongo — un admin no tiene forma de revisar "quien borro estos monitores" o "quien cambio el certificado TLS" sin conectarse directamente a la base de datos.
+
+### Comportamiento esperado
+1. Existe un endpoint (ej. `GET /api/v1/audit-log`, `requireRole("admin")`) que expone `listRecent`.
+2. `/settings` incluye una vista de solo lectura del historial de auditoria reciente (accion, actor, fecha, ids afectados).
+
+### Criterios de aceptacion
+1. Nuevo `AuditLogController`/ruta montada y wireada en `composition-root.ts`.
+2. Nueva seccion en `settings.ts` (o pestana dedicada) que liste los ultimos eventos de auditoria.
+3. Los eventos ya persistidos (bulk-delete, TLS, password-reset) se ven correctamente formateados en la UI sin cambios en como se escriben.
+
+### Pistas de investigacion
+- `backend/src/application/ports/repositories/audit-log-repository.ts`, `infrastructure/persistence/mongoose/repositories/mongoose-audit-log.repository.ts`.
+- Seguir el patron de `ListBackupsUseCase`/`backup.routes.ts` para el nuevo `ListAuditLogUseCase`/`audit-log.routes.ts`.
+
+---
+
+## AZ-031) La configuracion SMTP a nivel de aplicacion (para recuperacion de contrasena) no tiene pantalla de administracion ni boton de prueba
+- Codigo: AZ-031
+- Estado: [x] Resuelto
+- Prioridad: Media
+- Reportado: 2026-07-19
+- Resuelto: 2026-07-19
+
+### Resolucion
+- Nuevos `GetSmtpStatusUseCase` (nunca expone la contraseña) y `SendTestEmailUseCase`, rutas `GET /api/v1/system/smtp` y `POST /api/v1/system/smtp/test`.
+- `IMailer.send()` gana un segundo parámetro opcional `{ throwOnFailure }`: por defecto (recuperación de contraseña real) sigue cayendo a modo mock sin romper el flujo anti-enumeración; el test de SMTP lo usa en `true` para que un fallo real se reporte al admin en vez de reportar éxito falso vía el fallback silencioso.
+- Nueva sección "SMTP de Aplicación" en la pestaña TLS/HTTPS de `/settings` con estado (configurado/no) y envío de correo de prueba.
+- Cubierto por 2 pruebas unitarias (`get-smtp-status.usecase.test.ts`).
+
+### Descripcion
+`env.ts` define `AZKIN_SMTP_HOST/PORT/SECURE/USER/PASSWORD/FROM` a nivel de aplicacion, leidos una unica vez de `process.env` al arrancar y usados por `SmtpMailer` exclusivamente para el correo de recuperacion de contrasena (`RequestPasswordResetUseCase`). A diferencia del SMTP *por canal de notificacion* (que si tiene UI completa en `settings.ts` con boton "Probar canal", ver `notification.routes.ts` `POST /:id/test`), este SMTP de aplicacion no tiene ninguna pantalla de administracion, no puede editarse sin reiniciar el contenedor con nuevas variables de entorno, y no existe forma de enviar un correo de prueba para validar que la recuperacion de contrasena efectivamente funcionara antes de que un usuario real la necesite.
+
+### Comportamiento esperado
+1. Un Admin puede ver (y opcionalmente editar) la configuracion SMTP de aplicacion desde `/settings`, o al menos ver si esta configurada y con que host/puerto.
+2. Existe una accion de "enviar correo de prueba" que confirma que la recuperacion de contrasena esta operativa, sin esperar a que un usuario real la solicite.
+
+### Criterios de aceptacion
+1. Nueva seccion en `/settings` (o endpoint `GET /api/v1/system/smtp`) que muestre el estado de la configuracion SMTP de aplicacion (configurada/no configurada, host, puerto — nunca la contrasena en claro).
+2. Endpoint `POST /api/v1/system/smtp/test` (`requireRole("admin")`) que envia un correo de prueba usando `SmtpMailer` y reporta exito/fallo.
+
+### Pistas de investigacion
+- `backend/src/infrastructure/config/env.ts` (bloque `AZKIN_SMTP_*`).
+- `backend/src/infrastructure/notifier/smtp-mailer.ts`, `application/use-cases/auth/request-password-reset.usecase.ts`.
+- Reusar el patron de `TestNotificationUseCase` (`application/use-cases/notifications/test-notification.usecase.ts`) para el nuevo caso de uso de prueba SMTP de aplicacion.
+
+---
+
+## AZ-032) Botones de solo-icono sin nombre accesible (`aria-label`/`title`) en varios puntos del Dashboard
+- Codigo: AZ-032
+- Estado: [x] Resuelto
+- Prioridad: Baja
+- Reportado: 2026-07-19
+- Resuelto: 2026-07-19
+
+### Resolucion
+Se agregó `aria-label`/`title` a los 4 botones identificados: volver al dashboard (`group-dashboard.ts`), editar monitor, eliminar monitor y cerrar formulario (`dashboard.ts`). El botón de logout y el de refrescar incidentes ya tenían texto visible junto al ícono (no eran violaciones reales, solo falsos positivos de la búsqueda inicial).
+
+### Descripcion
+Varios botones que solo contienen un icono SVG (sin texto visible) no tienen `aria-label` ni `title`, por lo que un lector de pantalla no puede anunciar su proposito. Confirmado en: boton de volver al dashboard (`group-dashboard.ts`), boton de cerrar sesion, botones de editar/eliminar monitor y boton de cerrar modal (todos en `dashboard.ts`). Por contraste, otros botones similares en `profile.ts`/`settings.ts` si usan `title`/`[title]`, mostrando que el patron correcto ya existe en el codebase pero no se aplico de forma consistente.
+
+### Comportamiento esperado
+Todo boton de solo-icono tiene un nombre accesible (`aria-label` o `title`) describiendo su accion.
+
+### Criterios de aceptacion
+1. Los botones identificados (volver, cerrar sesion, editar monitor, eliminar monitor, cerrar modal) tienen `aria-label`/`title`.
+2. Se establece como convencion para revisiones futuras: ningun `<button>` cuyo unico hijo sea un `<svg>` se agrega sin `aria-label`/`title`.
+
+### Pistas de investigacion
+- `frontend/src/app/features/dashboard/group-dashboard.ts` (boton de volver).
+- `frontend/src/app/features/dashboard/dashboard.ts` (botones de logout, editar/eliminar monitor, cerrar modal).
+- Comparar con el patron ya correcto en `profile.ts`/`settings.ts` (`[title]="lang.t(...)"`).

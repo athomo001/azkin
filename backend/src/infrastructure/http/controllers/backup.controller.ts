@@ -26,16 +26,14 @@ export class BackupController {
     });
   };
 
-  list = async (req: Request, res: Response): Promise<void> => {
-    const userId = req.adminId!;
-    const backups = await this.listUseCase.execute(userId);
+  list = async (_req: Request, res: Response): Promise<void> => {
+    const backups = await this.listUseCase.execute();
     res.status(200).json(backups.map((b) => ({ id: b.id, strategy: b.strategy, createdAt: b.createdAt })));
   };
 
   download = async (req: Request, res: Response): Promise<void> => {
-    const userId = req.adminId!;
     const id = req.params.id as string;
-    const backup = await this.getUseCase.execute(userId, id);
+    const backup = await this.getUseCase.execute(id);
     res.status(200).json(backup.payload);
   };
 
