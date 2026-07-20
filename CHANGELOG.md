@@ -10,6 +10,22 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 - **Eliminación permanente de API Keys:** además de "Revocar" (invalida la key de inmediato pero la conserva en el listado), ahora existe "Eliminar" en `/settings` → pestaña **API**, que la borra por completo (`DELETE /api/v1/api-keys/:id/purge`). Acción auditada e irreversible, con confirmación explícita antes de ejecutarse.
 
 ### Changed
+- **Aislamiento de red Docker y limpieza de variables de entorno:** `azkin-db`, `azkin-back` y
+  `azkin-front` ahora comparten una red bridge dedicada (`azkin-network`) en vez de la red
+  `default` de Compose. El backend siempre se conecta a Mongo internamente vía `azkin-db:27017`,
+  nunca por un puerto de host. `azkin-db` publica un puerto adicional en el host (`27017` por
+  defecto, `AZKIN_MONGO_PORT` para cambiarlo) solo para depuración directa (Compass, mongosh),
+  enlazado exclusivamente a `127.0.0.1` — no alcanzable desde la red, y con número configurable
+  para no chocar con otro Mongo local en el mismo servidor. `AZKIN_MONGO_URI` ya no se define en
+  `.env`: el
+  compose la construye automáticamente a partir de `AZKIN_MONGO_USER`/`AZKIN_MONGO_PASSWORD`,
+  eliminando una fuente de desincronización si se cambiaban las credenciales sin actualizar la URI
+  a mano. Se eliminó `AZKIN_VERSION` (no se leía en tiempo de ejecución — `/health` toma la
+  versión de `backend/package.json`). `AZKIN_PORT` se renombró a `AZKIN_BACK_PORT` para el mapeo
+  de puerto del host, dejando `AZKIN_PORT` como una constante interna del contenedor (siempre
+  `3000`, ya no configurable desde `.env`). **Acción requerida al actualizar:** si tu `.env`
+  existente define `AZKIN_PORT`, `AZKIN_MONGO_URI` o `AZKIN_VERSION`, esas líneas ya no se leen —
+  reemplázalas siguiendo [`docs/instalacion-docker.md`](docs/instalacion-docker.md).
 - **Descomposición de `settings.ts` y `dashboard.ts` (AZ-016):** ambos componentes "Dios" del frontend se dividieron en subcomponentes por dominio. `settings.ts` pasó de 1897 a 171 líneas (6 pestañas extraídas a componentes propios: TLS, Auditoría, API Keys, Respaldos, Viewers, Alertas) y ganó dos servicios/componentes compartidos nuevos (`ConfirmService`/`ConfirmModalComponent`, `ToastService`/`ToastComponent`). `dashboard.ts` pasó de 2291 a 1580 líneas (KPIs/incidentes, navbar y formulario de alta/edición de monitor extraídos a componentes propios); la parte más entrelazada (gráficos ECharts, panel de detalle, árbol de monitores del sidebar) queda documentada como remanente pendiente en `ISSUES.md` (AZ-016).
 
 ## [1.2.0] - 2026-07-19
