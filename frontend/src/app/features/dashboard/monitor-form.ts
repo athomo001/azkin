@@ -84,6 +84,23 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
                 </div>
               }
             </div>
+
+            @if (formModel.type === 'http' || formModel.type === 'ping' || formModel.type === 'port') {
+              <div class="animate-fade-in">
+                <div class="flex items-center gap-2">
+                  <input type="checkbox" [(ngModel)]="formModel.sameHostAsAzkin" id="sameHostAsAzkin"
+                    class="rounded border-zinc-800 text-orange-500 focus:ring-0 cursor-pointer">
+                  <label for="sameHostAsAzkin" class="text-xs text-zinc-300 font-bold cursor-pointer select-none">
+                    {{ lang.t('monitor.modal.sameHostLabel') }}
+                  </label>
+                </div>
+                @if (formModel.sameHostAsAzkin) {
+                  <p class="mt-2 text-[11px] leading-relaxed text-sky-400 bg-sky-500/10 border border-sky-500/20 rounded-lg px-3 py-2 animate-fade-in">
+                    {{ lang.t('monitor.modal.sameHostHint') }}
+                  </p>
+                }
+              </div>
+            }
           </div>
 
           <!-- Configuración del Checker -->
@@ -384,6 +401,7 @@ export class MonitorFormComponent implements OnInit {
       snmpV3PrivKey: '',
 
       ignoreTls: false,
+      sameHostAsAzkin: false,
       userAgent: '',
       integrityEnabled: false,
       integrityProfile: 'static' as 'static' | 'dynamic',
@@ -421,6 +439,7 @@ export class MonitorFormComponent implements OnInit {
       snmpV3PrivKey: monitor.snmpV3PrivKey || '',
 
       ignoreTls: (monitor as any).ignoreTls || false,
+      sameHostAsAzkin: (monitor as any).sameHostAsAzkin || false,
       userAgent: (monitor as any).userAgent || '',
       integrityEnabled: (monitor as any).integrityEnabled || false,
       integrityProfile: (monitor as any).integrityProfile || 'static',
@@ -508,7 +527,8 @@ export class MonitorFormComponent implements OnInit {
       group: this.formModel.group?.trim() || null as any,
       tags: this.formModel.tags,
       isActive: true,
-      notificationIds: this.formModel.notificationIds
+      notificationIds: this.formModel.notificationIds,
+      sameHostAsAzkin: ['http', 'ping', 'port'].includes(this.formModel.type) ? this.formModel.sameHostAsAzkin : undefined
     };
 
     if (this.formModel.type === 'http') {

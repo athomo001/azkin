@@ -25,6 +25,7 @@ export interface CreateMonitorInput {
   headers?: Record<string, string>;
   userAgent?: string;
   ignoreTls?: boolean;
+  sameHostAsAzkin?: boolean;
   integrityEnabled?: boolean;
   integrityProfile?: "static" | "dynamic";
   integrityIgnoredCssSelectors?: string[];

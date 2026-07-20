@@ -226,10 +226,57 @@ Dos mecanismos, no confundir:
 | `/metrics` responde 401/403 siempre | No configuraste ni Basic Auth (`AZKIN_PROMETHEUS_USER`+`_PASS`) ni `AZKIN_PROMETHEUS_API_KEY` | Es el comportamiento esperado (fail-closed, sin credenciales por defecto desde AZ-010) — define al menos uno de los dos esquemas |
 | CORS bloqueado en el navegador | `AZKIN_CORS_ORIGIN` no incluye el origen real del frontend | Debe ser un valor explícito (o `*` en desarrollo); reinicia el backend tras cambiarlo |
 | El frontend en dev (`compose.dev.yaml`) no llega a la API | El dev-server de Angular no incluye el proxy de Nginx que sí existe en el build de producción | Ver [`frontend/README.md`](../frontend/README.md#desarrollo) |
+| Un monitor marca **caído** un servicio que corre en el mismo servidor que Azkin, aunque respondes bien con `curl` desde el host | El contenedor `azkin-back` no siempre puede alcanzar la IP LAN del servidor (depende del firewall/red del host) | Nada que hacer manualmente en el monitor — Azkin lo detecta y reintenta solo, ver [§10](#10-monitorear-servicios-en-el-mismo-servidor). Si sigue marcando caído, es el firewall del host, no Azkin (mismo §10) |
 
 ---
 
-## 10. Ver también
+## 10. Monitorear servicios en el mismo servidor
+
+Un monitor cuyo target sea un servicio que corre en la **misma máquina física** que Azkin (otro
+contenedor suelto, otro `docker compose`, o un proceso nativo fuera de Docker) puede fallar al
+usar la IP LAN del servidor como target (ej. `https://10.0.100.13:4300`) — un contenedor no
+siempre puede alcanzar la IP del host que lo aloja, dependiendo del firewall/red configurados ahí.
+El síntoma típico: el monitor se ve `CAÍDO` en Azkin, pero `curl` desde el propio servidor
+responde bien.
+
+**Esto ya se resuelve automáticamente, sin configurar nada en el monitor.** Los checkers HTTP,
+Puerto TCP y Ping detectan este caso puntual (IP privada del target + error de conexión, no una
+respuesta real del servicio) y reintentan una sola vez contra el hostname portable
+`host.docker.internal` (`extra_hosts: host.docker.internal:host-gateway` en `compose.yaml` /
+`compose.dev.yaml`, que Docker resuelve a la IP del host desde dentro del contenedor) **antes** de
+declarar el monitor caído — quien configura el monitor solo pone la IP/dominio real del servicio,
+igual que con cualquier otro target. Si el fallback tuvo que usarse, el estado del monitor lo dice
+explícitamente en su mensaje (ej. `200 OK (vía host.docker.internal: ... no alcanzable
+directamente desde el contenedor)`), para que quede claro en una auditoría por qué está "arriba".
+
+Este fallback es deliberadamente conservador para no enmascarar caídas reales de servicios que sí
+son remotos: solo se activa para IPs **privadas** (rangos `10.0.0.0/8`, `172.16.0.0/12`,
+`192.168.0.0/16`, `127.0.0.0/8`) — nunca para un dominio público — y solo ante errores de
+**conexión** (`ECONNREFUSED`/`ETIMEDOUT`/`ENETUNREACH`/`EHOSTUNREACH`), nunca ante una respuesta
+HTTP real del servidor (un 404 o 500 reales nunca disparan el fallback).
+
+**Si el target es un dominio/hostname** (no una IP privada literal) que resuelve al propio
+servidor — ej. `https://mi-servicio-interno.miempresa.com:4300` — la detección automática no
+puede inferir por sí sola que es "el mismo servidor". Para ese caso, al crear o editar el monitor
+(tipo HTTP, Ping o Puerto TCP) marca el checkbox **"Este objetivo vive en el mismo servidor que
+Azkin"**: aparece una leyenda explicando qué hace, y el fallback a `host.docker.internal` se activa
+igual que con una IP privada, sin importar qué resuelva ese dominio.
+
+**Si aun así el monitor sigue caído:** significa que el firewall del host bloquea también el
+tráfico desde la subred de Docker hacia ese puerto por la ruta del gateway (común en servidores
+endurecidos que solo permiten tráfico desde subredes específicas — por ejemplo, si otro stack en
+el mismo servidor necesitó fijar su propia subred con `networks.<red>.ipam.config.subnet` para que
+el firewall lo dejara pasar). En ese caso la solución es del firewall del servidor, no de Azkin:
+agrega una regla que permita tráfico entrante desde la subred de `azkin-network` hacia el puerto
+del servicio objetivo. Para ver esa subred:
+
+```bash
+docker network inspect azkin_azkin-network --format '{{(index .IPAM.Config 0).Subnet}}'
+```
+
+---
+
+## 11. Ver también
 
 - [README raíz](../README.md) — resumen del proyecto y stack.
 - [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) — arquitectura, autenticación, API pública.

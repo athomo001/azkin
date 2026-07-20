@@ -50,6 +50,12 @@ export interface IMonitor {
   headers?: Record<string, string>; // Cabeceras personalizadas de petición HTTP
   userAgent?: string; // User-Agent específico (evita bloqueos de firewall WAF)
   ignoreTls?: boolean; // Permite omitir la validación de certificados SSL/TLS
+  // Declarado explícitamente por quien configura el monitor: el target vive en el mismo
+  // servidor físico que Azkin. Los checkers HTTP/Puerto/Ping lo usan para reintentar vía
+  // host.docker.internal ante cualquier fallo de conexión, no solo cuando el target es una
+  // IP privada (cubre dominios/hostnames que resuelven al propio servidor). Ver
+  // infrastructure/checkers/same-host-fallback.ts.
+  sameHostAsAzkin?: boolean;
   
   // Detección de Defacement (Integridad Estructural/Visual)
   integrityEnabled?: boolean; // Habilita el módulo de análisis de integridad

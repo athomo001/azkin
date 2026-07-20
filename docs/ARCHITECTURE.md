@@ -234,3 +234,36 @@ interacción humana frecuente: reciben un access token y refresh token de 1 año
 re-autenticaciones constantes) y el frontend activa una clase `body.kiosk-mode` con fuentes y
 espaciados ampliados para lectura a distancia en TVs 4K, ocultando controles no esenciales (ej. la
 barra de búsqueda) que no aplican a una pantalla de solo lectura.
+
+## 11. Fallback automático para monitorear el mismo servidor (`host.docker.internal`)
+
+Igual que el bypass de Cloudflare WAF (§2), este es otro caso donde un checker no toma un fallo de
+red al pie de la letra sin antes descartar una causa conocida y benigna: un monitor cuyo target es
+un servicio en el **mismo servidor físico** que Azkin (otro contenedor suelto, otro `docker
+compose`, o un proceso nativo) puede fallar por IP LAN no alcanzable desde dentro del contenedor
+`azkin-back` — un límite de red de Docker/el firewall del host, no una caída real del servicio.
+
+* **Detección:** los checkers `HttpChecker`, `PortChecker` y `PingChecker`
+  (`infrastructure/checkers/same-host-fallback.ts`, función `shouldAttemptHostGatewayFallback`)
+  activan el fallback si el fallo es de **conexión** (`ECONNREFUSED`/`ETIMEDOUT`/`ENETUNREACH`/
+  `EHOSTUNREACH` — para HTTP, extraído de `error.cause.code`) *y* además se cumple una de dos
+  condiciones: el target es una **IP privada** (RFC 1918: `10.0.0.0/8`, `172.16.0.0/12`,
+  `192.168.0.0/16`, más loopback), detectado automáticamente; o el monitor tiene marcado
+  `sameHostAsAzkin: true`, declarado explícitamente por quien lo configuró (checkbox "Este
+  objetivo vive en el mismo servidor que Azkin" en el formulario, solo visible para tipo
+  http/ping/port) — cubre un dominio/hostname que resuelve al propio servidor, caso que
+  `isPrivateIpv4` no puede inferir por sí sola. Nunca se activa ante un dominio público sin ese
+  flag, ni ante una respuesta HTTP real (un 4xx/5xx genuino del servidor jamás dispara el
+  fallback).
+* **Fallback:** reintenta una sola vez, con timeout corto (5s), contra el mismo puerto/ruta pero
+  usando `host.docker.internal` — hostname que Docker resuelve a la IP del host físico gracias a
+  `extra_hosts: host.docker.internal:host-gateway` en `compose.yaml`/`compose.dev.yaml` (Docker
+  Engine ≥ 20.10). Quien configura el monitor no necesita saber nada de esto: sigue usando la
+  IP/dominio real del servicio.
+* **Transparencia:** si el fallback fue necesario, el mensaje de estado del monitor lo dice
+  explícitamente (ej. `200 OK (vía host.docker.internal: ... no alcanzable directamente desde el
+  contenedor)`), para que sea auditable por qué un monitor está "arriba" sin depender del target
+  configurado tal cual.
+
+Ver [`docs/instalacion-docker.md`](./instalacion-docker.md) §10 para el detalle operativo y qué
+hacer si el fallback tampoco alcanza el servicio (firewall del host más restrictivo).
