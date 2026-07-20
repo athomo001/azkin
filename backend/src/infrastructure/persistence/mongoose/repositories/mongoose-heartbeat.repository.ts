@@ -52,6 +52,29 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
     }));
   }
 
+  async findHistoryForMonitors(monitorIds: string[], durationMs: number): Promise<IHeartbeat[]> {
+    const objectIds = monitorIds.filter((id) => Types.ObjectId.isValid(id)).map((id) => new Types.ObjectId(id));
+    if (objectIds.length === 0) return [];
+
+    const safeDurationMs = Math.max(0, durationMs);
+    const since = new Date(Date.now() - safeDurationMs);
+    const docs = await HeartbeatModel.find({
+      monitorId: { $in: objectIds },
+      timestamp: { $gte: since },
+    }).sort({ timestamp: -1 });
+
+    return docs.map((doc) => ({
+      monitorId: String(doc.monitorId),
+      timestamp: doc.timestamp,
+      status: doc.status as MonitorStatus,
+      ping: doc.ping ?? null,
+      msg: doc.msg ?? null,
+      certExpiry: doc.certExpiry ?? null,
+      domainExpiry: doc.domainExpiry ?? null,
+      isLocalNetworkDown: doc.isLocalNetworkDown ?? false,
+    }));
+  }
+
   async deleteByMonitor(monitorId: string): Promise<void> {
     if (!Types.ObjectId.isValid(monitorId)) return;
     await HeartbeatModel.deleteMany({ monitorId: new Types.ObjectId(monitorId) });
