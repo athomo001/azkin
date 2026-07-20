@@ -87,6 +87,7 @@ import { SendTestEmailUseCase } from "./application/use-cases/system/send-test-e
 import { CreateApiKeyUseCase } from "./application/use-cases/api-keys/create-api-key.usecase";
 import { ListApiKeysUseCase } from "./application/use-cases/api-keys/list-api-keys.usecase";
 import { RevokeApiKeyUseCase } from "./application/use-cases/api-keys/revoke-api-key.usecase";
+import { DeleteApiKeyUseCase } from "./application/use-cases/api-keys/delete-api-key.usecase";
 import { ListAuditLogUseCase } from "./application/use-cases/audit-log/list-audit-log.usecase";
 
 // HTTP
@@ -244,6 +245,7 @@ export function buildContainer(env: Env): AppContainer {
   const createApiKey = new CreateApiKeyUseCase(apiKeysRepo);
   const listApiKeys = new ListApiKeysUseCase(apiKeysRepo);
   const revokeApiKey = new RevokeApiKeyUseCase(apiKeysRepo);
+  const deleteApiKey = new DeleteApiKeyUseCase(apiKeysRepo, auditLog);
 
   // Controllers
   const authController = new AuthController(register, login, refresh, requestPasswordReset, resetPassword, users, env.appUrl);
@@ -280,7 +282,7 @@ export function buildContainer(env: Env): AppContainer {
   const getSmtpStatus = new GetSmtpStatusUseCase();
   const sendTestEmail = new SendTestEmailUseCase(mailer);
   const systemController = new SystemController(applyTlsConfig, getTlsConfig, getSmtpStatus, sendTestEmail, env.smtp);
-  const apiKeyController = new ApiKeyController(createApiKey, listApiKeys, revokeApiKey);
+  const apiKeyController = new ApiKeyController(createApiKey, listApiKeys, revokeApiKey, deleteApiKey);
   const listAuditLog = new ListAuditLogUseCase(auditLog, users);
   const auditLogController = new AuditLogController(listAuditLog);
   const getMetrics = new GetMetricsUseCase(monitors, heartbeats);

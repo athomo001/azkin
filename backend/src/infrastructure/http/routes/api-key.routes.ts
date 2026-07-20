@@ -11,5 +11,8 @@ export function apiKeyRoutes(controller: ApiKeyController): Router {
   router.post("/", requireRole("admin"), validateBody(createApiKeySchema), asyncHandler(controller.create));
   router.get("/", requireRole("admin"), asyncHandler(controller.list));
   router.delete("/:id", requireRole("admin"), asyncHandler(controller.revoke));
+  // Borrado permanente (a diferencia de DELETE /:id, que solo revoca) — ruta propia para no
+  // romper el contrato ya documentado de DELETE /:id.
+  router.delete("/:id/purge", requireRole("admin"), asyncHandler(controller.delete));
   return router;
 }

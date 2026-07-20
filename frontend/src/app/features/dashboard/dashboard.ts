@@ -10,16 +10,20 @@ echarts.use([SVGRenderer]);
 import { MonitorService, IMonitor, IHeartbeat } from '../../core/services/monitor.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RealtimeService } from '../../core/services/realtime.service';
-import { NotificationService, INotificationChannel } from '../../core/services/notification.service';
-import { BadgeStatusComponent } from '../../shared/components/badge-status';
+import { NotificationService } from '../../core/services/notification.service';
 import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader';
 import { HttpClient } from '@angular/common/http';
 import { LanguageService } from '../../core/services/language.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { normalizeMonitorStatus } from '../../core/utils/monitor-status.util';
 import { extractApiErrorMessage } from '../../core/utils/api-error.util';
-
-type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
+import { QuickStatsPanelComponent, RecentEvent } from './quick-stats-panel';
+import { ConfirmService } from '../../core/services/confirm.service';
+import { ConfirmModalComponent } from '../../shared/components/confirm-modal';
+import { ToastService } from '../../core/services/toast.service';
+import { ToastComponent } from '../../shared/components/toast';
+import { DashboardNavbarComponent } from './dashboard-navbar';
+import { MonitorFormComponent } from './monitor-form';
 
 type HistoryRangeOption = {
   label: string;
@@ -29,77 +33,13 @@ type HistoryRangeOption = {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, BadgeStatusComponent, SkeletonLoaderComponent],
+  imports: [CommonModule, RouterModule, FormsModule, SkeletonLoaderComponent, QuickStatsPanelComponent, ConfirmModalComponent, ToastComponent, DashboardNavbarComponent, MonitorFormComponent],
   template: `
     <div class="min-h-screen bg-zinc-950 text-white flex flex-col font-sans transition-colors duration-300">
-      <!-- Navbar -->
-      <nav class="bg-zinc-900/50 backdrop-blur-md border-b border-zinc-800 px-6 py-3 flex items-center justify-between shadow-lg sticky top-0 z-40">
-        <div class="flex items-center space-x-3">
-          <img src="logo-azkin.png" alt="Azkin Logo" class="h-6 w-auto">
-          <h1 class="text-2xl font-black text-orange-500 tracking-tight cursor-pointer hover:opacity-85 transition-opacity" (click)="resetSelection()">Azkin</h1>
-          <span class="text-xs text-zinc-500 border border-zinc-800 px-2 py-0.5 rounded bg-zinc-900/80">PROD</span>
-        </div>
-        <div class="flex items-center space-x-6">
-          <button (click)="toggleTheme($event)" class="text-zinc-400 hover:text-orange-500 transition-colors p-1.5 rounded-lg border border-zinc-800 bg-zinc-950/40" title="Cambiar tema">
-            @if (isLightTheme()) {
-              <!-- Sun Icon -->
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-amber-500">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M3 12h2.25m-.386-6.364 1.591 1.591M12 7.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" />
-              </svg>
-            } @else {
-              <!-- Moon Icon -->
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-              </svg>
-            }
-          </button>
-          <button (click)="lang.toggleLanguage()" class="text-zinc-400 hover:text-orange-500 transition-colors px-2 py-1 rounded-lg border border-zinc-800 bg-zinc-950/40 text-[10px] font-black uppercase tracking-wider" [title]="lang.currentLang() === 'es' ? 'Switch to English' : 'Cambiar a Español'">
-            {{ lang.currentLang() }}
-          </button>
-          <div class="flex flex-col text-right">
-            <span class="text-xs font-bold text-zinc-300">{{ authService.currentUser()?.email || authService.currentUser()?.username }}</span>
-            <span class="text-[10px] text-zinc-500 uppercase tracking-wider">{{ authService.currentUser()?.role }}</span>
-          </div>
-          <!-- Boton secreto de NyanCat (Easter Egg) — solo para admins -->
-          @if (authService.isAdmin()) {
-            <button (click)="toggleNyanCat()" [title]="isNyanCatMode() ? 'Desactivar Modo NyanCat' : 'Activar Modo NyanCat 🐱'"
-              class="flex items-center justify-center p-1.5 rounded-lg border transition-all text-xs"
-              [class]="isNyanCatMode() ? 'border-orange-500/40 bg-orange-500/10 text-orange-400' : 'border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-orange-400 hover:border-orange-500/30'">
-              🐱
-            </button>
-          }
-          @if (authService.isAdmin()) {
-            <a routerLink="/settings" class="text-sm font-semibold hover:text-orange-500 transition-colors flex items-center gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-              </svg>
-              {{ lang.t('nav.settings') }}
-            </a>
-          } @else {
-            <a routerLink="/profile" class="text-sm font-semibold hover:text-orange-500 transition-colors flex items-center gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-              </svg>
-              Mi Perfil
-            </a>
-          }
-          <button (click)="onLogout()" class="text-sm font-semibold text-rose-500 hover:text-rose-400 transition-colors flex items-center gap-1.5">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
-            </svg>
-            {{ lang.t('nav.logout') }}
-          </button>
-        </div>
-      </nav>
+      <app-dashboard-navbar [isNyanCatMode]="isNyanCatMode()" (logoClick)="resetSelection()" (toggleNyanCat)="toggleNyanCat()" />
 
-      <!-- Toast para notificaciones del dashboard -->
-      @if (toast()) {
-        <div class="fixed bottom-6 right-6 z-50 flex items-start gap-3 px-4 py-3 rounded-xl border text-sm font-medium shadow-2xl bg-zinc-900 border-zinc-800 text-white animate-fade-in">
-          <span class="w-2 h-2 mt-1.5 rounded-full bg-orange-500 animate-pulse"></span>
-          <span>{{ toast() }}</span>
-        </div>
-      }
+      <!-- Toast de feedback (AZ-016: componente compartido, ver ToastService) -->
+      <app-toast />
 
       <!-- Main Layout: Estilo Uptime Kuma de Dos Columnas -->
       <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
@@ -580,112 +520,7 @@ type HistoryRangeOption = {
               </div>
             </div>
           } @else {
-            <!-- GENERAL QUICK STATS DASHBOARD (IMAGEN 4) -->
-            <div class="space-y-6 flex-1">
-              <div>
-                <h2 class="text-3xl font-black tracking-tight text-white flex items-center gap-2">
-                  <span>{{ lang.t('dashboard.title') }}</span>
-                </h2>
-                <p class="text-xs text-zinc-500 mt-1">{{ lang.t('dashboard.subtitle') }}</p>
-              </div>
-
-              <!-- Banner Global de Caída de Red Local (ISP Outage) -->
-              @if (isAnyMonitorLocalNetworkDown()) {
-                <div class="p-4 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs rounded-2xl flex items-center gap-3 animate-pulse shadow-lg shadow-amber-500/5">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 shrink-0 text-amber-500">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                  </svg>
-                  <div>
-                    <span class="font-bold uppercase tracking-wider text-[10px] text-amber-500 block">Diagnóstico de Servidor</span>
-                    <span class="text-[11px] font-medium leading-relaxed block mt-0.5">{{ lang.t('dashboard.localOutageBanner') }}</span>
-                  </div>
-                </div>
-              }
-
-              <!-- Grid de Stats Consolidados (Imagen 4) -->
-              <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="bg-zinc-900/30 border border-zinc-900 p-5 rounded-2xl shadow-xl flex items-center justify-between">
-                  <div>
-                    <span class="text-[10px] text-zinc-500 font-black uppercase tracking-wider">{{ lang.t('dashboard.statUp') }}</span>
-                    <span class="text-3xl font-black text-emerald-500 mt-1 block">{{ activeCount() }}</span>
-                  </div>
-                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50"></span>
-                </div>
-                <div class="bg-zinc-900/30 border border-zinc-900 p-5 rounded-2xl shadow-xl flex items-center justify-between">
-                  <div>
-                    <span class="text-[10px] text-zinc-500 font-black uppercase tracking-wider">{{ lang.t('dashboard.statDown') }}</span>
-                    <span class="text-3xl font-black text-rose-500 mt-1 block">{{ downCount() }}</span>
-                  </div>
-                  <span class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-lg shadow-rose-500/50 animate-pulse"></span>
-                </div>
-                <div class="bg-zinc-900/30 border border-zinc-900 p-5 rounded-2xl shadow-xl flex items-center justify-between">
-                  <div>
-                    <span class="text-[10px] text-zinc-500 font-black uppercase tracking-wider">{{ lang.t('dashboard.statPending') }}</span>
-                    <span class="text-3xl font-black text-amber-500 mt-1 block">{{ pendingCount() }}</span>
-                  </div>
-                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-lg shadow-amber-500/50"></span>
-                </div>
-                <div class="bg-zinc-900/30 border border-zinc-900 p-5 rounded-2xl shadow-xl flex items-center justify-between">
-                  <div>
-                    <span class="text-[10px] text-zinc-500 font-black uppercase tracking-wider">{{ lang.t('dashboard.statTotal') }}</span>
-                    <span class="text-3xl font-black text-zinc-400 mt-1 block">{{ totalMonitors() }}</span>
-                  </div>
-                  <span class="w-2.5 h-2.5 rounded-full bg-zinc-600 shadow-lg"></span>
-                </div>
-              </div>
-
-              <!-- Tabla de Incidentes/Eventos Recientes (Imagen 4) -->
-              <div class="bg-zinc-900/20 border border-zinc-900/80 rounded-2xl overflow-hidden shadow-2xl">
-                <div class="p-4 bg-zinc-900/40 border-b border-zinc-900 flex justify-between items-center">
-                  <span class="text-xs font-black text-zinc-300 uppercase tracking-wider">{{ lang.t('dashboard.incidentLog') }}</span>
-                  <button (click)="loadRecentIncidents()" class="text-[10px] text-zinc-500 hover:text-white font-bold flex items-center gap-1.5 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                    </svg>
-                    {{ lang.t('dashboard.refresh') }}
-                  </button>
-                </div>
-                <div class="overflow-x-auto">
-                  <table class="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr class="bg-zinc-950/80 text-zinc-500 border-b border-zinc-900 font-bold uppercase tracking-wider">
-                        <th class="p-3">{{ lang.t('dashboard.colMonitor') }}</th>
-                        <th class="p-3">{{ lang.t('dashboard.colStatus') }}</th>
-                        <th class="p-3">{{ lang.t('dashboard.colDatetime') }}</th>
-                        <th class="p-3">{{ lang.t('dashboard.colMessage') }}</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-zinc-900/60">
-                      @if (recentEvents().length === 0) {
-                        <tr>
-                          <td colspan="4" class="p-8 text-center text-zinc-600 font-semibold">
-                            {{ lang.t('dashboard.noEvents') }}
-                          </td>
-                        </tr>
-                      } @else {
-                        @for (ev of recentEvents(); track $index) {
-                          <tr class="hover:bg-zinc-900/20 transition-colors">
-                            <td class="p-3 font-bold text-zinc-200">
-                              <span (click)="selectMonitorById(ev.monitorId)" class="cursor-pointer hover:underline hover:text-emerald-500">{{ ev.monitorName }}</span>
-                              <span class="text-[10px] text-zinc-500 font-normal block">{{ ev.target }}</span>
-                            </td>
-                            <td class="p-3">
-                              <app-badge-status [status]="ev.status"></app-badge-status>
-                            </td>
-                            <td class="p-3 text-zinc-400 font-medium">
-                              {{ ev.timestamp | date:'HH:mm:ss dd/MM/yyyy' }}
-                            </td>
-                            <td class="p-3 font-mono text-zinc-500 text-[11px] truncate max-w-xs" [title]="ev.msg || ''">
-                              {{ ev.msg || 'OK' }} ({{ ev.ping !== null ? ev.ping + 'ms' : 'N/A' }})
-                            </td>
-                          </tr>
-                        }
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+            <app-quick-stats-panel [recentEvents]="recentEvents()" (refresh)="loadRecentIncidents()" (selectMonitor)="selectMonitorById($event)" />
           }
 
           <!-- Branding Footer -->
@@ -701,324 +536,17 @@ type HistoryRangeOption = {
         </main>
       </div>
 
-      <!-- Slide-over Formularios de Creación y Edición -->
+      <!-- Slide-over Formulario de Creación y Edición (AZ-016: componente propio) -->
       @if (showForm()) {
-        <div class="fixed inset-0 z-50 flex justify-end overflow-hidden">
-          <!-- Backdrop -->
-          <div (click)="closeForm()" class="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"></div>
-
-          <!-- Panel Formulario -->
-          <div class="relative w-full max-w-xl bg-zinc-900 border-l border-zinc-800 h-full shadow-2xl flex flex-col justify-between animate-slide-in">
-            <!-- Header -->
-            <div class="p-6 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/80">
-              <div>
-                <h3 class="text-lg font-black text-orange-500">{{ isEditing() ? lang.t('monitor.modal.editTitle') : lang.t('monitor.modal.addTitle') }}</h3>
-                <p class="text-xs text-zinc-500 mt-1">{{ lang.t('monitor.modal.subtitle') }}</p>
-              </div>
-              <button (click)="closeForm()" aria-label="Cerrar formulario" title="Cerrar formulario" class="text-zinc-500 hover:text-zinc-200">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <!-- Body (Scrollable) -->
-            <div class="flex-1 overflow-y-auto p-6 space-y-6">
-              <!-- Banner de Error de Formulario (Punto 10) -->
-              @if (formError()) {
-                <div class="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs rounded-xl flex items-center gap-2 animate-fade-in mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 shrink-0">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                  </svg>
-                  <span>{{ formError() }}</span>
-                </div>
-              }
-
-              <!-- Datos Básicos -->
-              <div class="space-y-4">
-                <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec1') }}</h4>
-
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="col-span-2">
-                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.name') }}</label>
-                    <input type="text" [(ngModel)]="formModel.name" placeholder="Ej. Servidor Web Principal" required
-                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
-                  </div>
-                  <div>
-                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.type') }}</label>
-                    <select [(ngModel)]="formModel.type"
-                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                      <option value="http">HTTP / HTTPS</option>
-                      <option value="ping">Ping (ICMP)</option>
-                      <option value="port">Port TCP</option>
-                      <option value="dns">DNS Resolution</option>
-                      <option value="snmp">SNMP Agent</option>
-                      <option value="push">{{ lang.t('monitor.modal.pushPassive') }}</option>
-                    </select>
-                  </div>
-                  @if (formModel.type !== 'push') {
-                    <div>
-                      <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.target') }}</label>
-                      <input type="text" [(ngModel)]="formModel.target" placeholder="Ej. www.google.com o 8.8.8.8" required
-                        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
-                    </div>
-                  }
-                </div>
-              </div>
-
-              <!-- Configuración del Checker -->
-              <div class="space-y-4">
-                <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec2') }}</h4>
-                <div class="grid grid-cols-3 gap-4">
-                  <div>
-                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.interval') }}</label>
-                    <input type="number" [(ngModel)]="formModel.interval" min="20" required
-                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                  </div>
-                  <div>
-                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.retries') }}</label>
-                    <input type="number" [(ngModel)]="formModel.retries" min="0" required
-                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                  </div>
-                  <div>
-                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.retryInterval') }}</label>
-                    <input type="number" [(ngModel)]="formModel.retryInterval" min="20" required
-                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                  </div>
-                </div>
-              </div>
-
-              <!-- Campos de SNMP -->
-              @if (formModel.type === 'snmp') {
-                <div class="space-y-4 animate-fade-in">
-                  <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.snmpSec') }}</h4>
-                  <div class="grid grid-cols-2 gap-4">
-                    <div>
-                      <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpVersion') }}</label>
-                      <select [(ngModel)]="formModel.snmpVersion"
-                        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                        <option value="v1">SNMP v1</option>
-                        <option value="v2c">SNMP v2c</option>
-                        <option value="v3">SNMP v3</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpPort') }}</label>
-                      <input type="number" [(ngModel)]="formModel.snmpPort" placeholder="161"
-                        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                    </div>
-                    <div class="col-span-2">
-                      <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpOid') }}</label>
-                      <input type="text" [(ngModel)]="formModel.snmpOid" placeholder="Ej. 1.3.6.1.2.1.1.5.0"
-                        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white font-mono">
-                    </div>
-
-                    @if (formModel.snmpVersion !== 'v3') {
-                      <div class="col-span-2 animate-fade-in">
-                        <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpCommunity') }}</label>
-                        <input type="text" [(ngModel)]="formModel.snmpCommunity" placeholder="public"
-                          class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                      </div>
-                    }
-
-                    <!-- Parámetros SNMP v3 -->
-                    @if (formModel.snmpVersion === 'v3') {
-                      <div class="col-span-2 grid grid-cols-2 gap-4 border border-zinc-800 p-4 rounded-xl bg-zinc-950/45 animate-fade-in">
-                        <div class="col-span-2">
-                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpUser') }}</label>
-                          <input type="text" [(ngModel)]="formModel.snmpV3Username" placeholder="Username"
-                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500 text-white">
-                        </div>
-                        <div>
-                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpAuthProto') }}</label>
-                          <select [(ngModel)]="formModel.snmpV3AuthProtocol"
-                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500 text-white">
-                            <option value="md5">MD5</option>
-                            <option value="sha">SHA</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpAuthKey') }}</label>
-                          <input type="password" [(ngModel)]="formModel.snmpV3AuthKey" placeholder="••••••••"
-                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500 text-white">
-                        </div>
-                        <div>
-                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpPrivProto') }}</label>
-                          <select [(ngModel)]="formModel.snmpV3PrivProtocol"
-                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500 text-white">
-                            <option value="des">DES</option>
-                            <option value="aes">AES</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.snmpPrivKey') }}</label>
-                          <input type="password" [(ngModel)]="formModel.snmpV3PrivKey" placeholder="••••••••"
-                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500 text-white">
-                        </div>
-                      </div>
-                    }
-                  </div>
-                </div>
-              }
-
-              <!-- Organización -->
-              <div class="space-y-4">
-                <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec3') }}</h4>
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.group') }}</label>
-                    <input type="text" [(ngModel)]="formModel.group" list="groups-datalist" placeholder="Ej. Bases de Datos"
-                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
-                    <datalist id="groups-datalist">
-                      @for (g of uniqueGroups(); track g) {
-                        <option [value]="g"></option>
-                      }
-                    </datalist>
-                  </div>
-                  <div>
-                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.tags') }}</label>
-                    <input type="text" [ngModel]="tagsString()" (ngModelChange)="setTagsFromString($event)" placeholder="Ej. aws, core, api"
-                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
-                  </div>
-                </div>
-              </div>
-
-              <!-- Canales de Alerta -->
-              <div class="space-y-4">
-                <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec4') }}</h4>
-                <div class="space-y-2 max-h-48 overflow-y-auto border border-zinc-800 p-3 rounded-xl bg-zinc-950/20">
-                  @if (notificationChannels().length === 0) {
-                    <p class="text-xs text-zinc-500 font-semibold p-2">{{ lang.t('monitor.modal.noChannels') }}</p>
-                  } @else {
-                    @for (ch of notificationChannels(); track ch.id) {
-                      <div class="flex items-center gap-3 p-1.5 hover:bg-zinc-900/60 rounded transition-colors">
-                        <input type="checkbox"
-                          [checked]="formModel.notificationIds.includes(ch.id)"
-                          (change)="toggleNotificationChannel(ch.id)"
-                          [id]="'ch-' + ch.id"
-                          class="rounded border-zinc-850 text-orange-500 focus:ring-0 cursor-pointer">
-                        <label [for]="'ch-' + ch.id" class="text-xs text-zinc-300 font-bold cursor-pointer flex-1 flex items-center justify-between">
-                          <span>{{ ch.name }}</span>
-                          <span class="text-[9px] uppercase tracking-widest text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded">{{ ch.type }}</span>
-                        </label>
-                      </div>
-                    }
-                  }
-                </div>
-              </div>
-
-              <!-- Opciones avanzadas de puerto -->
-              @if (formModel.type === 'port') {
-                <div class="space-y-4 animate-fade-in">
-                  <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.portSec') }}</h4>
-                  <div>
-                    <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.portNum') }}</label>
-                    <input type="number" [(ngModel)]="formModel.port" placeholder="Ej. 80 o 3306" required
-                      class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                  </div>
-                </div>
-              }
-
-              <!-- Opciones avanzadas de DNS -->
-              @if (formModel.type === 'dns') {
-                <div class="space-y-4 animate-fade-in">
-                  <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.dnsSec') }}</h4>
-                  <div class="grid grid-cols-2 gap-4">
-                    <div>
-                      <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.dnsResolver') }}</label>
-                      <input type="text" [(ngModel)]="formModel.dnsResolver" placeholder="Ej. 8.8.8.8 o 1.1.1.1"
-                        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
-                    </div>
-                    <div>
-                      <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.dnsRecord') }}</label>
-                      <select [(ngModel)]="formModel.dnsRecordType"
-                        class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                        <option value="A">A (IPv4)</option>
-                        <option value="AAAA">AAAA (IPv6)</option>
-                        <option value="CNAME">CNAME</option>
-                        <option value="MX">MX</option>
-                        <option value="TXT">TXT</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              }
-
-              <!-- Defacement / Integridad Visual y Estructural -->
-              @if (formModel.type === 'http') {
-                <div class="space-y-4">
-                  <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec5') }}</h4>
-                  <div class="space-y-4">
-                    <div class="flex items-center gap-3 bg-zinc-950 p-3 rounded-lg border border-zinc-800">
-                      <input type="checkbox" [(ngModel)]="formModel.integrityEnabled" id="integrityEnabled" class="rounded border-zinc-800 text-orange-500 focus:ring-0">
-                      <label for="integrityEnabled" class="text-xs text-zinc-300 font-semibold cursor-pointer">{{ lang.t('monitor.modal.integrityCheck') }}</label>
-                    </div>
-
-                    @if (formModel.integrityEnabled) {
-                      <div class="grid grid-cols-2 gap-4 animate-fade-in">
-                        <div>
-                          <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.integrityProfile') }}</label>
-                          <select [(ngModel)]="formModel.integrityProfile"
-                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                            <option value="static">Estático (Static)</option>
-                            <option value="dynamic">Dinámico (Dynamic)</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.integrityThreshold') }}</label>
-                          <input type="number" [(ngModel)]="formModel.integrityThreshold" step="0.01" min="0" max="1"
-                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                        </div>
-                        <div class="col-span-2">
-                          <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.cssSelectors') }}</label>
-                          <input type="text" [ngModel]="ignoredSelectorsString()" (ngModelChange)="setIgnoredSelectorsFromString($event)" placeholder="Ej. #banner, .ads"
-                            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
-                        </div>
-                      </div>
-                    }
-                  </div>
-                </div>
-              }
-            </div>
-
-            <!-- Footer (Acciones) -->
-            <div class="p-6 border-t border-zinc-800 bg-zinc-950/80 flex items-center justify-end space-x-3">
-              <button (click)="closeForm()"
-                class="px-4 py-2.5 rounded-xl border border-zinc-850 hover:bg-zinc-900 font-semibold text-sm transition-all">
-                {{ lang.t('common.cancel') }}
-              </button>
-              <button (click)="onSave()" [disabled]="isSubmitting()"
-                class="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 disabled:bg-orange-800 font-bold text-sm tracking-tight transition-all active:scale-95 shadow-lg shadow-orange-600/10">
-                {{ isSubmitting() ? lang.t('monitor.modal.saving') : lang.t('monitor.modal.saveBtn') }}
-              </button>
-            </div>
-          </div>
-        </div>
+        <app-monitor-form [monitor]="editingMonitor()" (saved)="onMonitorSaved($event)" (cancel)="closeForm()" />
       }
 
       <!-- Custom Confirm Delete Monitor Modal (Punto 4) -->
-      @if (showConfirmDelete()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" (click)="cancelDelete()"></div>
-          <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl max-w-sm w-full shadow-2xl relative z-10 animate-fade-in text-center space-y-4">
-            <div class="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mx-auto">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-              </svg>
-            </div>
-            <div>
-              <h4 class="text-sm font-bold text-white uppercase tracking-wider">{{ lang.t('monitor.modal.deleteTitle') }}</h4>
-              <p class="text-xs text-zinc-400 mt-2">{{ lang.t('monitor.modal.deleteMsg') }}</p>
-            </div>
-            <div class="flex gap-3 pt-2">
-              <button (click)="cancelDelete()" class="flex-1 py-2 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 rounded-xl text-xs font-bold transition-all">{{ lang.t('common.cancel') }}</button>
-              <button (click)="confirmDelete()" class="flex-1 py-2 bg-rose-600 hover:bg-rose-500 rounded-xl text-xs font-bold transition-all">{{ lang.t('common.delete') }}</button>
-            </div>
-          </div>
-        </div>
-      }
+      <!-- AZ-016: modal de confirmacion generico (componente compartido, ver ConfirmService) -->
+      <app-confirm-modal />
 
-      <!-- AZ-005: Confirmación de borrado masivo con resumen de impacto -->
+      <!-- AZ-005: Confirmación de borrado masivo con resumen de impacto (lista dinámica de nombres —
+           no encaja en el modal de confirmación genérico, se mantiene como modal propio) -->
       @if (showBulkDeleteConfirm()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" (click)="cancelBulkDelete()"></div>
@@ -1095,14 +623,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   public readonly lang = inject(LanguageService);
   private readonly themeService = inject(ThemeService);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
 
   // Estados de carga e interfaz
   readonly isLoading = signal(true);
   readonly showForm = signal(false);
-  readonly isEditing = signal(false);
-  readonly isSubmitting = signal(false);
-  readonly toast = signal<string | null>(null);
-  readonly formError = signal<string | null>(null);
+  // `null` = modo creación; un monitor = modo edición. Se pasa como input a app-monitor-form.
+  readonly editingMonitor = signal<IMonitor | null>(null);
 
   // Selección del Monitor o Grupo actual
   readonly selectedMonitor = signal<IMonitor | null>(null);
@@ -1127,11 +655,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly selectedHistoryDurationMs = signal(this.getInitialHistoryDurationMs());
   groupHistoryMap = new Map<string, { name: string; points: { latency: number; timestamp: string; isLocalNetworkDown?: boolean }[] }>();
 
-  // Notificaciones y canales activos
-  readonly notificationChannels = this.notificationService.channels;
-
   // Eventos/Incidentes recientes consolidado (Dashboard General)
-  readonly recentEvents = signal<any[]>([]);
+  readonly recentEvents = signal<RecentEvent[]>([]);
 
   // Control colapsable de grupos en el sidebar
   readonly collapsedGroups = signal<Record<string, boolean>>({});
@@ -1160,10 +685,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       }, 50);
     });
   }
-
-  // Modal de confirmación personalizado
-  readonly showConfirmDelete = signal(false);
-  monitorIdToDelete: string | null = null;
 
   // AZ-005: selección múltiple y borrado masivo de monitores
   readonly selectionMode = signal(false);
@@ -1254,28 +775,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   groupFilter = '';
   tagFilter = signal<string | null>(null);
 
-  // Formulario
-  formModel = this.getEmptyForm();
-
   // Getters reactivos de contadores basados en el listado de monitores
   readonly totalMonitors = () => this.monitorService.monitors().length;
   readonly activeCount = () => this.monitorService.monitors().filter(m => m.isActive).length;
   readonly downCount = () => this.monitorService.monitors().filter(m => m.status === 'DOWN').length;
   readonly pendingCount = () => this.monitorService.monitors().filter(m => m.status === 'PENDING').length;
-
-  readonly uniqueGroups = computed(() => {
-    const list = this.monitorService.monitors().map(m => m.group).filter(g => g);
-    return Array.from(new Set(list)) as string[];
-  });
-
-  readonly uniqueTags = computed(() => {
-    const allTags = this.monitorService.monitors().reduce((acc, m) => [...acc, ...(m.tags || [])], [] as string[]);
-    return Array.from(new Set(allTags));
-  });
-
-  readonly isAnyMonitorLocalNetworkDown = computed(() => {
-    return this.monitorService.monitors().some(m => m.isLocalNetworkDown);
-  });
 
   // Listado filtrado para el panel lateral
   readonly filteredMonitors = computed(() => {
@@ -1988,235 +1492,36 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }));
   }
 
-  // --- Auxiliares de Formulario ---
-  private getEmptyForm() {
-    return {
-      name: '',
-      type: 'http' as MonitorType,
-      target: '',
-      port: 80 as number | undefined,
-      interval: 60,
-      retries: 0,
-      retryInterval: 60,
-      group: '',
-      tags: [] as string[],
-      keyword: '',
-      keywordMethod: 'presence' as 'presence' | 'absence',
-      dnsResolver: '',
-      dnsRecordType: 'A' as 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT',
-
-      // SNMP Fields
-      snmpVersion: 'v2c' as 'v1' | 'v2c' | 'v3',
-      snmpCommunity: 'public',
-      snmpPort: 161,
-      snmpOid: '1.3.6.1.2.1.1.5.0',
-      snmpV3Username: '',
-      snmpV3AuthProtocol: 'md5' as 'md5' | 'sha',
-      snmpV3AuthKey: '',
-      snmpV3PrivProtocol: 'des' as 'des' | 'aes',
-      snmpV3PrivKey: '',
-
-      ignoreTls: false,
-      userAgent: '',
-      integrityEnabled: false,
-      integrityProfile: 'static' as 'static' | 'dynamic',
-      integrityThreshold: 0.10,
-      integrityIgnoredCssSelectors: [] as string[],
-      notificationIds: [] as string[]
-    };
-  }
-
-  tagsString(): string {
-    return this.formModel.tags.join(', ');
-  }
-
-  setTagsFromString(val: string): void {
-    this.formModel.tags = val.split(',')
-      .map(t => t.trim())
-      .filter(t => t.length > 0);
-  }
-
-  ignoredSelectorsString(): string {
-    return this.formModel.integrityIgnoredCssSelectors.join(', ');
-  }
-
-  setIgnoredSelectorsFromString(val: string): void {
-    this.formModel.integrityIgnoredCssSelectors = val.split(',')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-  }
-
-  toggleNotificationChannel(id: string): void {
-    const ids = [...this.formModel.notificationIds];
-    const idx = ids.indexOf(id);
-    if (idx > -1) {
-      ids.splice(idx, 1);
-    } else {
-      ids.push(id);
-    }
-    this.formModel.notificationIds = ids;
-  }
-
+  // --- Apertura/cierre del formulario de monitor (app-monitor-form vive solo mientras showForm() es true) ---
   openCreateForm(): void {
-    this.isEditing.set(false);
-    this.formModel = this.getEmptyForm();
-    this.formError.set(null);
+    this.editingMonitor.set(null);
     this.showForm.set(true);
   }
 
   openEditForm(monitor: IMonitor): void {
-    this.isEditing.set(true);
-    this.formError.set(null);
-    this.formModel = {
-      name: monitor.name,
-      type: monitor.type,
-      target: monitor.target || '',
-      port: monitor.port,
-      interval: monitor.interval,
-      retries: monitor.retries || 0,
-      retryInterval: 60,
-      group: monitor.group || '',
-      tags: monitor.tags || [],
-      keyword: (monitor as any).keyword || '',
-      keywordMethod: (monitor as any).keywordMethod || 'presence',
-      dnsResolver: (monitor as any).dnsResolver || '',
-      dnsRecordType: (monitor as any).dnsRecordType || 'A',
-
-      // SNMP Fields mappings
-      snmpVersion: monitor.snmpVersion || 'v2c',
-      snmpCommunity: monitor.snmpCommunity || 'public',
-      snmpPort: monitor.snmpPort || 161,
-      snmpOid: monitor.snmpOid || '1.3.6.1.2.1.1.5.0',
-      snmpV3Username: monitor.snmpV3Username || '',
-      snmpV3AuthProtocol: monitor.snmpV3AuthProtocol || 'md5',
-      snmpV3AuthKey: monitor.snmpV3AuthKey || '',
-      snmpV3PrivProtocol: monitor.snmpV3PrivProtocol || 'des',
-      snmpV3PrivKey: monitor.snmpV3PrivKey || '',
-
-      ignoreTls: (monitor as any).ignoreTls || false,
-      userAgent: (monitor as any).userAgent || '',
-      integrityEnabled: (monitor as any).integrityEnabled || false,
-      integrityProfile: (monitor as any).integrityProfile || 'static',
-      integrityThreshold: (monitor as any).integrityThreshold || 0.10,
-      integrityIgnoredCssSelectors: (monitor as any).integrityIgnoredCssSelectors || [],
-      notificationIds: monitor.notificationIds || []
-    };
+    this.editingMonitor.set(monitor);
     this.showForm.set(true);
   }
 
   closeForm(): void {
     this.showForm.set(false);
-    this.formError.set(null);
+  }
+
+  /** El monitor creado/actualizado que emite app-monitor-form al guardar exitosamente. */
+  onMonitorSaved(monitor: IMonitor): void {
+    this.showForm.set(false);
+    if (this.editingMonitor()) {
+      this.selectedMonitor.set(monitor);
+      this.showSuccessToast('Monitor actualizado con éxito.');
+    } else {
+      this.selectMonitor(monitor);
+      this.showSuccessToast('Monitor creado y agendado con éxito.');
+    }
+    this.loadRecentIncidents();
   }
 
   showSuccessToast(msg: string): void {
-    this.toast.set(msg);
-    setTimeout(() => this.toast.set(null), 4000);
-  }
-
-  onSave(): void {
-    if (!this.formModel.name.trim()) return;
-
-    this.isSubmitting.set(true);
-    this.formError.set(null);
-
-    const type = this.formModel.type;
-    let targetUrl = this.formModel.target?.trim();
-
-    if (type !== 'push' && !targetUrl) {
-      this.formError.set('Por favor, ingresa el destino/host.');
-      this.isSubmitting.set(false);
-      return;
-    }
-
-    // Validación inteligente de Target según el tipo (Punto 10)
-    if (type === 'http') {
-      if (targetUrl && !targetUrl.toLowerCase().startsWith('http://') && !targetUrl.toLowerCase().startsWith('https://')) {
-        targetUrl = 'https://' + targetUrl;
-        this.formModel.target = targetUrl;
-      }
-      const hasProto = targetUrl.toLowerCase().startsWith('http://') || targetUrl.toLowerCase().startsWith('https://');
-      if (!hasProto) {
-        this.formError.set('Para monitores HTTP/HTTPS, el destino debe iniciar con http:// o https://');
-        this.isSubmitting.set(false);
-        return;
-      }
-    } else if (type === 'ping' || type === 'port' || type === 'dns' || type === 'snmp') {
-      const hasProto = targetUrl.toLowerCase().includes('http://') || targetUrl.toLowerCase().includes('https://');
-      const hasPath = targetUrl.includes('/');
-      if (hasProto || hasPath) {
-        this.formError.set('Para este tipo de monitor (Ping/Puerto/DNS/SNMP), el destino debe ser un host o IP puro (sin http://, https:// ni rutas).');
-        this.isSubmitting.set(false);
-        return;
-      }
-    }
-
-    const payload: Partial<IMonitor> = {
-      name: this.formModel.name,
-      type: this.formModel.type,
-      target: this.formModel.type !== 'push' ? targetUrl : undefined,
-      port: this.formModel.type === 'port' ? this.formModel.port : undefined,
-      interval: this.formModel.interval,
-      retries: this.formModel.retries,
-      group: this.formModel.group?.trim() || null as any,
-      tags: this.formModel.tags,
-      isActive: true,
-      notificationIds: this.formModel.notificationIds
-    };
-
-    if (this.formModel.type === 'http') {
-      Object.assign(payload, {
-        keyword: this.formModel.keyword?.trim() || undefined,
-        keywordMethod: this.formModel.keyword?.trim() ? this.formModel.keywordMethod : undefined,
-        ignoreTls: this.formModel.ignoreTls,
-        userAgent: this.formModel.userAgent?.trim() || undefined,
-        integrityEnabled: this.formModel.integrityEnabled,
-        integrityProfile: this.formModel.integrityEnabled ? this.formModel.integrityProfile : undefined,
-        integrityThreshold: this.formModel.integrityEnabled ? this.formModel.integrityThreshold : undefined,
-        integrityIgnoredCssSelectors: this.formModel.integrityEnabled ? this.formModel.integrityIgnoredCssSelectors : undefined
-      });
-    } else if (this.formModel.type === 'dns') {
-      Object.assign(payload, {
-        dnsResolver: this.formModel.dnsResolver?.trim() || undefined,
-        dnsRecordType: this.formModel.dnsRecordType
-      });
-    } else if (this.formModel.type === 'snmp') {
-      Object.assign(payload, {
-        snmpVersion: this.formModel.snmpVersion,
-        snmpCommunity: this.formModel.snmpVersion !== 'v3' ? this.formModel.snmpCommunity : undefined,
-        snmpPort: this.formModel.snmpPort,
-        snmpOid: this.formModel.snmpOid,
-        snmpV3Username: this.formModel.snmpVersion === 'v3' ? this.formModel.snmpV3Username : undefined,
-        snmpV3AuthProtocol: this.formModel.snmpVersion === 'v3' ? this.formModel.snmpV3AuthProtocol : undefined,
-        snmpV3AuthKey: this.formModel.snmpVersion === 'v3' ? this.formModel.snmpV3AuthKey : undefined,
-        snmpV3PrivProtocol: this.formModel.snmpVersion === 'v3' ? this.formModel.snmpV3PrivProtocol : undefined,
-        snmpV3PrivKey: this.formModel.snmpVersion === 'v3' ? this.formModel.snmpV3PrivKey : undefined,
-      });
-    }
-
-    if (this.isEditing() && this.selectedMonitor()) {
-      this.monitorService.update(this.selectedMonitor()!.id, payload).subscribe({
-        next: (updated) => {
-          this.isSubmitting.set(false);
-          this.showForm.set(false);
-          this.selectedMonitor.set(updated);
-          this.showSuccessToast('Monitor actualizado con éxito.');
-          this.loadRecentIncidents();
-        },
-        error: () => this.isSubmitting.set(false)
-      });
-    } else {
-      this.monitorService.create(payload).subscribe({
-        next: (created) => {
-          this.isSubmitting.set(false);
-          this.showForm.set(false);
-          this.selectMonitor(created);
-          this.showSuccessToast('Monitor creado y agendado con éxito.');
-          this.loadRecentIncidents();
-        },
-        error: () => this.isSubmitting.set(false)
-      });
-    }
+    this.toast.show(msg);
   }
 
   togglePause(monitor: IMonitor): void {
@@ -2232,28 +1537,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   onDelete(id: string): void {
-    this.monitorIdToDelete = id;
-    this.showConfirmDelete.set(true);
-  }
-
-  confirmDelete(): void {
-    if (this.monitorIdToDelete) {
-      this.monitorService.delete(this.monitorIdToDelete).subscribe({
+    this.confirm.ask(this.lang.t('monitor.modal.deleteTitle'), this.lang.t('monitor.modal.deleteMsg'), () => {
+      this.monitorService.delete(id).subscribe({
         next: () => {
           this.showSuccessToast('Monitor eliminado correctamente.');
           this.selectedMonitor.set(null);
-          this.showConfirmDelete.set(false);
-          this.monitorIdToDelete = null;
           this.loadData();
           this.loadRecentIncidents();
         }
       });
-    }
-  }
-
-  cancelDelete(): void {
-    this.showConfirmDelete.set(false);
-    this.monitorIdToDelete = null;
+    });
   }
 
   onLogout(): void {
@@ -2283,9 +1576,5 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
 
     this.showSuccessToast(newValue ? '🌈 NyanCat Mode activado!' : '🐱 NyanCat Mode desactivado.');
-  }
-
-  toggleTheme(event: MouseEvent): void {
-    this.themeService.toggle(event);
   }
 }

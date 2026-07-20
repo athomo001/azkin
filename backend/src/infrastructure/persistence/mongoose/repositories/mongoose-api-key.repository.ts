@@ -39,6 +39,12 @@ export class MongooseApiKeyRepository implements IApiKeyRepository {
     return result.modifiedCount > 0;
   }
 
+  async delete(adminId: string, id: string): Promise<boolean> {
+    if (!Types.ObjectId.isValid(id)) return false;
+    const result = await ApiKeyModel.deleteOne({ _id: id, adminId });
+    return result.deletedCount > 0;
+  }
+
   async touchLastUsed(id: string): Promise<void> {
     await ApiKeyModel.updateOne({ _id: id }, { lastUsedAt: new Date() });
   }

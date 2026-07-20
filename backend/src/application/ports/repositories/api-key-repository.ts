@@ -18,5 +18,7 @@ export interface IApiKeyRepository {
   findAllByAdmin(adminId: string): Promise<IApiKey[]>;
   /** Revoca una key; devuelve false si no existe o no pertenece al admin. */
   revoke(adminId: string, id: string): Promise<boolean>;
+  /** Elimina la key permanentemente; devuelve false si no existe o no pertenece al admin. */
+  delete(adminId: string, id: string): Promise<boolean>;
   touchLastUsed(id: string): Promise<void>;
 }

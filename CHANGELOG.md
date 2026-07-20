@@ -4,6 +4,14 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Added
+- **Eliminación permanente de API Keys:** además de "Revocar" (invalida la key de inmediato pero la conserva en el listado), ahora existe "Eliminar" en `/settings` → pestaña **API**, que la borra por completo (`DELETE /api/v1/api-keys/:id/purge`). Acción auditada e irreversible, con confirmación explícita antes de ejecutarse.
+
+### Changed
+- **Descomposición de `settings.ts` y `dashboard.ts` (AZ-016):** ambos componentes "Dios" del frontend se dividieron en subcomponentes por dominio. `settings.ts` pasó de 1897 a 171 líneas (6 pestañas extraídas a componentes propios: TLS, Auditoría, API Keys, Respaldos, Viewers, Alertas) y ganó dos servicios/componentes compartidos nuevos (`ConfirmService`/`ConfirmModalComponent`, `ToastService`/`ToastComponent`). `dashboard.ts` pasó de 2291 a 1580 líneas (KPIs/incidentes, navbar y formulario de alta/edición de monitor extraídos a componentes propios); la parte más entrelazada (gráficos ECharts, panel de detalle, árbol de monitores del sidebar) queda documentada como remanente pendiente en `ISSUES.md` (AZ-016).
+
 ## [1.2.0] - 2026-07-19
 
 Release grande: cierra una auditoría de seguridad crítica, un lote de 8 mejoras de UX/funcionalidad

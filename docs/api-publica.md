@@ -81,7 +81,8 @@ Códigos específicos de la API pública:
 |---|---|---|
 | `POST` | `/api/v1/api-keys` | Crea una key. Body: `{ "name": string, "scopes": ("read"\|"write")[] }`. Devuelve `plainKey` una única vez. |
 | `GET` | `/api/v1/api-keys` | Lista las keys del Admin (solo `keyPrefix`, nunca la key completa) |
-| `DELETE` | `/api/v1/api-keys/:id` | Revoca una key inmediatamente |
+| `DELETE` | `/api/v1/api-keys/:id` | Revoca una key inmediatamente (la key sigue apareciendo en el listado, marcada como revocada) |
+| `DELETE` | `/api/v1/api-keys/:id/purge` | Elimina la key permanentemente (deja de aparecer en el listado; no se puede deshacer) |
 
 ## 6. Ejemplos con curl
 

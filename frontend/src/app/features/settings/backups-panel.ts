@@ -1,0 +1,275 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
+import { Component, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
+import { LanguageService } from '../../core/services/language.service';
+import { ToastService } from '../../core/services/toast.service';
+import { FileDownloadService } from '../../core/services/file-download.service';
+import { MonitorService } from '../../core/services/monitor.service';
+import { extractApiErrorMessage } from '../../core/utils/api-error.util';
+
+interface BackupEntry {
+  id: string;
+  strategy: string;
+  createdAt: string;
+}
+
+interface CsvImportResult {
+  createdCount: number;
+  updatedCount: number;
+  errors: { row: number; message: string }[];
+}
+
+/**
+ * Pestaña "Respaldos": export/import JSON (AZ-005) + importación masiva de monitores vía CSV
+ * (AZ-028). Extraido de settings.ts (AZ-016).
+ */
+@Component({
+  selector: 'app-backups-panel',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  template: `
+    <div class="max-w-xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
+      <div class="p-6 space-y-6">
+        <div>
+          <h3 class="text-sm font-bold text-white tracking-tight">{{ lang.t('settings.backups.sectionTitle') }}</h3>
+          <p class="text-[11px] text-zinc-500 mt-0.5">{{ lang.t('settings.backups.sectionDesc') }}</p>
+        </div>
+
+        <!-- AZ-005: estrategia de respaldo -->
+        <div class="flex gap-4 text-xs">
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="radio" name="backupStrategy" value="accumulate" [(ngModel)]="backupStrategy" class="text-orange-500 focus:ring-0">
+            Acumular respaldos
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="radio" name="backupStrategy" value="replace" [(ngModel)]="backupStrategy" class="text-orange-500 focus:ring-0">
+            Reemplazar último respaldo
+          </label>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+          <button (click)="createBackup()"
+            class="flex flex-col items-center justify-center p-6 rounded-xl bg-zinc-950/40 hover:bg-zinc-950 border border-zinc-850 hover:border-zinc-700 text-center transition-all cursor-pointer group">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-zinc-500 group-hover:text-orange-500 transition-colors mb-3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            <span class="text-xs font-black text-white">{{ lang.t('settings.backups.exportBtn') }}</span>
+            <span class="text-[10px] text-zinc-500 mt-1 font-medium">{{ lang.t('settings.backups.exportDesc') }}</span>
+          </button>
+
+          <div class="relative">
+            <input type="file" (change)="importBackup($event)" accept=".json" id="importFile" class="hidden">
+            <label for="importFile"
+              class="flex flex-col items-center justify-center p-6 rounded-xl bg-zinc-950/40 hover:bg-zinc-950 border border-zinc-850 hover:border-zinc-700 text-center transition-all cursor-pointer group h-full">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-zinc-500 group-hover:text-orange-500 transition-colors mb-3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+              </svg>
+              <span class="text-xs font-black text-white">{{ lang.t('settings.backups.importBtn') }}</span>
+              <span class="text-[10px] text-zinc-500 mt-1 font-medium">{{ lang.t('settings.backups.importDesc') }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- AZ-005: respaldos persistidos -->
+        <div class="border-t border-zinc-850 pt-4 space-y-2">
+          <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Respaldos guardados</span>
+          @if (savedBackups().length === 0) {
+            <p class="text-[11px] text-zinc-600">Aún no hay respaldos guardados.</p>
+          } @else {
+            @for (b of savedBackups(); track b.id) {
+              <div class="flex items-center justify-between bg-zinc-950/60 border border-zinc-900 px-3 py-2 rounded-lg text-[11px]">
+                <div>
+                  <span class="text-zinc-300 font-semibold">{{ b.createdAt | date:'short' }}</span>
+                  <span class="text-zinc-600 ml-2 uppercase text-[9px] font-bold">{{ b.strategy }}</span>
+                </div>
+                <button (click)="downloadBackup(b.id)" class="text-orange-500 hover:text-orange-400 font-bold">Descargar</button>
+              </div>
+            }
+          }
+        </div>
+
+        <!-- AZ-028: importación masiva de monitores vía CSV -->
+        <div class="border-t border-zinc-850 pt-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Importar monitores (CSV)</span>
+            <button (click)="downloadCsvTemplate()" class="text-[10px] text-orange-500 hover:text-orange-400 font-bold">Descargar plantilla CSV</button>
+          </div>
+
+          <div class="relative"
+            (dragover)="$event.preventDefault()"
+            (drop)="onCsvDrop($event)">
+            <input type="file" (change)="onCsvFileSelected($event)" accept=".csv" id="csvImportFile" class="hidden">
+            <label for="csvImportFile"
+              class="flex flex-col items-center justify-center p-6 rounded-xl bg-zinc-950/40 hover:bg-zinc-950 border border-dashed border-zinc-800 hover:border-orange-500/50 text-center transition-all cursor-pointer">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-zinc-500 mb-2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
+              </svg>
+              <span class="text-xs font-black text-white">Arrastra un CSV o haz clic para subir</span>
+              <span class="text-[10px] text-zinc-500 mt-1 font-medium">Columnas: name, type, target, port, interval, retries, retryInterval, group, tags</span>
+              <span class="text-[10px] text-zinc-600 mt-1">Si un valor contiene comas, enciérralo entre comillas dobles (ej. "Produccion, Santiago")</span>
+              <span class="text-[10px] text-zinc-700 mt-0.5">¿Tildes/ñ se ven como "Ã³"/"Ã±" en Excel? Abre el archivo con Datos → Desde texto/CSV y elige codificación UTF-8, en vez de doble clic.</span>
+            </label>
+          </div>
+
+          @if (isImportingCsv()) {
+            <p class="text-[11px] text-zinc-500">Importando...</p>
+          }
+
+          @if (csvImportResult(); as result) {
+            <div class="bg-zinc-950/60 border border-zinc-900 rounded-lg p-3 text-[11px] space-y-2">
+              <p class="text-zinc-300">Creados: <span class="font-bold text-emerald-500">{{ result.createdCount }}</span> · Actualizados: <span class="font-bold text-orange-400">{{ result.updatedCount }}</span> · Errores: <span class="font-bold" [class.text-rose-500]="result.errors.length > 0">{{ result.errors.length }}</span></p>
+              @if (result.errors.length > 0) {
+                <div class="max-h-32 overflow-y-auto space-y-1 border-t border-zinc-900 pt-2">
+                  @for (e of result.errors; track e.row) {
+                    <p class="text-rose-400 font-mono text-[10px]">Fila {{ e.row }}: {{ e.message }}</p>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  `
+})
+export class BackupsPanelComponent {
+  private readonly http = inject(HttpClient);
+  private readonly toast = inject(ToastService);
+  private readonly fileDownload = inject(FileDownloadService);
+  private readonly monitorService = inject(MonitorService);
+  public readonly lang = inject(LanguageService);
+
+  backupStrategy: 'accumulate' | 'replace' = 'accumulate';
+  readonly savedBackups = signal<BackupEntry[]>([]);
+
+  readonly isImportingCsv = signal(false);
+  readonly csvImportResult = signal<CsvImportResult | null>(null);
+
+  constructor() {
+    this.loadBackups();
+  }
+
+  loadBackups(): void {
+    this.http.get<BackupEntry[]>('/api/v1/backup').subscribe({
+      next: (data) => this.savedBackups.set(data),
+      error: () => {}
+    });
+  }
+
+  createBackup(): void {
+    this.http.post<{ payload: unknown; deletedCount: number }>('/api/v1/backup', { strategy: this.backupStrategy }).subscribe({
+      next: (res) => {
+        this.fileDownload.downloadJson(res.payload, 'azkin-backup');
+        this.toast.show(
+          this.backupStrategy === 'replace'
+            ? `Respaldo creado (se reemplazaron ${res.deletedCount} anteriores).`
+            : 'Respaldo creado correctamente.'
+        );
+        this.loadBackups();
+      },
+      error: () => this.toast.show('Error al generar el respaldo.')
+    });
+  }
+
+  downloadBackup(id: string): void {
+    this.http.get(`/api/v1/backup/${id}`).subscribe({
+      next: (payload) => this.fileDownload.downloadJson(payload, 'azkin-backup'),
+      error: () => this.toast.show('Error al descargar el respaldo.')
+    });
+  }
+
+  downloadCsvTemplate(): void {
+    const csv = [
+      // "sep=," fuerza a Excel a usar coma como separador de columnas al abrir el archivo con
+      // doble clic, sin importar la configuración regional (en locales que usan coma como
+      // separador decimal, Excel espera ';' y de otro modo vuelca todo en una sola columna).
+      // Debe ser la primera línea del archivo para que Excel la reconozca; el backend la
+      // descarta antes de parsear (no es una fila de datos).
+      'sep=,',
+      // Líneas que empiezan con '#' son comentarios: viajan con el archivo pero el backend las
+      // ignora al importar (no son datos de un monitor). Sin comas dentro del texto (si no,
+      // Excel las corta en varias columnas) y en ASCII puro (sin tildes/ñ/¿/—): son texto plano
+      // que debe leerse bien en cualquier Excel, sin depender de que respete un BOM UTF-8.
+      '# Plantilla de importacion de monitores - Azkin',
+      '# Columnas: name | type | target | port | interval | retries | retryInterval | group | tags',
+      '# Valores validos para type: http | ping | port | dns | snmp | push',
+      '# http = HTTP / HTTPS | ping = Ping (ICMP) | port = Port TCP | dns = DNS Resolution',
+      '# snmp = SNMP Agent | push = Push (Pasivo)',
+      '# target es obligatorio salvo si type=push | port es obligatorio si type=port',
+      '# dns y snmp solo traen los campos basicos por CSV: configura resolver/OID despues editando el monitor en la UI',
+      '# Si un valor necesita una coma (ej. un nombre o grupo descriptivo) encierralo entre comillas dobles - ver ejemplo abajo',
+      '# Las tags se separan con ; dentro de la misma celda (ej. web;produccion)',
+      '# Lineas que empiezan con # son comentarios y se ignoran al importar',
+      'name,type,target,port,interval,retries,retryInterval,group,tags',
+      'Sitio de ejemplo,http,https://ejemplo.com,,60,0,60,General,web;produccion',
+      // Si un valor necesita contener una coma (ej. un nombre o grupo descriptivo), enciérralo
+      // entre comillas dobles — así no se interpreta como un separador de columna.
+      '"Otro sitio, con coma en el nombre",http,https://ejemplo2.com,,60,0,60,"Produccion, Santiago",web',
+    ].join('\n');
+    // Prefijo BOM UTF-8 para que Excel muestre correctamente tildes/ñ al abrir el archivo directo.
+    this.fileDownload.downloadText(String.fromCharCode(0xfeff) + csv, 'text/csv;charset=utf-8', 'azkin-monitores-plantilla.csv');
+  }
+
+  onCsvDrop(event: DragEvent): void {
+    event.preventDefault();
+    const file = event.dataTransfer?.files?.[0];
+    if (file) this.processCsvFile(file);
+  }
+
+  onCsvFileSelected(event: any): void {
+    const file = event.target.files[0];
+    if (file) this.processCsvFile(file);
+    event.target.value = '';
+  }
+
+  private processCsvFile(file: File): void {
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      const csv = String(e.target.result);
+      this.isImportingCsv.set(true);
+      this.csvImportResult.set(null);
+      this.http.post<CsvImportResult>('/api/v1/monitors/bulk-import', { csv }).subscribe({
+        next: (result) => {
+          this.isImportingCsv.set(false);
+          this.csvImportResult.set(result);
+          this.monitorService.loadMonitors().subscribe();
+          this.toast.show(`Importación completada: ${result.createdCount} creados, ${result.updatedCount} actualizados.`);
+        },
+        error: (err) => {
+          this.isImportingCsv.set(false);
+          this.toast.show(extractApiErrorMessage(err, 'Error al importar el CSV.'));
+        }
+      });
+    };
+    reader.readAsText(file);
+  }
+
+  importBackup(event: any): void {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        this.http.post('/api/v1/backup/import', data).subscribe({
+          next: (res: any) => {
+            this.toast.show(`Importado con éxito. Nuevos: ${res.importedCount}, Actualizados: ${res.updatedCount}`);
+            this.monitorService.loadMonitors().subscribe();
+            event.target.value = '';
+          },
+          error: (err) => {
+            this.toast.show(extractApiErrorMessage(err, 'Error al importar los datos en el servidor.'));
+            event.target.value = '';
+          }
+        });
+      } catch {
+        this.toast.show('El archivo seleccionado no es un JSON válido.');
+        event.target.value = '';
+      }
+    };
+    reader.readAsText(file);
+  }
+}

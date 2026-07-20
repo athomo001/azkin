@@ -46,7 +46,7 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-013](#az-013-violaciones-de-capas-statscontrollerts-consulta-mongoose-directamente-y-composition-rootts-contiene-logica-de-negocio) | Violaciones de capas: controller consulta Mongoose directo | Backend | Media | [x] Resuelto |
 | [AZ-014](#az-014-entidad-monitor-sobrecargada-codigo-de-error-de-cuota-duplicado-y-mapeadores-de-repositorio-repetidos) | Entidad `Monitor` sobrecargada, error de cuota duplicado, mappers repetidos | Backend | Baja | [x] Resuelto |
 | [AZ-015](#az-015-cobertura-de-pruebas-casi-nula-en-el-backend-pese-a-una-arquitectura-disenada-para-ser-testeable) | Cobertura de pruebas casi nula en el backend | Backend | Media | [x] Resuelto |
-| [AZ-016](#az-016-componentes-dios-en-el-frontend-dashboardts-2300-lineas-y-settingsts-1180-lineas-sin-descomposicion) | Componentes "Dios": `dashboard.ts` (~2300L) y `settings.ts` (~1180L) | Frontend | Media-Alta | [ ] Abierto |
+| [AZ-016](#az-016-componentes-dios-en-el-frontend-dashboardts-2300-lineas-y-settingsts-1180-lineas-sin-descomposicion) | Componentes "Dios": `dashboard.ts` (~2300L) y `settings.ts` (~1180L) | Frontend | Media-Alta | [~] Mayormente resuelto |
 | [AZ-017](#az-017-el-token-de-acceso-se-persiste-en-localstorage-expuesto-a-xss-y-contradice-el-diseno-de-cookie-segura-del-spec) | JWT en `localStorage` (expuesto a XSS), contradice diseno de cookie | Frontend | Alta | [x] Resuelto |
 | [AZ-018](#az-018-tipado-any-generalizado-en-los-servicios-core-y-logica-de-normalizacion-de-estado-duplicada-8-veces-con-comportamiento-divergente) | `any` en servicios core + normalizacion de estado duplicada 8 veces | Frontend | Media | [x] Resuelto |
 | [AZ-019](#az-019-manejo-de-errores-http-inconsistente-en-el-frontend-3-formatos-distintos-uno-produce-object-object-y-ausencia-total-de-pruebas) | Manejo de errores HTTP inconsistente + cero pruebas unitarias | Frontend | Media | [x] Resuelto |
@@ -570,39 +570,56 @@ La suite pasó de 21 a 38 pruebas (`pnpm test`), incluyendo el caso de mayor rie
 
 ## AZ-016) Componentes "Dios" en el frontend: `dashboard.ts` (~2300 lineas) y `settings.ts` (~1180 lineas) sin descomposicion
 - Codigo: AZ-016
-- Estado: [ ] Abierto (diferido — ver nota)
+- Estado: [~] Mayormente resuelto — pendiente checkpoint visual de `dashboard.ts` en navegador
 - Prioridad: Media-Alta
 - Reportado: 2026-07-18
 
-### Nota (2026-07-19)
-Deliberadamente **no** se abordó en esta sesión: `dashboard.ts` y `settings.ts` crecieron aún más
-(a ~2277 y ~1849 líneas respectivamente) por las features agregadas en AZ-022 a AZ-032, lo que hace
-la descomposición más necesaria pero también de mayor superficie de riesgo. Intentar una
-descomposición de ~4000 líneas combinadas al final de una sesión larga, sin un test runner de
-frontend funcional (`ng test` no tiene builder configurado, ver AZ-019) ni navegador disponible
-para QA visual, se evaluó como el tipo de cambio que debe hacerse con verificación manual
-dedicada en el navegador, no de forma apurada. Recomendación: abordar como sesión propia,
-empezando por el subcomponente más aislado de cada archivo (`BulkActionsBar` en dashboard,
-`TlsPanelComponent`/`AuditLogPanelComponent` en settings), verificando visualmente cada extracción
-antes de continuar con la siguiente.
+### Nota (2026-07-20)
+Se ejecutó por fases, con `tsc --noEmit` + `ng build` como red de seguridad después de cada
+extracción (no hay test runner de frontend, ver AZ-019, ni navegador disponible para el asistente).
+
+**Fase 1 — `settings.ts`: completa y confirmada en navegador por el usuario.** Se extrajeron las 6
+pestañas a componentes propios (`tls-panel.ts`, `audit-log-panel.ts`, `api-keys-panel.ts`,
+`backups-panel.ts`, `viewers-panel.ts`, `alerts-panel.ts`) más 4 componentes compartidos nuevos
+(`ConfirmService`/`ConfirmModalComponent`, `ToastService`/`ToastComponent`,
+`ChangePasswordModalComponent`, `EmojiPickerComponent`). `settings.ts` bajó de 1897 a 171 líneas,
+quedando como puro orquestador (tab activo + restauración de `?tab=`).
+
+**Fase 2 — `dashboard.ts`: extracción completa, falta el checkpoint visual del usuario.** Se
+extrajeron `QuickStatsPanelComponent` (KPIs + incidentes recientes), `DashboardNavbarComponent`
+(logo, tema/idioma, NyanCat, logout) y `MonitorFormComponent` (slide-over crear/editar monitor,
+las 6 variantes de tipo de monitor), además de reusar `ConfirmModalComponent` (Fase 1) para los dos
+modales de borrado. `dashboard.ts` bajó de 2291 a 1580 líneas. **Pendiente**: el usuario aún no
+confirmó visualmente esta fase (navbar, KPIs/click-through de incidentes, alta/edición de los 6
+tipos de monitor, ambos modales de borrado).
+
+**Fuera de alcance, documentado como remanente explícito** (no intentado, por ser la parte más
+entrelazada y riesgosa sin navegador disponible para QA): los charts ECharts
+(`initChart`/`updateChart`/`initGroupChart`/`updateGroupChart`, ~330 líneas) y el panel de detalle
+de monitor/grupo que los aloja, junto con el árbol de monitores del sidebar — todos comparten
+estado en vivo (`selectedMonitor`/`selectedGroup`/`historyPoints`/`groupHistoryMap`) con el handler
+de heartbeats de Socket.io y el efecto NyanCat embebido en las opciones de ECharts. Recomendación:
+abordar en sesión propia con navegador disponible para verificar visualmente el re-render por
+tema, el efecto NyanCat y las actualizaciones en vivo por heartbeat antes/después de cada cambio.
 
 ### Descripcion
 `frontend/src/app/features/dashboard/dashboard.ts` tiene ~2322 lineas (plantilla inline de ~990 lineas + ~1290 lineas de logica: CRUD de monitores, renderizado de ECharts, manejo de heartbeats por Socket.io, filtrado de historial, calculo de bloques de uptime, borrado masivo, tema/nyan-cat, i18n, agregacion de grupos — todo en una sola clase). `settings.ts` tiene ~1184 lineas mezclando 5 dominios funcionales no relacionados (canales de alerta, viewers, perfil, respaldos, TLS) en un solo componente. No existen subcomponentes extraidos pese a que el proyecto ya tiene un patron establecido en `shared/components` (`badge-status.ts`, `skeleton-loader.ts`). `group-dashboard.ts` (137 lineas) demuestra que el mismo dominio (graficos de grupo) puede resolverse en un componente pequeno y enfocado.
 
 ### Comportamiento esperado
-1. `dashboard.ts` se descompone en subcomponentes presentacionales (ej. `MonitorListComponent`, `MonitorDetailPanel`, `MonitorFormModal`, `MonitorChart`, `BulkActionsBar`) comunicados via `input()`/`output()`/signals.
-2. `settings.ts` se descompone por pestana/dominio (`AlertsPanelComponent`, `ViewersPanelComponent`, `ProfilePanelComponent`, `BackupsPanelComponent`, `TlsPanelComponent`).
-3. Cada subcomponente cabe holgadamente en una sola pantalla de revision de codigo (referencia orientativa: <400 lineas).
+1. ~~`dashboard.ts` se descompone en subcomponentes presentacionales~~ — hecho parcialmente:
+   `QuickStatsPanelComponent`, `DashboardNavbarComponent`, `MonitorFormComponent` extraidos.
+   `MonitorDetailPanel`/`MonitorChart` (ECharts + seleccion) quedan fuera de alcance, ver nota.
+2. ~~`settings.ts` se descompone por pestana/dominio~~ — hecho, las 6 pestanas extraidas.
+3. Cada subcomponente cabe holgadamente en una sola pantalla de revision de codigo (referencia orientativa: <400 lineas) — cumplido en todos los subcomponentes nuevos.
 
 ### Criterios de aceptacion
-1. `dashboard.ts` y `settings.ts` (los archivos "orquestadores") quedan por debajo de ~400-500 lineas cada uno.
-2. Cada subcomponente extraido es importable/testeable de forma aislada.
-3. La build de Angular (`ng build`) sigue pasando sin regresiones visuales tras la extraccion (verificar manualmente el dashboard y settings en el navegador).
+1. `settings.ts` queda por debajo de ~400-500 lineas — cumplido (171 lineas). `dashboard.ts` baja de 2291 a 1580 lineas pero no llega al rango objetivo porque el remanente entrelazado (charts + panel de detalle + sidebar) queda fuera de alcance, ver nota.
+2. Cada subcomponente extraido es importable/testeable de forma aislada — cumplido.
+3. La build de Angular (`ng build`) sigue pasando sin regresiones visuales tras la extraccion — verificado por build para ambas fases; falta la confirmacion visual del usuario en navegador para la Fase 2 (dashboard).
 
 ### Pistas de investigacion
-- `frontend/src/app/features/dashboard/dashboard.ts` y `frontend/src/app/features/settings/settings.ts`.
-- Empezar por el dominio mas aislado de cada archivo (ej. `BulkActionsBar` en dashboard, `TlsPanelComponent` en settings) para validar el patron antes de migrar el resto.
-- Aprovechar la extraccion para anadir las primeras pruebas unitarias (ver AZ-019) a los subcomponentes nuevos.
+- `frontend/src/app/features/dashboard/dashboard.ts` (remanente: charts ECharts, panel de detalle, sidebar) y `frontend/src/app/features/settings/settings.ts` (completo).
+- Aprovechar una futura sesión con navegador disponible para anadir las primeras pruebas unitarias (ver AZ-019) a los subcomponentes nuevos.
 
 ---
 
