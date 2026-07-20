@@ -123,6 +123,23 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
                   class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
               </div>
             </div>
+
+            @if (formModel.type === 'http') {
+              <div class="animate-fade-in">
+                <div class="flex items-center gap-2">
+                  <input type="checkbox" [(ngModel)]="formModel.ignoreTls" id="ignoreTls"
+                    class="rounded border-zinc-800 text-orange-500 focus:ring-0 cursor-pointer">
+                  <label for="ignoreTls" class="text-xs text-zinc-300 font-bold cursor-pointer select-none">
+                    {{ lang.t('monitor.modal.ignoreTlsLabel') }}
+                  </label>
+                </div>
+                @if (formModel.ignoreTls) {
+                  <p class="mt-2 text-[11px] leading-relaxed text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 animate-fade-in">
+                    {{ lang.t('monitor.modal.ignoreTlsHint') }}
+                  </p>
+                }
+              </div>
+            }
           </div>
 
           <!-- Campos de SNMP -->
