@@ -20,4 +20,6 @@ export interface IBackupRepository {
   findById(id: string): Promise<IBackup | null>;
   /** Elimina todos los respaldos previos. Devuelve la cantidad eliminada. */
   deleteAll(): Promise<number>;
+  /** Elimina un respaldo puntual. Devuelve false si no existía. */
+  deleteById(id: string): Promise<boolean>;
 }

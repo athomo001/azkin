@@ -2,8 +2,11 @@
 import { Request, Response } from "express";
 import { ApplyTlsConfigUseCase } from "../../../application/use-cases/system/apply-tls-config.usecase";
 import { GetTlsConfigUseCase } from "../../../application/use-cases/system/get-tls-config.usecase";
-import { GetSmtpStatusUseCase, SmtpStatusInput } from "../../../application/use-cases/system/get-smtp-status.usecase";
+import { GetSmtpStatusUseCase } from "../../../application/use-cases/system/get-smtp-status.usecase";
 import { SendTestEmailUseCase } from "../../../application/use-cases/system/send-test-email.usecase";
+import { GetAppSmtpChannelUseCase } from "../../../application/use-cases/system/get-app-smtp-channel.usecase";
+import { SetAppSmtpChannelUseCase } from "../../../application/use-cases/system/set-app-smtp-channel.usecase";
+import { ISmtpConfigResolver } from "../../../application/ports/services/smtp-config-resolver";
 import { ValidationError } from "../../../domain/errors/domain-error";
 
 export class SystemController {
@@ -12,7 +15,9 @@ export class SystemController {
     private readonly getTlsConfigUseCase: GetTlsConfigUseCase,
     private readonly getSmtpStatusUseCase: GetSmtpStatusUseCase,
     private readonly sendTestEmailUseCase: SendTestEmailUseCase,
-    private readonly smtpConfig: SmtpStatusInput,
+    private readonly smtpConfigResolver: ISmtpConfigResolver,
+    private readonly getAppSmtpChannelUseCase: GetAppSmtpChannelUseCase,
+    private readonly setAppSmtpChannelUseCase: SetAppSmtpChannelUseCase,
   ) {}
 
   getTlsConfig = async (_req: Request, res: Response): Promise<void> => {
@@ -38,7 +43,13 @@ export class SystemController {
   };
 
   getSmtpStatus = async (_req: Request, res: Response): Promise<void> => {
-    const status = this.getSmtpStatusUseCase.execute(this.smtpConfig);
+    const resolved = await this.smtpConfigResolver.resolve();
+    const status = this.getSmtpStatusUseCase.execute({
+      host: resolved.host,
+      port: resolved.port ?? 587,
+      secure: resolved.secure ?? false,
+      user: resolved.user,
+    });
     res.status(200).json(status);
   };
 
@@ -49,5 +60,25 @@ export class SystemController {
     }
     await this.sendTestEmailUseCase.execute(recipient);
     res.status(200).json({ message: "Correo de prueba enviado exitosamente." });
+  };
+
+  /**
+   * Devuelve qué canal de notificación (si alguno) está siendo reutilizado como SMTP de
+   * aplicación en vez de `AZKIN_SMTP_*`.
+   */
+  getAppSmtpChannel = async (_req: Request, res: Response): Promise<void> => {
+    const result = await this.getAppSmtpChannelUseCase.execute();
+    res.status(200).json(result);
+  };
+
+  /**
+   * Elige (o quita, con `null`) el canal de notificación de tipo email a reutilizar como SMTP
+   * de aplicación.
+   */
+  setAppSmtpChannel = async (req: Request, res: Response): Promise<void> => {
+    const actorId = req.adminId!;
+    const notificationChannelId = req.body.notificationChannelId ?? null;
+    await this.setAppSmtpChannelUseCase.execute(actorId, notificationChannelId);
+    res.status(200).json({ message: "SMTP de aplicación actualizado." });
   };
 }

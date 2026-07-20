@@ -1275,3 +1275,70 @@ Adicionalmente, no existía ninguna forma de dejar una instancia como recién in
 1. Crear un respaldo completo, purgar la instancia y restaurar ese respaldo devuelve monitores, canales y cuentas al estado previo.
 2. El botón de purga no puede activarse sin escribir la palabra de confirmación exacta, y no borra al admin configurado en `AZKIN_FIRST_ADMIN_EMAIL`/`NAME`.
 3. Un respaldo `v1.0` (solo monitores) descargado antes de este cambio se puede seguir restaurando sin error.
+
+---
+
+## AZ-038) El respaldo completo (AZ-037) importaba 0 admins/viewers en silencio, y no había forma de borrar respaldos guardados antiguos
+- Codigo: AZ-038
+- Estado: [x] Resuelto
+- Prioridad: Alta
+- Reportado: 2026-07-20
+- Resuelto: 2026-07-20
+
+### Resolucion
+- Causa raíz: `findAllAdmins()`/`findAllViewersGlobal()` en `mongoose-user.repository.ts` no incluían `.select("+passwordHash")` — el campo tiene `select: false` en el schema (nunca vuelve en queries por defecto, ver `user.schema.ts`), así que `CreateBackupUseCase` exportaba cada admin/viewer con `passwordHash: ""`. `backupAdminSchema`/`backupViewerSchema` en `ImportBackupUseCase` exigen `passwordHash` no vacío (`.min(1)`), así que **todas** las cuentas del archivo fallaban su validación al importar. El resultado (`admins.errors`/`viewers.errors`) sí traía el detalle, pero `backups-panel.ts` solo mostraba los conteos `createdCount`/`updatedCount` en el toast — nunca `errors.length` — así que el usuario veía "0 nuevos, 0 actualizados" sin ningún indicio de que algo había fallado.
+- Fix: se agregó el `.select("+passwordHash")` explícito en ambos métodos (igual que ya hacían `findByEmail`/`findByIdentifier`). El resultado de importar ahora se persiste en un signal y se muestra en un panel bajo los botones de exportar/importar, con conteos por sección (admins/viewers/canales) y el detalle de cada error si los hay.
+- Se agregó además `DELETE /api/v1/backup/:id` (`DeleteBackupUseCase`, auditado) y el botón "Eliminar" junto a "Descargar" en la lista de respaldos guardados.
+- Tests: `delete-backup.usecase.test.ts` (elimina + audita; `NotFoundError` si no existe).
+
+### Descripcion
+Un usuario con 4 cuentas admin en su instancia hizo un respaldo completo y lo importó en otra instancia (o la misma, para probar el nuevo AZ-037): el resultado mostró "Admins: 0 nuevos, 0 actualizados · Viewers: 0 nuevos, 0 actualizados" pese a que los canales de notificación y los monitores sí se restauraron correctamente, sin ningún mensaje de error visible. Además, la lista de "Respaldos guardados" solo permitía descargar cada entrada, nunca eliminarla, así que se acumulaban indefinidamente.
+
+### Comportamiento esperado
+1. Exportar un respaldo completo incluye el `passwordHash` real de cada admin/viewer, no una cadena vacía.
+2. Si una sección del respaldo (admins/viewers/canales) falla al importar, la UI muestra cuántos registros fallaron y por qué, no solo "0 nuevos, 0 actualizados".
+3. Existe un botón para eliminar un respaldo guardado puntual sin afectar a los demás.
+
+### Criterios de aceptacion
+1. Exportar un respaldo completo con varias cuentas admin y volver a importarlo (misma instancia u otra) crea/actualiza esas cuentas correctamente, no 0/0.
+2. Si se sube un archivo con una cuenta inválida, el panel de resultado bajo el botón de importar muestra el error específico de esa fila.
+3. El botón "Eliminar" en la lista de respaldos guardados borra solo ese respaldo (con confirmación) y registra auditoría.
+
+### Pistas de investigacion
+- `backend/src/infrastructure/persistence/mongoose/repositories/mongoose-user.repository.ts` (`findAllAdmins`, `findAllViewersGlobal`).
+- `backend/src/infrastructure/persistence/mongoose/schemas/user.schema.ts` (`passwordHash: { select: false }`).
+- `frontend/src/app/features/settings/backups-panel.ts` (`importBackup()`, antes descartaba `errors` de cada sección).
+
+---
+
+## AZ-039) SMTP de aplicación y SMTP de canal de alerta Email obligaban a configurar la misma información dos veces
+- Codigo: AZ-039
+- Estado: [x] Resuelto
+- Prioridad: Media
+- Reportado: 2026-07-20
+- Resuelto: 2026-07-20
+
+### Resolucion
+- Nueva colección singleton `AppSmtpSettings` (`app-smtp-settings.schema.ts`, mismo patrón que `TlsConfig`) que guarda, como mucho, el `notificationChannelId` a reutilizar (o `null` para usar `AZKIN_SMTP_*`).
+- `SmtpMailer` dejó de recibir un `SmtpConfig` estático por constructor: ahora recibe un `ISmtpConfigResolver` y resuelve la configuración en cada envío. `ResolveAppSmtpConfig` (nueva, en `application/services/`) implementa ese puerto: sin canal seleccionado usa `AZKIN_SMTP_*`; con uno seleccionado, busca el canal (`INotificationRepository.findById`) y si sigue existiendo y es de tipo `email`, mapea sus campos (`smtpHost/Port/Username/Password/Secure/From`) al `SmtpConfig` efectivo — si el canal fue borrado o cambió de tipo, cae de vuelta a las variables de entorno con una advertencia en el log.
+- Nuevos casos de uso `GetAppSmtpChannelUseCase`/`SetAppSmtpChannelUseCase` (éste último valida que el canal exista y sea de tipo email) y endpoints `GET`/`PUT /api/v1/system/smtp/channel`.
+- UI en `/settings` → **TLS/Sistema**: si existe al menos un canal de tipo Email, aparece un selector "Fuente del SMTP de aplicación" con la opción de usar variables de entorno o reutilizar cualquiera de los canales Email existentes.
+- Tests: `resolve-app-smtp-config.test.ts`, `get-app-smtp-channel.usecase.test.ts`, `set-app-smtp-channel.usecase.test.ts`.
+
+### Descripcion
+El SMTP de aplicación (correo de recuperación de contraseña, `AZKIN_SMTP_*`) y el SMTP de un canal de notificación tipo Email (`config.smtpHost/Port/Username/Password`) eran dos configuraciones completamente independientes en el código, aunque en la práctica casi siempre apuntan al mismo proveedor de correo saliente — un admin que ya configuró el canal de alerta por correo tenía que repetir host/usuario/contraseña por segunda vez (vía variables de entorno, reiniciando el contenedor) solo para que la recuperación de contraseña funcionara.
+
+### Comportamiento esperado
+1. Si existe al menos un canal de notificación de tipo Email, el admin puede elegir reutilizar su SMTP para la recuperación de contraseña, sin repetir la configuración.
+2. Elegir "ninguno"/variables de entorno preserva el comportamiento anterior sin romper instalaciones existentes.
+3. Si el canal reutilizado se edita después, el SMTP de aplicación sigue automáticamente esos cambios (no es una copia estática).
+
+### Criterios de aceptacion
+1. Con un canal Email configurado, seleccionarlo como "Fuente del SMTP de aplicación" y enviar un correo de prueba usa las credenciales de ese canal.
+2. Cambiar la contraseña SMTP del canal reutilizado (sin volver a seleccionarlo) hace que el siguiente correo de prueba use la contraseña nueva.
+3. Si el canal reutilizado se elimina, el sistema cae de vuelta a `AZKIN_SMTP_*` sin que la recuperación de contraseña deje de funcionar (si esas variables están configuradas).
+
+### Pistas de investigacion
+- `backend/src/infrastructure/notifier/smtp-mailer.ts`, `backend/src/application/services/resolve-app-smtp-config.ts`.
+- `backend/src/domain/entities/notification.ts` (`EmailConfig`, mismos campos que ya usa `multichannel-notifier.ts` para enviar alertas).
+- `frontend/src/app/features/settings/tls-panel.ts` (sección "SMTP de Aplicación").

@@ -13,5 +13,6 @@ export function backupRoutes(controller: BackupController): Router {
   router.get("/purge-preview", requireRole("admin"), asyncHandler(controller.purgePreview));
   // Debe ir al final: "/:id" matchearía "/purge-preview" como si fuera un id si se registrara antes.
   router.get("/:id", requireRole("admin"), asyncHandler(controller.download));
+  router.delete("/:id", requireRole("admin"), asyncHandler(controller.delete));
   return router;
 }

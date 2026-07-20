@@ -12,5 +12,7 @@ export function systemRoutes(controller: SystemController): Router {
   router.put("/tls", requireRole("admin"), validateBody(applyTlsConfigSchema), asyncHandler(controller.applyTlsConfig));
   router.get("/smtp", requireRole("admin"), asyncHandler(controller.getSmtpStatus));
   router.post("/smtp/test", requireRole("admin"), asyncHandler(controller.sendTestEmail));
+  router.get("/smtp/channel", requireRole("admin"), asyncHandler(controller.getAppSmtpChannel));
+  router.put("/smtp/channel", requireRole("admin"), asyncHandler(controller.setAppSmtpChannel));
   return router;
 }

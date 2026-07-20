@@ -1,10 +1,11 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { LanguageService } from '../../core/services/language.service';
 import { ToastService } from '../../core/services/toast.service';
+import { NotificationService } from '../../core/services/notification.service';
 import { extractApiErrorMessage } from '../../core/utils/api-error.util';
 
 interface TlsStatus {
@@ -20,6 +21,11 @@ interface SmtpStatus {
   host?: string;
   port?: number;
   secure?: boolean;
+}
+
+interface AppSmtpChannel {
+  notificationChannelId: string | null;
+  channelName: string | null;
 }
 
 /**
@@ -107,9 +113,30 @@ interface SmtpStatus {
             <span class="text-[9px] font-black uppercase tracking-wider text-zinc-500 bg-zinc-950/60 border border-zinc-850 rounded px-1.5 py-0.5">No es un canal de alerta</span>
           </div>
           <p class="text-[11px] text-zinc-500 mt-0.5">
-            Exclusivo para el correo de recuperación de contraseña — no envía alertas de monitores. Se configura vía variables de entorno del servidor, no desde esta pantalla. Para notificar caídas/recuperaciones por correo, crea un canal de tipo "Email (SMTP)" en la pestaña {{ lang.t('settings.tabAlerts') }}.
+            Exclusivo para el correo de recuperación de contraseña — no envía alertas de monitores. Por defecto se configura vía variables de entorno del servidor, pero puedes reutilizar el SMTP de un canal de tipo "Email (SMTP)" ya configurado en la pestaña {{ lang.t('settings.tabAlerts') }} en vez de repetir la configuración.
           </p>
         </div>
+
+        @if (emailChannels().length > 0) {
+          <div class="border-t border-zinc-850 pt-4">
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Fuente del SMTP de aplicación</label>
+            <div class="flex items-center gap-3">
+              <select [ngModel]="appSmtpChannelId()" (ngModelChange)="onAppSmtpChannelChange($event)"
+                class="flex-1 bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500">
+                <option [ngValue]="null">Variables de entorno (AZKIN_SMTP_*)</option>
+                @for (c of emailChannels(); track c.id) {
+                  <option [ngValue]="c.id">Reutilizar canal: {{ c.name }}</option>
+                }
+              </select>
+              @if (isSavingAppSmtpChannel()) {
+                <span class="text-[10px] text-zinc-500">Guardando...</span>
+              }
+            </div>
+            <p class="text-[10px] text-zinc-600 mt-1.5">
+              Si eliges un canal, el SMTP de aplicación sigue automáticamente cualquier cambio que hagas después en ese canal — no es una copia, es una referencia viva.
+            </p>
+          </div>
+        }
 
         @if (smtpStatus()?.configured) {
           <div class="bg-zinc-950/60 border border-emerald-900/40 rounded-lg p-3 text-[11px] space-y-1">
@@ -142,6 +169,7 @@ interface SmtpStatus {
 export class TlsPanelComponent {
   private readonly http = inject(HttpClient);
   private readonly toast = inject(ToastService);
+  private readonly notificationService = inject(NotificationService);
   public readonly lang = inject(LanguageService);
 
   readonly tlsStatus = signal<TlsStatus | null>(null);
@@ -152,9 +180,15 @@ export class TlsPanelComponent {
   readonly isSendingTestEmail = signal(false);
   smtpTestRecipient = '';
 
+  readonly emailChannels = computed(() => this.notificationService.channels().filter(c => c.type === 'email'));
+  readonly appSmtpChannelId = signal<string | null>(null);
+  readonly isSavingAppSmtpChannel = signal(false);
+
   constructor() {
     this.loadTlsStatus();
     this.loadSmtpStatus();
+    this.notificationService.loadChannels().subscribe();
+    this.loadAppSmtpChannel();
   }
 
   loadTlsStatus(): void {
@@ -168,6 +202,30 @@ export class TlsPanelComponent {
     this.http.get<SmtpStatus>('/api/v1/system/smtp').subscribe({
       next: (status) => this.smtpStatus.set(status),
       error: () => {}
+    });
+  }
+
+  loadAppSmtpChannel(): void {
+    this.http.get<AppSmtpChannel>('/api/v1/system/smtp/channel').subscribe({
+      next: (res) => this.appSmtpChannelId.set(res.notificationChannelId),
+      error: () => {}
+    });
+  }
+
+  onAppSmtpChannelChange(notificationChannelId: string | null): void {
+    this.isSavingAppSmtpChannel.set(true);
+    this.http.put<{ message: string }>('/api/v1/system/smtp/channel', { notificationChannelId }).subscribe({
+      next: () => {
+        this.isSavingAppSmtpChannel.set(false);
+        this.appSmtpChannelId.set(notificationChannelId);
+        this.toast.show('SMTP de aplicación actualizado.');
+        this.loadSmtpStatus();
+      },
+      error: (err) => {
+        this.isSavingAppSmtpChannel.set(false);
+        this.toast.show(extractApiErrorMessage(err, 'Error al actualizar el SMTP de aplicación.'));
+        this.loadAppSmtpChannel();
+      }
     });
   }
 
