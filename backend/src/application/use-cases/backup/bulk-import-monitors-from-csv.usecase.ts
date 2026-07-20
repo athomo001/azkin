@@ -68,35 +68,51 @@ export class BulkImportMonitorsFromCsvUseCase {
     // sola columna). Papaparse no la entiende como directiva, así que se descarta antes de parsear.
     csvContent = csvContent.replace(/^sep=.\r?\n/, "");
 
-    const parsed = Papa.parse<Record<string, string>>(csvContent, {
-      header: true,
-      skipEmptyLines: true,
-      // Líneas que empiecen con '#' son comentarios del usuario (ej. la plantilla descargada
-      // trae notas de uso) — se ignoran por completo, no son datos de un monitor.
-      comments: "#",
-      // Descarta también un BOM UTF-8 que haya quedado pegado al primer encabezado (algunos
-      // editores/Excel lo agregan al guardar; Papaparse ya lo recorta del contenido, pero no
-      // siempre del nombre de la primera columna parseada).
-      transformHeader: (h) => (h.charCodeAt(0) === 0xfeff ? h.slice(1) : h).trim(),
+    // Se conserva 'comments: "#"' porque ayuda a Papaparse a adivinar el delimitador real del
+    // archivo (sin ella, las líneas de prosa del comentario diluyen la muestra y el auto-detect
+    // falla). Pero esa opción por sí sola NO es suficiente para descartar comentarios: solo mira
+    // el caracter crudo al inicio de la línea, ANTES de interpretar comillas. Si una celda de
+    // comentario del usuario queda citada (ej. porque contiene el propio delimitador del
+    // archivo — común cuando la plantilla se reabre y regraba con Excel/Sheets en una
+    // configuración regional que usa ';' como separador de columnas, ya que entonces cualquier
+    // ';' *dentro* de un comentario debe citarse para no cortarlo en columnas), esa línea deja
+    // de "empezar con #" a nivel de texto crudo: Papaparse ya no la reconoce como comentario y
+    // se cuela como si fuera una fila más. Por eso parseamos sin 'header' y filtramos nosotros
+    // mismos por la PRIMERA CELDA YA PARSEADA (con comillas resueltas) antes de decidir cuál fila
+    // es el encabezado — inmune a esto sin importar qué delimitador termine usando el archivo.
+    const rawParsed = Papa.parse<string[]>(csvContent, { skipEmptyLines: true, comments: "#" });
+    const dataRows = rawParsed.data.filter((row) => {
+      const firstCell = (row[0] ?? "").trim();
+      return firstCell.length > 0 && !firstCell.startsWith("#");
     });
 
     const errors: BulkImportRowError[] = [];
     const validRows: { rowNumber: number; data: z.infer<typeof csvRowSchema> }[] = [];
 
-    parsed.data.forEach((rawRow, idx) => {
-      const rowNumber = idx + 2; // fila 1 es el encabezado
-      // Papaparse produce "" para celdas vacías; se normaliza a undefined para que los
-      // campos opcionales (ej. port) no fallen su coerción numérica (Number("") === 0).
-      const normalizedRow = Object.fromEntries(
-        Object.entries(rawRow).map(([k, v]) => [k, v === "" ? undefined : v]),
-      );
-      const result = csvRowSchema.safeParse(normalizedRow);
-      if (!result.success) {
-        errors.push({ row: rowNumber, message: result.error.issues.map((i) => i.message).join("; ") });
-        return;
-      }
-      validRows.push({ rowNumber, data: result.data });
-    });
+    if (dataRows.length > 0) {
+      const [rawHeader, ...bodyRows] = dataRows;
+      // Descarta un BOM UTF-8 que haya quedado pegado al primer encabezado (algunos
+      // editores/Excel lo agregan al guardar; ya se recorta del contenido completo más arriba,
+      // pero no siempre del nombre de la primera columna parseada).
+      const header = rawHeader.map((h) => (h.charCodeAt(0) === 0xfeff ? h.slice(1) : h).trim());
+
+      bodyRows.forEach((row, idx) => {
+        const rowNumber = idx + 2; // fila 1 es el encabezado
+        const rawRow = Object.fromEntries(header.map((key, i) => [key, row[i]]));
+        // Papaparse produce "" (o undefined si la fila es más corta que el encabezado) para
+        // celdas vacías; se normaliza a undefined para que los campos opcionales (ej. port) no
+        // fallen su coerción numérica (Number("") === 0).
+        const normalizedRow = Object.fromEntries(
+          Object.entries(rawRow).map(([k, v]) => [k, v === "" || v === undefined ? undefined : v]),
+        );
+        const result = csvRowSchema.safeParse(normalizedRow);
+        if (!result.success) {
+          errors.push({ row: rowNumber, message: result.error.issues.map((i) => i.message).join("; ") });
+          return;
+        }
+        validRows.push({ rowNumber, data: result.data });
+      });
+    }
 
     const existing = await this.monitors.findAll();
     const existingMap = new Map(existing.map((m) => [`${m.name}-${m.target}`, m]));

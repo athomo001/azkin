@@ -391,6 +391,11 @@ export class MonitorFormComponent implements OnInit {
   }
 
   private getEmptyForm() {
+    // Si existe exactamente un canal de notificación activo, se preselecciona por defecto
+    // (con 2+ canales, onSave() exige una elección explícita en vez de adivinar cuál).
+    const activeChannels = this.notificationChannels().filter(ch => ch.isActive);
+    const defaultNotificationIds = activeChannels.length === 1 ? [activeChannels[0].id] : [];
+
     return {
       name: '',
       type: 'http' as MonitorType,
@@ -424,7 +429,7 @@ export class MonitorFormComponent implements OnInit {
       integrityProfile: 'static' as 'static' | 'dynamic',
       integrityThreshold: 0.10,
       integrityIgnoredCssSelectors: [] as string[],
-      notificationIds: [] as string[]
+      notificationIds: defaultNotificationIds
     };
   }
 
@@ -532,6 +537,17 @@ export class MonitorFormComponent implements OnInit {
         this.isSubmitting.set(false);
         return;
       }
+    }
+
+    // Con 2+ canales activos disponibles, exige una elección explícita en vez de guardar
+    // silenciosamente sin ninguno seleccionado — evita monitores que nunca avisan porque
+    // el canal se creó después del monitor y nadie volvió a revisarlo (con exactamente 1
+    // canal activo, getEmptyForm() ya lo preseleccionó por defecto).
+    const activeChannelCount = this.notificationChannels().filter(ch => ch.isActive).length;
+    if (activeChannelCount >= 2 && this.formModel.notificationIds.length === 0) {
+      this.formError.set(this.lang.t('monitor.modal.noChannelSelected'));
+      this.isSubmitting.set(false);
+      return;
     }
 
     const payload: Partial<IMonitor> = {

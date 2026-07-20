@@ -177,6 +177,10 @@ const TRANSLATIONS = {
         en: 'Azkin and this target run on the same physical machine (another container, another Docker Compose stack, or a native process). If the direct check fails due to networking (not because the service is actually down), Azkin will automatically retry over an internal route before marking it down.',
       },
       'monitor.modal.ignoreTlsLabel': { es: 'Ignorar validación de certificado SSL/TLS', en: 'Ignore SSL/TLS certificate validation' },
+      'monitor.modal.noChannelSelected': {
+        es: 'Selecciona al menos un canal de notificación en "Canales de Alerta" antes de guardar — hay varios configurados y ninguno quedaría avisado si el monitor se cae.',
+        en: 'Select at least one notification channel under "Alert Channels" before saving — several are configured and none would be notified if the monitor goes down.',
+      },
       'monitor.modal.ignoreTlsHint': {
         es: 'Actívalo si este HTTPS usa un certificado autofirmado, vencido, o emitido por una CA interna/corporativa que tu navegador confía pero el contenedor de Azkin no (caso típico: acceder por IP en vez de dominio). Sin esto, el chequeo falla con "fetch failed" aunque el servicio esté arriba y tu navegador lo cargue sin problema.',
         en: 'Enable this if the HTTPS service uses a self-signed, expired, or internal/corporate-CA certificate that your browser trusts but the Azkin container does not (typical case: accessing by IP instead of domain). Without this, the check fails with "fetch failed" even though the service is up and loads fine in your browser.',
