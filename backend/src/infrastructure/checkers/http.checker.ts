@@ -3,6 +3,7 @@ import tls from "tls";
 import { CheckResult, ICheckStrategy } from "../../application/ports/services/check-strategy";
 import { IMonitor } from "../../domain/entities/monitor";
 import { getErrorMessage } from "../../application/services/get-error-message";
+import { HOST_GATEWAY_HOSTNAME, shouldAttemptHostGatewayFallback } from "./same-host-fallback";
 
 /**
  * Consulta de manera nativa los días restantes para la caducidad del certificado SSL.
@@ -148,9 +149,63 @@ export class HttpChecker implements ICheckStrategy {
       if (error instanceof Error && error.name === "AbortError") {
         return { ok: false, ping: null, msg: "timeout", certExpiry, domainExpiry };
       }
+
+      const fallback = await this.tryHostGatewayFallback(monitor, error, headers, dispatcher, start);
+      if (fallback) return { ...fallback, certExpiry, domainExpiry };
+
       return { ok: false, ping: null, msg: getErrorMessage(error, "request failed"), certExpiry, domainExpiry };
     } finally {
       clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Monitorear un servicio que corre en el mismo servidor físico que Azkin (otro contenedor
+   * suelto, otro docker compose, o un proceso nativo) puede fallar si se usa la IP LAN del
+   * servidor como target: un contenedor no siempre puede alcanzarla, según el firewall/red del
+   * host — aunque el servicio esté perfectamente arriba. Si el error es de conexión (no una
+   * respuesta HTTP real) y el target es una IP privada (o el monitor marcó explícitamente
+   * `sameHostAsAzkin`, para cubrir un dominio/hostname que resuelve al propio servidor),
+   * reintenta una sola vez contra el mismo puerto/ruta vía HOST_GATEWAY_HOSTNAME (ver
+   * same-host-fallback.ts) antes de declarar caído. Devuelve null si el fallback no aplica o
+   * tampoco funcionó — el llamador cae al mensaje de error original.
+   */
+  private async tryHostGatewayFallback(
+    monitor: IMonitor,
+    originalError: unknown,
+    headers: Record<string, string>,
+    dispatcher: any,
+    start: number,
+  ): Promise<CheckResult | null> {
+    const code = (originalError as { cause?: { code?: string } })?.cause?.code;
+
+    let fallbackUrl: URL;
+    try {
+      fallbackUrl = new URL(monitor.target);
+    } catch {
+      return null;
+    }
+    if (!shouldAttemptHostGatewayFallback(fallbackUrl.hostname, monitor.sameHostAsAzkin, code)) return null;
+    fallbackUrl.hostname = HOST_GATEWAY_HOSTNAME;
+
+    const fallbackController = new AbortController();
+    const fallbackTimer = setTimeout(() => fallbackController.abort(), 5_000);
+    try {
+      const res = await fetch(fallbackUrl.toString(), {
+        signal: fallbackController.signal,
+        redirect: "follow",
+        headers,
+        ...(dispatcher ? { dispatcher } : {}),
+      } as any);
+      if (res.status >= 400) return null;
+      const ping = Math.round(performance.now() - start);
+      const msg = `${res.status} ${res.statusText}`.trim() +
+        ` (vía ${HOST_GATEWAY_HOSTNAME}: ${monitor.target} no alcanzable directamente desde el contenedor)`;
+      return { ok: true, ping, msg };
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(fallbackTimer);
     }
   }
 }

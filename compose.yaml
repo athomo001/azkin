@@ -49,6 +49,14 @@ services:
       # fijo del Dockerfile), así que el mapeo host:contenedor debe coincidir con
       # ese mismo número en ambos lados.
       - "${AZKIN_HTTPS_PORT:-8443}:${AZKIN_HTTPS_PORT:-8443}"
+    extra_hosts:
+      # Los checkers HTTP/Puerto/Ping (infrastructure/checkers/same-host-fallback.ts) usan
+      # este hostname portable como fallback AUTOMÁTICO cuando un monitor apunta a una IP
+      # privada del MISMO servidor físico (otro contenedor suelto, otro docker compose, o
+      # un proceso nativo) que no es alcanzable vía su IP LAN desde dentro del contenedor,
+      # según el firewall/red del host. Quien configura el monitor no necesita saber nada
+      # de esto — sigue usando la IP/dominio real del servicio. Ver docs/instalacion-docker.md §10.
+      - "host.docker.internal:host-gateway"
     environment:
       # Puerto interno de escucha del proceso — constante arquitectónica, no un
       # valor configurable por el operador (ver AZKIN_BACK_PORT arriba para exponerlo).

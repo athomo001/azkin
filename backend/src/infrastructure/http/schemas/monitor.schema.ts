@@ -27,6 +27,7 @@ export const createMonitorSchema = z
     headers: z.record(z.string()).optional(),
     userAgent: z.string().optional(),
     ignoreTls: z.boolean().optional(),
+    sameHostAsAzkin: z.boolean().optional(),
     
     // Opciones específicas
     keyword: z.string().optional(),
@@ -103,6 +104,7 @@ export const updateMonitorSchema = z
     headers: z.record(z.string()).optional(),
     userAgent: z.string().optional(),
     ignoreTls: z.boolean().optional(),
+    sameHostAsAzkin: z.boolean().optional(),
 
     keyword: z.string().optional(),
     keywordMethod: z.enum(["presence", "absence"]).optional(),

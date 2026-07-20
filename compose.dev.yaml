@@ -40,6 +40,10 @@ services:
       - "${AZKIN_BACK_PORT:-3000}:3000"
       # AZ-006: puerto HTTPS nativo, solo se usa si se aplica una configuración TLS desde la UI.
       - "${AZKIN_HTTPS_PORT:-8443}:${AZKIN_HTTPS_PORT:-8443}"
+    extra_hosts:
+      # Ver compose.yaml — permite monitorear servicios del mismo host vía
+      # 'host.docker.internal' en vez de su IP LAN.
+      - "host.docker.internal:host-gateway"
     environment:
       # Puerto interno de escucha del proceso — constante, no derivado del host.
       AZKIN_PORT: 3000

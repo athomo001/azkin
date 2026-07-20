@@ -35,6 +35,7 @@ export interface MonitorDoc {
   headers?: Map<string, string>;
   userAgent?: string;
   ignoreTls?: boolean;
+  sameHostAsAzkin?: boolean;
 
   // Detección de Defacement (Integridad)
   integrityEnabled?: boolean;
@@ -96,6 +97,7 @@ const monitorSchema = new Schema<MonitorDoc>(
     headers: { type: Map, of: String, default: {} },
     userAgent: { type: String, default: "" },
     ignoreTls: { type: Boolean, default: false },
+    sameHostAsAzkin: { type: Boolean, default: false },
 
     integrityEnabled: { type: Boolean, default: false },
     integrityProfile: { type: String, enum: ["static", "dynamic"], default: "static" },

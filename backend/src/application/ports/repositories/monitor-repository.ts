@@ -34,6 +34,7 @@ export interface CreateMonitorData {
   headers?: Record<string, string>;
   userAgent?: string;
   ignoreTls?: boolean;
+  sameHostAsAzkin?: boolean;
   integrityEnabled?: boolean;
   integrityProfile?: "static" | "dynamic";
   integrityIgnoredCssSelectors?: string[];
@@ -74,6 +75,7 @@ export interface UpdateMonitorData {
   headers?: Record<string, string>;
   userAgent?: string;
   ignoreTls?: boolean;
+  sameHostAsAzkin?: boolean;
   integrityEnabled?: boolean;
   integrityProfile?: "static" | "dynamic";
   integrityIgnoredCssSelectors?: string[];

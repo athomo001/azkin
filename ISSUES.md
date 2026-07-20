@@ -33,6 +33,7 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-027](#az-027-modo-tv-kiosko-isTvSessionEnabled-no-hace-nada-ni-siquiera-extiende-la-sesion) | Modo TV/Kiosko (`isTvSessionEnabled`) no hace nada, ni siquiera extiende la sesion | Media | [x] Resuelto |
 | [AZ-028](#az-028-no-existe-importacion-masiva-de-monitores-solo-restauracion-completa-de-respaldo-json) | No existe importacion masiva de monitores (solo restauracion completa de respaldo JSON) | Media | [x] Resuelto |
 | [AZ-029](#az-029-no-existe-api-publica-para-integrar-sistemas-externos-sin-usar-sesion-de-usuario) | No existe API publica para integrar sistemas externos sin usar sesion de usuario | Media-Alta | [x] Resuelto |
+| [AZ-035](#az-035-respaldo-granular-de-activos-exportacionimportacion-molecular-de-monitores) | Respaldo granular de activos: exportacion/importacion molecular de monitores | Media | [ ] Abierto |
 
 ### Calidad de codigo / deuda tecnica (auditoria senior)
 
@@ -55,6 +56,7 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-031](#az-031-la-configuracion-smtp-a-nivel-de-aplicacion-para-recuperacion-de-contrasena-no-tiene-pantalla-de-administracion-ni-boton-de-prueba) | SMTP de aplicacion (recuperacion de contrasena) sin pantalla de administracion ni prueba | Backend | Media | [x] Resuelto |
 | [AZ-032](#az-032-botones-de-solo-icono-sin-nombre-accesible-aria-label-title-en-varios-puntos-del-dashboard) | Botones de solo-icono sin nombre accesible (`aria-label`/`title`) en varios puntos | Frontend | Baja | [x] Resuelto |
 | [AZ-033](#az-033-benchmark-uxui-y-propuesta-de-identidad-visual-diferenciada-frente-a-uptime-robot-y-uptime-kuma) | Benchmark UX/UI y propuesta de identidad visual diferenciada frente a Uptime Robot y Uptime Kuma | Frontend | Media | [ ] Abierto |
+| [AZ-034](#az-034-limpieza-de-codigo-eliminar-referencias-a-numeros-de-ticket-o-issues) | Limpieza de código: eliminar referencias a números de ticket o issues | Backend/Frontend | Baja | [ ] Abierto |
 
 ---
 
@@ -1115,3 +1117,53 @@ Feedback de usuario tras la primera revision: el heatmap de bloques por chequeo 
 - Mockup y especificacion visual: artifact "Pulso — Propuesta de identidad visual Azkin" (incluye vista de detalle con bloques + latencia, toggle de tema y Modo NyanCat).
 - `frontend/src/styles.css` (tokens de color actuales, bloque `body.kiosk-mode`).
 - `frontend/src/app/features/dashboard/dashboard.ts` (tarjetas de monitor, `uptimeBlocks()`, grafico de latencia con ECharts, `isNyanCatMode()`/`toggleNyanCat()`, `isLightTheme`).
+
+---
+
+## AZ-034) Limpieza de código: eliminar referencias a números de ticket o issues
+- Codigo: AZ-034
+- Estado: [ ] Abierto
+- Prioridad: Baja
+- Reportado: 2026-07-20
+
+### Descripcion
+En todo el codebase (código fuente backend y frontend, archivos de configuración, `.env`, Docker Compose, etc.) existen comentarios y descripciones de pruebas unitarias que contienen referencias a números de tickets o issues internos (como `AZ-003`, `AZ-006`, etc.). Se requiere eliminar estas referencias para mantener un código limpio y libre de marcas temporales de backlog, conservando únicamente las explicaciones funcionales.
+
+### Comportamiento esperado
+1. Ningún archivo de configuración, docker-compose, ni código fuente (`.ts`, `.html`, `.css`, etc.) del backend o frontend debe contener cadenas del tipo `AZ-XXX` (salvo los archivos de documentación histórica como `ISSUES.md` y `CHANGELOG.md`).
+2. Los comentarios funcionales deben mantenerse pero sin el prefijo del ticket (ejemplo: `// AZ-006: si ya existe...` pasa a `// Si ya existe...` con mayúscula inicial).
+3. Las descripciones de pruebas unitarias que mencionen `(AZ-XXX)` o `(regresión AZ-XXX)` se limpian para describir solo la funcionalidad probada.
+
+### Criterios de aceptacion
+1. Búsqueda en lote de `AZ-\d{3}` no arroja resultados en `backend/src`, `frontend/src`, `.env.example`, `compose.yaml` ni `compose.dev.yaml`.
+2. Las pruebas unitarias continúan pasando sin errores tras la limpieza de texto.
+
+### Pistas de investigacion
+- Usar un script en Node.js o comandos del editor para buscar con la expresión regular `\bAZ-\d{3}\b`.
+- Limpiar manualmente las referencias en comentarios de código (`//`, `/* ... */`, `#`) y cadenas de texto en archivos de testing (`*.test.ts`, `*.spec.ts`).
+
+---
+
+## AZ-035) Respaldo granular de activos: exportación/importación molecular de monitores
+- Codigo: AZ-035
+- Estado: [ ] Abierto
+- Prioridad: Media
+- Reportado: 2026-07-20
+
+### Descripcion
+Actualmente, los respaldos se guardan en la colección `backups` de la base de datos de AZKIN y se manejan como una instantánea del sistema. Se requiere un mecanismo molecular específico para exportar e importar únicamente los activos monitoreados (monitores) en formato JSON, de forma que sea posible migrar o portar la configuración de los monitores de una instancia a otra en diferentes entornos/sectores de manera directa y sin conflictos.
+
+### Comportamiento esperado
+1. Un Administrador puede descargar directamente un archivo JSON que contiene exclusivamente el arreglo de monitores configurados, sin envolverlo en registros persistidos de backup de base de datos.
+2. Al importar un archivo JSON con los monitores en otra instancia de AZKIN, el sistema debe sanitizar e ignorar campos específicos de base de datos (`id`, `_id`, `userId`, `pushToken`, `createdAt`, `updatedAt`).
+3. Muy importante: Se deben limpiar o ignorar las referencias a notificaciones (`notificationIds: []`), ya que las notificaciones de la instancia de origen no existirán en la instancia de destino.
+
+### Criterios de aceptacion
+1. Endpoint `GET /api/v1/monitors/export` (o parámetro en el controlador de backups) que devuelva el listado limpio de monitores en formato JSON.
+2. Endpoint `POST /api/v1/monitors/import-assets` (o similar) que reciba el JSON de monitores, omitiendo `notificationIds`, regenerando `pushToken` si es tipo push, y asignando el nuevo `userId` del administrador que realiza la importación.
+3. Interfaz de usuario en `/settings` (pestaña de respaldos) que incluya botones claros para "Exportar Activos (JSON)" y "Importar Activos (JSON)".
+
+### Pistas de investigacion
+- Estudiar `backend/src/application/use-cases/backup/import-backup.usecase.ts` y adaptarlo o crear un caso de uso hermano que reciba la lista de activos directamente.
+- Modificar el controlador de monitores `backend/src/infrastructure/http/controllers/monitor.controller.ts` para integrar los nuevos métodos de importación/exportación molecular de activos.
+- En el frontend, agregar los métodos en `backups-panel.ts` usando `FileDownloadService` para la descarga directa del JSON.

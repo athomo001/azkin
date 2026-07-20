@@ -171,6 +171,11 @@ const TRANSLATIONS = {
       'monitor.modal.name': { es: 'Nombre Descriptivo', en: 'Descriptive Name' },
       'monitor.modal.type': { es: 'Tipo de Monitor', en: 'Monitor Type' },
       'monitor.modal.target': { es: 'Target / Host / IP', en: 'Target / Host / IP' },
+      'monitor.modal.sameHostLabel': { es: 'Este objetivo vive en el mismo servidor que Azkin', en: 'This target lives on the same server as Azkin' },
+      'monitor.modal.sameHostHint': {
+        es: 'Azkin y este objetivo corren en la misma máquina física (otro contenedor, otro Docker Compose, o un proceso nativo). Si el chequeo directo falla por red (no porque el servicio esté realmente caído), Azkin reintentará automáticamente por una ruta interna antes de marcarlo como caído.',
+        en: 'Azkin and this target run on the same physical machine (another container, another Docker Compose stack, or a native process). If the direct check fails due to networking (not because the service is actually down), Azkin will automatically retry over an internal route before marking it down.',
+      },
       'monitor.modal.sec2': { es: '2. Temporizadores y Umbrales', en: '2. Timers & Thresholds' },
       'monitor.modal.interval': { es: 'Intervalo (Seg.)', en: 'Interval (Sec.)' },
       'monitor.modal.retries': { es: 'Reintentos', en: 'Retries' },

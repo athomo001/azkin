@@ -22,6 +22,7 @@ export function toMonitorResponse(monitor: IMonitor & Partial<HeartbeatSummary>)
     isActive: monitor.isActive,
     notificationIds: monitor.notificationIds,
     ignoreTls: monitor.ignoreTls ?? false,
+    sameHostAsAzkin: monitor.sameHostAsAzkin ?? false,
     headers: monitor.headers ?? null,
     userAgent: monitor.userAgent ?? null,
     keyword: monitor.keyword ?? null,
