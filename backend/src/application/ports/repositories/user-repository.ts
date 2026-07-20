@@ -3,6 +3,8 @@ import { IUser } from "../../../domain/entities/user";
 
 export interface CreateUserData {
   email: string;
+  /** Opcional: permite iniciar sesión también por nombre de usuario, no solo por email. */
+  username?: string;
   passwordHash: string;
 }
 

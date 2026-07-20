@@ -8,6 +8,10 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 
 ### Added
 - **Eliminación permanente de API Keys:** además de "Revocar" (invalida la key de inmediato pero la conserva en el listado), ahora existe "Eliminar" en `/settings` → pestaña **API**, que la borra por completo (`DELETE /api/v1/api-keys/:id/purge`). Acción auditada e irreversible, con confirmación explícita antes de ejecutarse.
+- **Mostrar/ocultar contraseña en el login:** botón con ícono de ojo en el campo de contraseña de `/login`, igual que el resto de formularios de la industria — antes no había forma de verificar lo escrito antes de enviar el formulario.
+
+### Fixed
+- **`AZKIN_FIRST_ADMIN_NAME` no hacía nada:** el seeder del primer administrador (`seed-first-admin.ts`) leía la variable desde el `.env` pero nunca la pasaba al crear el usuario, así que el admin inicial quedaba sin `username` — intentar iniciar sesión con el nombre configurado (en vez del email) siempre fallaba con "Credenciales incorrectas", silenciosamente. Ahora `AZKIN_FIRST_ADMIN_NAME` se persiste como `username` del admin creado, utilizable en el campo "Correo o Usuario" del login igual que ya funcionaba para los Viewers.
 
 ### Changed
 - **Aislamiento de red Docker y limpieza de variables de entorno:** `azkin-db`, `azkin-back` y

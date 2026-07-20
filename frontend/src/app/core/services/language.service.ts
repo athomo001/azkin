@@ -105,6 +105,8 @@ const TRANSLATIONS = {
       'auth.login.registerHere': { es: 'Regístrate aquí', en: 'Register here' },
       'auth.login.error': { es: 'Credenciales incorrectas. Verifica tu usuario/correo y contraseña.', en: 'Incorrect credentials. Please verify your username/email and password.' },
       'auth.login.forgotPassword': { es: '¿Olvidaste tu contraseña?', en: 'Forgot your password?' },
+      'auth.login.showPassword': { es: 'Mostrar contraseña', en: 'Show password' },
+      'auth.login.hidePassword': { es: 'Ocultar contraseña', en: 'Hide password' },
       'auth.forgotPassword.subtitle': { es: 'Ingresa tu correo y te enviaremos instrucciones para recuperar tu contraseña.', en: 'Enter your email and we\'ll send you instructions to recover your password.' },
       'auth.forgotPassword.email': { es: 'Correo Electrónico', en: 'Email Address' },
       'auth.forgotPassword.btn': { es: 'Enviar instrucciones', en: 'Send instructions' },
