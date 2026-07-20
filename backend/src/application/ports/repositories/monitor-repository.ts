@@ -97,6 +97,8 @@ export interface IMonitorRepository {
   delete(id: string): Promise<boolean>;
   /** Borra múltiples monitores. Devuelve la cantidad realmente eliminada. */
   deleteMany(ids: string[]): Promise<number>;
+  /** Borra todos los monitores del pool global. Devuelve la cantidad eliminada ("Purgar instancia"). */
+  deleteAll(): Promise<number>;
   /** Contexto de sistema: monitores activos de todos los usuarios (bootstrap del scheduler). */
   findAllActive(): Promise<IMonitor[]>;
   distinctTags(): Promise<string[]>;

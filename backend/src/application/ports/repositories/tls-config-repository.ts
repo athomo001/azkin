@@ -16,4 +16,6 @@ export interface UpsertTlsConfigData {
 export interface ITlsConfigRepository {
   getActive(): Promise<ITlsConfig | null>;
   upsert(data: UpsertTlsConfigData): Promise<ITlsConfig>;
+  /** Elimina la configuración TLS activa, si existe (usado por "Purgar instancia"). */
+  deleteActive(): Promise<boolean>;
 }

@@ -4,6 +4,8 @@ import { CreateBackupUseCase } from "../../../application/use-cases/backup/creat
 import { ListBackupsUseCase } from "../../../application/use-cases/backup/list-backups.usecase";
 import { GetBackupUseCase } from "../../../application/use-cases/backup/get-backup.usecase";
 import { ImportBackupUseCase } from "../../../application/use-cases/backup/import-backup.usecase";
+import { PurgeInstanceUseCase } from "../../../application/use-cases/backup/purge-instance.usecase";
+import { GetPurgePreviewUseCase } from "../../../application/use-cases/backup/get-purge-preview.usecase";
 
 export class BackupController {
   constructor(
@@ -11,6 +13,10 @@ export class BackupController {
     private readonly listUseCase: ListBackupsUseCase,
     private readonly getUseCase: GetBackupUseCase,
     private readonly importUseCase: ImportBackupUseCase,
+    private readonly purgeUseCase: PurgeInstanceUseCase,
+    private readonly purgePreviewUseCase: GetPurgePreviewUseCase,
+    private readonly firstAdminEmail: string | undefined,
+    private readonly firstAdminName: string | undefined,
   ) {}
 
   create = async (req: Request, res: Response): Promise<void> => {
@@ -42,6 +48,26 @@ export class BackupController {
     const result = await this.importUseCase.execute({
       userId,
       monitors: req.body.monitors,
+      notifications: req.body.notifications,
+      admins: req.body.admins,
+      viewers: req.body.viewers,
+      tlsConfig: req.body.tlsConfig,
+    });
+    res.status(200).json(result);
+  };
+
+  purge = async (_req: Request, res: Response): Promise<void> => {
+    const result = await this.purgeUseCase.execute({
+      firstAdminEmail: this.firstAdminEmail,
+      firstAdminName: this.firstAdminName,
+    });
+    res.status(200).json(result);
+  };
+
+  purgePreview = async (_req: Request, res: Response): Promise<void> => {
+    const result = await this.purgePreviewUseCase.execute({
+      firstAdminEmail: this.firstAdminEmail,
+      firstAdminName: this.firstAdminName,
     });
     res.status(200).json(result);
   };

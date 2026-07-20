@@ -37,6 +37,8 @@ export interface IUserRepository {
   /** Cantidad total de cuentas con rol admin (usado para el auto-bootstrap de registro). */
   countAdmins(): Promise<number>;
   findAllAdmins(): Promise<IUser[]>;
+  /** Todos los viewers del sistema, sin filtrar por admin propietario (respaldo/exportación completa). */
+  findAllViewersGlobal(): Promise<IUser[]>;
   // Gestión de otras cuentas Admin
   updateAdminEmail(id: string, email: string): Promise<IUser | null>;
   setAdminBlocked(id: string, isBlocked: boolean): Promise<IUser | null>;
@@ -53,4 +55,10 @@ export interface IUserRepository {
   updateViewerPermissions(adminId: string, id: string, data: UpdateViewerPermissionsData): Promise<IUser | null>;
   deleteViewer(adminId: string, id: string): Promise<boolean>;
   updatePreferences(userId: string, prefs: { nyanCatMode: boolean }): Promise<void>;
+  /**
+   * Purga total de cuentas: elimina todos los admins y viewers salvo `keepUserId`.
+   * Usado por el botón "Purgar instancia" para dejar el sistema como recién instalado,
+   * conservando únicamente al admin sembrado por AZKIN_FIRST_ADMIN_* del .env.
+   */
+  deleteAllUsersExcept(keepUserId: string): Promise<{ deletedAdmins: number; deletedViewers: number }>;
 }

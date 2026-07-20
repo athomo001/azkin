@@ -135,6 +135,11 @@ export class MongooseUserRepository implements IUserRepository {
     return docs.map((doc) => this.toDomain(doc));
   }
 
+  async findAllViewersGlobal(): Promise<IUser[]> {
+    const docs = await UserModel.find({ role: "viewer" });
+    return docs.map((doc) => this.toDomain(doc));
+  }
+
   async findViewerById(adminId: string, id: string): Promise<IUser | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await UserModel.findOne({ _id: id, role: "viewer", adminId });
@@ -201,5 +206,16 @@ export class MongooseUserRepository implements IUserRepository {
     await UserModel.findByIdAndUpdate(userId, {
       $set: { 'preferences.nyanCatMode': prefs.nyanCatMode }
     });
+  }
+
+  async deleteAllUsersExcept(keepUserId: string): Promise<{ deletedAdmins: number; deletedViewers: number }> {
+    const [deletedAdmins, deletedViewers] = await Promise.all([
+      UserModel.deleteMany({ role: "admin", _id: { $ne: keepUserId } }),
+      UserModel.deleteMany({ role: "viewer", _id: { $ne: keepUserId } }),
+    ]);
+    return {
+      deletedAdmins: deletedAdmins.deletedCount ?? 0,
+      deletedViewers: deletedViewers.deletedCount ?? 0,
+    };
   }
 }

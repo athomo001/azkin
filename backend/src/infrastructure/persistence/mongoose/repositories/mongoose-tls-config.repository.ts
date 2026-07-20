@@ -27,6 +27,11 @@ export class MongooseTlsConfigRepository implements ITlsConfigRepository {
     return this.toDomain(doc!);
   }
 
+  async deleteActive(): Promise<boolean> {
+    const result = await TlsConfigModel.deleteOne({ _id: TLS_CONFIG_SINGLETON_ID });
+    return result.deletedCount > 0;
+  }
+
   private toDomain(doc: HydratedDocument<TlsConfigDoc>): ITlsConfig {
     return {
       id: toDomainId(doc._id),

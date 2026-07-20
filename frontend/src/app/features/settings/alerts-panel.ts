@@ -246,31 +246,31 @@ import { EmojiPickerComponent } from '../../shared/components/emoji-picker';
                   {{ lang.t('settings.alerts.eventsLabel') }}: {{ c.events === 'all' ? lang.t('settings.alerts.scopeAll') : (c.events.join(', ') || lang.t('settings.alerts.scopeNone')) }}
                 </p>
 
-                <div class="flex items-center justify-between border-t border-zinc-900 pt-3 text-[10px] font-bold">
-                  <div class="flex items-center gap-1.5">
+                <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-zinc-900 pt-3 text-[10px] font-bold">
+                  <div class="flex items-center gap-1.5 shrink-0">
                     <select [ngModel]="testEventFor(c.id)" (ngModelChange)="setTestEventFor(c.id, $event)"
                       class="bg-zinc-950 border border-zinc-800 rounded px-1.5 py-1 text-[9px] text-zinc-300 focus:outline-none focus:border-orange-500">
                       @for (evt of alertEventTypes; track evt) {
                         <option [value]="evt">{{ evt }}</option>
                       }
                     </select>
-                    <button (click)="onTestChannel(c.id)" class="text-orange-500 hover:text-orange-400 transition-colors flex items-center gap-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+                    <button (click)="onTestChannel(c.id)" class="text-orange-500 hover:text-orange-400 transition-colors flex items-center gap-1 whitespace-nowrap">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3 shrink-0">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
                       </svg>
                       {{ lang.t('settings.alerts.testChannel') }}
                     </button>
                   </div>
-                  <div class="flex items-center space-x-3">
+                  <div class="flex items-center gap-3 shrink-0">
                     <button (click)="onToggleChannelActive(c)"
                       [title]="c.isActive ? 'Pausar: deja de enviar alertas por este canal sin borrarlo ni desvincularlo de los monitores' : 'Reactivar este canal'"
                       [class.text-amber-500]="c.isActive" [class.hover:text-amber-400]="c.isActive"
                       [class.text-emerald-500]="!c.isActive" [class.hover:text-emerald-400]="!c.isActive"
-                      class="transition-colors">
+                      class="transition-colors whitespace-nowrap">
                       {{ c.isActive ? 'Pausar' : 'Reactivar' }}
                     </button>
-                    <button (click)="onEditChannel(c)" class="text-zinc-400 hover:text-zinc-200 transition-colors">{{ lang.t('settings.alerts.edit') }}</button>
-                    <button (click)="onDeleteChannel(c.id)" class="text-rose-500 hover:text-rose-400 transition-colors">{{ lang.t('settings.alerts.delete') }}</button>
+                    <button (click)="onEditChannel(c)" class="text-zinc-400 hover:text-zinc-200 transition-colors whitespace-nowrap">{{ lang.t('settings.alerts.edit') }}</button>
+                    <button (click)="onDeleteChannel(c.id)" class="text-rose-500 hover:text-rose-400 transition-colors whitespace-nowrap">{{ lang.t('settings.alerts.delete') }}</button>
                   </div>
                 </div>
               </div>
