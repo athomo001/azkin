@@ -68,6 +68,8 @@ import { CreateBackupUseCase } from "./application/use-cases/backup/create-backu
 import { ListBackupsUseCase } from "./application/use-cases/backup/list-backups.usecase";
 import { GetBackupUseCase } from "./application/use-cases/backup/get-backup.usecase";
 import { ImportBackupUseCase } from "./application/use-cases/backup/import-backup.usecase";
+import { PurgeInstanceUseCase } from "./application/use-cases/backup/purge-instance.usecase";
+import { GetPurgePreviewUseCase } from "./application/use-cases/backup/get-purge-preview.usecase";
 import { BulkImportMonitorsFromCsvUseCase } from "./application/use-cases/backup/bulk-import-monitors-from-csv.usecase";
 import { ExportMonitorAssetsUseCase } from "./application/use-cases/monitors/export-monitor-assets.usecase";
 import { ImportMonitorAssetsUseCase } from "./application/use-cases/monitors/import-monitor-assets.usecase";
@@ -225,10 +227,21 @@ export function buildContainer(env: Env): AppContainer {
   const deleteAdmin = new DeleteAdminUseCase(users, auditLog);
   const updateViewerPermissions = new UpdateViewerPermissionsUseCase(users);
   const deleteViewer = new DeleteViewerUseCase(users, auditLog);
-  const createBackup = new CreateBackupUseCase(monitors, backupsRepo, auditLog);
+  const createBackup = new CreateBackupUseCase(monitors, backupsRepo, auditLog, notifications, users, tlsConfigs);
   const listBackups = new ListBackupsUseCase(backupsRepo);
   const getBackup = new GetBackupUseCase(backupsRepo);
-  const importBackup = new ImportBackupUseCase(monitors, scheduler);
+  const importBackup = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs);
+  const purgeInstance = new PurgeInstanceUseCase(
+    users,
+    monitors,
+    notifications,
+    apiKeysRepo,
+    auditLog,
+    tlsConfigs,
+    backupsRepo,
+    scheduler,
+  );
+  const getPurgePreview = new GetPurgePreviewUseCase(users);
 
   // Instanciación de Use cases de Notificaciones
   const listNotifications = new ListNotificationsUseCase(notifications);
@@ -280,7 +293,16 @@ export function buildContainer(env: Env): AppContainer {
     users,
     hasher,
   );
-  const backupController = new BackupController(createBackup, listBackups, getBackup, importBackup);
+  const backupController = new BackupController(
+    createBackup,
+    listBackups,
+    getBackup,
+    importBackup,
+    purgeInstance,
+    getPurgePreview,
+    env.firstAdminEmail,
+    env.firstAdminName,
+  );
   const notificationController = new NotificationController(
     listNotifications,
     createNotification,

@@ -27,6 +27,11 @@ export class MongooseAuditLogRepository implements IAuditLogRepository {
     return docs.map((doc) => this.toDomain(doc));
   }
 
+  async deleteAll(): Promise<number> {
+    const result = await AuditLogModel.deleteMany({});
+    return result.deletedCount ?? 0;
+  }
+
   private toDomain(doc: HydratedDocument<AuditLogDoc>): IAuditLog {
     return {
       id: toDomainId(doc._id),

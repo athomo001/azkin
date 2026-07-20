@@ -8,7 +8,10 @@ export function backupRoutes(controller: BackupController): Router {
   const router = Router();
   router.get("/", requireRole("admin"), asyncHandler(controller.list));
   router.post("/", requireRole("admin"), asyncHandler(controller.create));
-  router.get("/:id", requireRole("admin"), asyncHandler(controller.download));
   router.post("/import", requireRole("admin"), asyncHandler(controller.import));
+  router.post("/purge", requireRole("admin"), asyncHandler(controller.purge));
+  router.get("/purge-preview", requireRole("admin"), asyncHandler(controller.purgePreview));
+  // Debe ir al final: "/:id" matchearía "/purge-preview" como si fuera un id si se registrara antes.
+  router.get("/:id", requireRole("admin"), asyncHandler(controller.download));
   return router;
 }

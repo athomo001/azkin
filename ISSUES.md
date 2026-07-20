@@ -1243,3 +1243,35 @@ edición.
 - El backend ya valida y persiste estos tres campos sin cambios necesarios
   (`backend/src/infrastructure/http/schemas/monitor.schema.ts`,
   `backend/src/infrastructure/checkers/http.checker.ts`).
+
+---
+
+## AZ-037) El "respaldo completo" solo respaldaba monitores; falta un botón para purgar toda la instancia salvo el admin del .env
+- Codigo: AZ-037
+- Estado: [x] Resuelto
+- Prioridad: Alta
+- Reportado: 2026-07-20
+- Resuelto: 2026-07-20
+
+### Resolucion
+- `CreateBackupUseCase`/`ImportBackupUseCase` (`backend/src/application/use-cases/backup/`) ahora leen y restauran, además de monitores: canales de notificación (`INotificationRepository`), cuentas admin/viewer con su `passwordHash` (`IUserRepository.findAllAdmins`/`findAllViewersGlobal`), y configuración TLS (`ITlsConfigRepository`) — payload versionado `v2.0` (`domain/entities/backup.ts`). Los viewers se vinculan a su admin propietario por `adminIdentifier` (email/username), no por ObjectId, porque los IDs no sobreviven a una restauración en otra instancia. Sigue aceptando un respaldo `v1.0` (solo monitores) sin fallar.
+- Nuevo `PurgeInstanceUseCase`: borra monitores, canales, API keys, auditoría, respaldos guardados y config TLS, y todas las cuentas admin/viewer salvo la identificada por `AZKIN_FIRST_ADMIN_EMAIL`/`AZKIN_FIRST_ADMIN_NAME` del `.env` actual (resuelta en el momento de ejecutar la purga, no en el primer arranque). Nuevos métodos `deleteAll()`/`deleteActive()`/`deleteAllUsersExcept()` en los repositorios Mongoose correspondientes.
+- Nuevo `GetPurgePreviewUseCase` + `GET /api/v1/backup/purge-preview`: resuelve de solo lectura a qué admin conservaría la purga, para que la UI se lo muestre al usuario antes de confirmar una acción irreversible.
+- Rutas nuevas: `POST /api/v1/backup/purge`, `GET /api/v1/backup/purge-preview` (ambas `requireRole("admin")`).
+- UI en `/settings` → **Respaldos**: aviso de que el respaldo completo ahora contiene credenciales (tratarlo como secreto); sección nueva "Zona de peligro" con el botón "Purgar instancia", que muestra la cuenta que se conservará, exige escribir "PURGAR" para habilitarse, y fuerza cierre de sesión tras purgar (por si la cuenta activa no era la conservada).
+- Tests: `create-backup.usecase.test.ts`, `import-backup.usecase.test.ts` (incluye compatibilidad con v1.0 y resolución de `adminIdentifier`), `purge-instance.usecase.test.ts`.
+
+### Descripcion
+El botón "Respaldo completo" en `/settings` → Respaldos sugería por su nombre y ubicación que respaldaba todo el estado de la instancia. En la práctica, `CreateBackupUseCase` solo leía `IMonitorRepository.findAll()` — el mismo contenido que ya cubría "Exportar Activos" (AZ-035) — sin incluir canales de notificación, cuentas admin/viewer, ni configuración TLS/SMTP. Un usuario que restauraba ese respaldo tras un incidente se encontraba con los monitores de vuelta pero sin ningún canal de alerta configurado y sin las cuentas de sus viewers, contradiciendo la expectativa de un respaldo atómico.
+
+Adicionalmente, no existía ninguna forma de dejar una instancia como recién instalada sin borrar manualmente el volumen de MongoDB (una operación fuera de la aplicación, sin auditoría ni confirmación in-app).
+
+### Comportamiento esperado
+1. El respaldo completo incluye, en el mismo archivo, monitores, canales de notificación, cuentas (admin/viewer) y configuración TLS.
+2. Restaurar ese respaldo repuebla todas esas secciones sin duplicar lo que ya exista.
+3. Existe un botón para purgar toda la instancia (datos y cuentas) salvo el admin sembrado por `.env`, con una confirmación explícita e inequívoca antes de ejecutarse.
+
+### Criterios de aceptacion
+1. Crear un respaldo completo, purgar la instancia y restaurar ese respaldo devuelve monitores, canales y cuentas al estado previo.
+2. El botón de purga no puede activarse sin escribir la palabra de confirmación exacta, y no borra al admin configurado en `AZKIN_FIRST_ADMIN_EMAIL`/`NAME`.
+3. Un respaldo `v1.0` (solo monitores) descargado antes de este cambio se puede seguir restaurando sin error.

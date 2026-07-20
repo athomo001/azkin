@@ -21,4 +21,6 @@ export interface IApiKeyRepository {
   /** Elimina la key permanentemente; devuelve false si no existe o no pertenece al admin. */
   delete(adminId: string, id: string): Promise<boolean>;
   touchLastUsed(id: string): Promise<void>;
+  /** Elimina todas las API keys de todos los admins. Devuelve la cantidad eliminada ("Purgar instancia"). */
+  deleteAll(): Promise<number>;
 }

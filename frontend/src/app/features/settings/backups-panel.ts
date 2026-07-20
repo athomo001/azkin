@@ -7,6 +7,7 @@ import { LanguageService } from '../../core/services/language.service';
 import { ToastService } from '../../core/services/toast.service';
 import { FileDownloadService } from '../../core/services/file-download.service';
 import { MonitorService } from '../../core/services/monitor.service';
+import { AuthService } from '../../core/services/auth.service';
 import { extractApiErrorMessage } from '../../core/utils/api-error.util';
 
 interface BackupEntry {
@@ -27,6 +28,39 @@ interface AssetImportResult {
   errors: { index: number; name?: string; message: string }[];
 }
 
+interface ImportSectionResult {
+  createdCount: number;
+  updatedCount: number;
+  errors: { index: number; message: string }[];
+}
+
+interface BackupImportResult {
+  importedCount: number;
+  updatedCount: number;
+  admins: ImportSectionResult;
+  viewers: ImportSectionResult;
+  notifications: ImportSectionResult;
+  tlsConfig: { applied: boolean; skippedReason?: string };
+}
+
+interface PurgePreview {
+  configured: boolean;
+  keepIdentifier?: string;
+  keepAdminExists: boolean;
+}
+
+interface PurgeResult {
+  keptAdminIdentifier: string;
+  deletedAdmins: number;
+  deletedViewers: number;
+  deletedMonitors: number;
+  deletedNotifications: number;
+  deletedApiKeys: number;
+  deletedAuditLogs: number;
+  deletedBackups: number;
+  tlsConfigCleared: boolean;
+}
+
 /**
  * Pestaña "Respaldos": export/import JSON, importación masiva de monitores vía CSV, y
  * exportación/importación de activos (solo monitores). Extraido de settings.ts.
@@ -41,6 +75,9 @@ interface AssetImportResult {
         <div>
           <h3 class="text-sm font-bold text-white tracking-tight">{{ lang.t('settings.backups.sectionTitle') }}</h3>
           <p class="text-[11px] text-zinc-500 mt-0.5">{{ lang.t('settings.backups.sectionDesc') }}</p>
+          <p class="text-[10px] text-amber-500/90 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+            Respaldo atómico y completo: incluye monitores, canales de notificación, cuentas (admins/viewers, con su hash de contraseña) y la configuración TLS. El archivo descargado es un secreto — trátalo como una credencial, no lo compartas ni lo subas a un lugar público.
+          </p>
         </div>
 
         <!-- Estrategia de respaldo -->
@@ -186,6 +223,40 @@ interface AssetImportResult {
             </div>
           }
         </div>
+
+        <!-- Zona de peligro: purgar toda la instancia -->
+        <div class="border-t border-rose-900/40 pt-4 space-y-3">
+          <span class="block text-[10px] font-bold text-rose-500 uppercase tracking-wider">Zona de peligro</span>
+
+          @if (purgePreview(); as preview) {
+            @if (!preview.configured) {
+              <p class="text-[11px] text-zinc-500 bg-zinc-950/60 border border-zinc-900 rounded-lg p-3">
+                No se puede purgar: no hay <code class="text-zinc-400">AZKIN_FIRST_ADMIN_EMAIL</code> ni <code class="text-zinc-400">AZKIN_FIRST_ADMIN_NAME</code> configurado en el <code class="text-zinc-400">.env</code> de esta instancia, así que no hay forma de determinar qué admin conservar.
+              </p>
+            } @else if (!preview.keepAdminExists) {
+              <p class="text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg p-3">
+                El admin configurado en el .env ('{{ preview.keepIdentifier }}') no existe en esta instancia — la purga se cancelará automáticamente si la ejecutas, para no dejar la instancia sin administradores.
+              </p>
+            } @else {
+              <div class="bg-rose-500/10 border border-rose-500/20 rounded-lg p-3 space-y-2 text-[11px] text-rose-300">
+                <p>Elimina permanentemente TODOS los monitores, canales de notificación, API keys, historial de auditoría, respaldos guardados y configuración TLS — y todas las demás cuentas admin/viewer — conservando únicamente:</p>
+                <p class="font-mono font-bold text-rose-200">{{ preview.keepIdentifier }}</p>
+                <p>Si la cuenta con la que iniciaste sesión no es esa, tu propia sesión también se eliminará y se cerrará automáticamente. Esta acción no se puede deshacer.</p>
+              </div>
+
+              <div class="flex flex-col sm:flex-row gap-2">
+                <input type="text" [ngModel]="purgeConfirmText()" (ngModelChange)="purgeConfirmText.set($event)" placeholder="Escribe PURGAR para habilitar el botón"
+                  class="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-rose-500">
+                <button (click)="purgeInstance()" [disabled]="purgeConfirmText() !== 'PURGAR' || isPurging()"
+                  class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-xs font-bold transition-all shadow-md whitespace-nowrap">
+                  {{ isPurging() ? 'Purgando...' : 'Purgar instancia' }}
+                </button>
+              </div>
+            }
+          } @else {
+            <p class="text-[11px] text-zinc-600">Cargando...</p>
+          }
+        </div>
       </div>
     </div>
   `
@@ -195,6 +266,7 @@ export class BackupsPanelComponent {
   private readonly toast = inject(ToastService);
   private readonly fileDownload = inject(FileDownloadService);
   private readonly monitorService = inject(MonitorService);
+  private readonly authService = inject(AuthService);
   public readonly lang = inject(LanguageService);
 
   backupStrategy: 'accumulate' | 'replace' = 'accumulate';
@@ -206,8 +278,13 @@ export class BackupsPanelComponent {
   readonly isImportingAssets = signal(false);
   readonly assetsImportResult = signal<AssetImportResult | null>(null);
 
+  readonly purgePreview = signal<PurgePreview | null>(null);
+  readonly purgeConfirmText = signal('');
+  readonly isPurging = signal(false);
+
   constructor() {
     this.loadBackups();
+    this.loadPurgePreview();
   }
 
   loadBackups(): void {
@@ -223,8 +300,8 @@ export class BackupsPanelComponent {
         this.fileDownload.downloadJson(res.payload, 'azkin-backup');
         this.toast.show(
           this.backupStrategy === 'replace'
-            ? `Respaldo creado (se reemplazaron ${res.deletedCount} anteriores).`
-            : 'Respaldo creado correctamente.'
+            ? `Respaldo creado (se reemplazaron ${res.deletedCount} anteriores). Contiene credenciales — trátalo como un secreto.`
+            : 'Respaldo creado correctamente. Contiene credenciales — trátalo como un secreto.'
         );
         this.loadBackups();
       },
@@ -317,9 +394,14 @@ export class BackupsPanelComponent {
     reader.onload = (e: any) => {
       try {
         const data = JSON.parse(e.target.result);
-        this.http.post('/api/v1/backup/import', data).subscribe({
-          next: (res: any) => {
-            this.toast.show(`Importado con éxito. Nuevos: ${res.importedCount}, Actualizados: ${res.updatedCount}`);
+        this.http.post<BackupImportResult>('/api/v1/backup/import', data).subscribe({
+          next: (res) => {
+            const parts = [`Monitores: ${res.importedCount} nuevos, ${res.updatedCount} actualizados`];
+            if (res.admins) parts.push(`Admins: ${res.admins.createdCount} nuevos, ${res.admins.updatedCount} actualizados`);
+            if (res.viewers) parts.push(`Viewers: ${res.viewers.createdCount} nuevos, ${res.viewers.updatedCount} actualizados`);
+            if (res.notifications) parts.push(`Canales: ${res.notifications.createdCount} nuevos, ${res.notifications.updatedCount} actualizados`);
+            if (res.tlsConfig?.applied) parts.push('TLS restaurado');
+            this.toast.show(parts.join(' · '));
             this.monitorService.loadMonitors().subscribe();
             event.target.value = '';
           },
@@ -392,5 +474,33 @@ export class BackupsPanelComponent {
       });
     };
     reader.readAsText(file);
+  }
+
+  loadPurgePreview(): void {
+    this.http.get<PurgePreview>('/api/v1/backup/purge-preview').subscribe({
+      next: (preview) => this.purgePreview.set(preview),
+      error: () => this.purgePreview.set({ configured: false, keepAdminExists: false })
+    });
+  }
+
+  purgeInstance(): void {
+    if (this.purgeConfirmText() !== 'PURGAR' || this.isPurging()) return;
+
+    this.isPurging.set(true);
+    this.http.post<PurgeResult>('/api/v1/backup/purge', {}).subscribe({
+      next: (res) => {
+        this.toast.show(
+          `Instancia purgada. Se conservó: ${res.keptAdminIdentifier}. Monitores: ${res.deletedMonitors}, canales: ${res.deletedNotifications}, cuentas: ${res.deletedAdmins + res.deletedViewers} eliminadas.`
+        );
+        // La purga puede haber eliminado la cuenta con la que se inició sesión (si no es la
+        // cuenta conservada del .env) — se fuerza un logout y recarga completa para no dejar la
+        // app en un estado inconsistente con el backend recién vaciado.
+        this.authService.logout().subscribe({ complete: () => (window.location.href = '/login') });
+      },
+      error: (err) => {
+        this.isPurging.set(false);
+        this.toast.show(extractApiErrorMessage(err, 'Error al purgar la instancia.'));
+      }
+    });
   }
 }

@@ -95,6 +95,11 @@ export class MongooseMonitorRepository implements IMonitorRepository {
     return result.deletedCount ?? 0;
   }
 
+  async deleteAll(): Promise<number> {
+    const result = await MonitorModel.deleteMany({});
+    return result.deletedCount ?? 0;
+  }
+
   async findAllActive(): Promise<IMonitor[]> {
     const docs = await MonitorModel.find({ isActive: true });
     return docs.map((doc) => this.toDomain(doc));

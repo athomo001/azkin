@@ -34,4 +34,6 @@ export interface INotificationRepository {
   findById(id: string): Promise<INotification | null>;
   update(id: string, data: UpdateNotificationData): Promise<INotification | null>;
   delete(id: string): Promise<boolean>;
+  /** Elimina todos los canales. Devuelve la cantidad eliminada (usado por "Purgar instancia"). */
+  deleteAll(): Promise<number>;
 }

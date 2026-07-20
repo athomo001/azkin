@@ -17,4 +17,6 @@ export interface IAuditLogRepository {
   listRecent(actorId: string, limit?: number): Promise<IAuditLog[]>;
   /** Sin aislamiento por tenant — cualquier Admin puede auditar acciones de otros admins. */
   listAll(limit?: number): Promise<IAuditLog[]>;
+  /** Elimina todo el historial de auditoría. Devuelve la cantidad eliminada ("Purgar instancia"). */
+  deleteAll(): Promise<number>;
 }

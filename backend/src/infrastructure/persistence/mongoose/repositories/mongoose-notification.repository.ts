@@ -54,6 +54,11 @@ export class MongooseNotificationRepository implements INotificationRepository {
     return result.deletedCount > 0;
   }
 
+  async deleteAll(): Promise<number> {
+    const result = await NotificationModel.deleteMany({});
+    return result.deletedCount ?? 0;
+  }
+
   private toDomain(doc: HydratedDocument<NotificationDoc>): INotification {
     return {
       id: toDomainId(doc._id),

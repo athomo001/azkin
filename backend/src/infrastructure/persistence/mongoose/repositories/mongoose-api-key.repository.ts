@@ -49,6 +49,11 @@ export class MongooseApiKeyRepository implements IApiKeyRepository {
     await ApiKeyModel.updateOne({ _id: id }, { lastUsedAt: new Date() });
   }
 
+  async deleteAll(): Promise<number> {
+    const result = await ApiKeyModel.deleteMany({});
+    return result.deletedCount ?? 0;
+  }
+
   private toDomain(doc: HydratedDocument<ApiKeyDoc>): IApiKey {
     return {
       id: toDomainId(doc._id),
