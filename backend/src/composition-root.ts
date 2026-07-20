@@ -20,6 +20,7 @@ import { MongooseBackupRepository } from "./infrastructure/persistence/mongoose/
 import { MongooseAuditLogRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-audit-log.repository";
 import { MongooseTlsConfigRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-tls-config.repository";
 import { MongooseApiKeyRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-api-key.repository";
+import { MongooseAppSmtpSettingsRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-app-smtp-settings.repository";
 
 // Services
 import { JwtTokenService } from "./infrastructure/security/jwt-token-service";
@@ -36,6 +37,7 @@ import { InMemoryScheduler } from "./infrastructure/scheduler/in-memory-schedule
 import { HttpsServerManager } from "./infrastructure/http/https-server-manager";
 import { encryptPrivateKey } from "./infrastructure/security/tls-key-cipher";
 import { SmtpMailer } from "./infrastructure/notifier/smtp-mailer";
+import { ResolveAppSmtpConfig } from "./application/services/resolve-app-smtp-config";
 
 // Use cases
 import { RegisterUseCase } from "./application/use-cases/auth/register.usecase";
@@ -72,6 +74,7 @@ import { GetBackupUseCase } from "./application/use-cases/backup/get-backup.usec
 import { ImportBackupUseCase } from "./application/use-cases/backup/import-backup.usecase";
 import { PurgeInstanceUseCase } from "./application/use-cases/backup/purge-instance.usecase";
 import { GetPurgePreviewUseCase } from "./application/use-cases/backup/get-purge-preview.usecase";
+import { DeleteBackupUseCase } from "./application/use-cases/backup/delete-backup.usecase";
 import { BulkImportMonitorsFromCsvUseCase } from "./application/use-cases/backup/bulk-import-monitors-from-csv.usecase";
 import { ExportMonitorAssetsUseCase } from "./application/use-cases/monitors/export-monitor-assets.usecase";
 import { ImportMonitorAssetsUseCase } from "./application/use-cases/monitors/import-monitor-assets.usecase";
@@ -89,6 +92,8 @@ import { ApplyTlsConfigUseCase } from "./application/use-cases/system/apply-tls-
 import { GetTlsConfigUseCase } from "./application/use-cases/system/get-tls-config.usecase";
 import { GetSmtpStatusUseCase } from "./application/use-cases/system/get-smtp-status.usecase";
 import { SendTestEmailUseCase } from "./application/use-cases/system/send-test-email.usecase";
+import { GetAppSmtpChannelUseCase } from "./application/use-cases/system/get-app-smtp-channel.usecase";
+import { SetAppSmtpChannelUseCase } from "./application/use-cases/system/set-app-smtp-channel.usecase";
 
 // Use cases de API Keys (API pública)
 import { CreateApiKeyUseCase } from "./application/use-cases/api-keys/create-api-key.usecase";
@@ -172,7 +177,6 @@ export function buildContainer(env: Env): AppContainer {
   // Seguridad
   const tokens = new JwtTokenService(env.jwtSecret, env.jwtExpiresInSeconds);
   const hasher = new BcryptPasswordHasher(env.bcryptCost);
-  const mailer = new SmtpMailer(env.smtp);
 
   // Repositorios
   const users = new MongooseUserRepository();
@@ -183,6 +187,12 @@ export function buildContainer(env: Env): AppContainer {
   const auditLog = new MongooseAuditLogRepository();
   const apiKeysRepo = new MongooseApiKeyRepository();
   const tlsConfigs = new MongooseTlsConfigRepository();
+  const appSmtpSettingsRepo = new MongooseAppSmtpSettingsRepository();
+
+  // SMTP de aplicación: por defecto AZKIN_SMTP_* del .env, o el de un canal de notificación
+  // "email" reutilizado si el admin eligió uno (ver ResolveAppSmtpConfig).
+  const smtpConfigResolver = new ResolveAppSmtpConfig(appSmtpSettingsRepo, notifications, env.smtp);
+  const mailer = new SmtpMailer(smtpConfigResolver);
 
   // Tiempo real + alertas
   const publisher = new SocketIoGateway(io, tokens);
@@ -246,6 +256,7 @@ export function buildContainer(env: Env): AppContainer {
     scheduler,
   );
   const getPurgePreview = new GetPurgePreviewUseCase(users);
+  const deleteBackup = new DeleteBackupUseCase(backupsRepo, auditLog);
 
   // Instanciación de Use cases de Notificaciones
   const listNotifications = new ListNotificationsUseCase(notifications);
@@ -263,6 +274,8 @@ export function buildContainer(env: Env): AppContainer {
     env.tlsEncryptionKey ?? "",
   );
   const getTlsConfig = new GetTlsConfigUseCase(tlsConfigs, tlsServerManager);
+  const getAppSmtpChannel = new GetAppSmtpChannelUseCase(appSmtpSettingsRepo, notifications);
+  const setAppSmtpChannel = new SetAppSmtpChannelUseCase(appSmtpSettingsRepo, notifications, auditLog);
 
   // Instanciación de Use cases de API Keys (API pública)
   const createApiKey = new CreateApiKeyUseCase(apiKeysRepo);
@@ -304,6 +317,7 @@ export function buildContainer(env: Env): AppContainer {
     importBackup,
     purgeInstance,
     getPurgePreview,
+    deleteBackup,
     env.firstAdminEmail,
     env.firstAdminName,
   );
@@ -316,7 +330,15 @@ export function buildContainer(env: Env): AppContainer {
   );
   const getSmtpStatus = new GetSmtpStatusUseCase();
   const sendTestEmail = new SendTestEmailUseCase(mailer);
-  const systemController = new SystemController(applyTlsConfig, getTlsConfig, getSmtpStatus, sendTestEmail, env.smtp);
+  const systemController = new SystemController(
+    applyTlsConfig,
+    getTlsConfig,
+    getSmtpStatus,
+    sendTestEmail,
+    smtpConfigResolver,
+    getAppSmtpChannel,
+    setAppSmtpChannel,
+  );
   const apiKeyController = new ApiKeyController(createApiKey, listApiKeys, revokeApiKey, deleteApiKey);
   const listAuditLog = new ListAuditLogUseCase(auditLog, users);
   const auditLogController = new AuditLogController(listAuditLog);

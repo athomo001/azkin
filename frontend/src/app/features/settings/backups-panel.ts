@@ -8,6 +8,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { FileDownloadService } from '../../core/services/file-download.service';
 import { MonitorService } from '../../core/services/monitor.service';
 import { AuthService } from '../../core/services/auth.service';
+import { ConfirmService } from '../../core/services/confirm.service';
 import { extractApiErrorMessage } from '../../core/utils/api-error.util';
 
 interface BackupEntry {
@@ -115,6 +116,43 @@ interface PurgeResult {
           </div>
         </div>
 
+        @if (isImportingBackup()) {
+          <p class="text-[11px] text-zinc-500">Importando...</p>
+        }
+
+        @if (backupImportResult(); as result) {
+          <div class="bg-zinc-950/60 border border-zinc-900 rounded-lg p-3 text-[11px] space-y-1.5">
+            <p class="text-zinc-300">Monitores: <span class="font-bold text-emerald-500">{{ result.importedCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.updatedCount }}</span> actualizados</p>
+            <p class="text-zinc-300">
+              Admins: <span class="font-bold text-emerald-500">{{ result.admins.createdCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.admins.updatedCount }}</span> actualizados
+              @if (result.admins.errors.length > 0) { · <span class="font-bold text-rose-500">{{ result.admins.errors.length }} con error</span> }
+            </p>
+            <p class="text-zinc-300">
+              Viewers: <span class="font-bold text-emerald-500">{{ result.viewers.createdCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.viewers.updatedCount }}</span> actualizados
+              @if (result.viewers.errors.length > 0) { · <span class="font-bold text-rose-500">{{ result.viewers.errors.length }} con error</span> }
+            </p>
+            <p class="text-zinc-300">
+              Canales: <span class="font-bold text-emerald-500">{{ result.notifications.createdCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.notifications.updatedCount }}</span> actualizados
+              @if (result.notifications.errors.length > 0) { · <span class="font-bold text-rose-500">{{ result.notifications.errors.length }} con error</span> }
+            </p>
+            <p class="text-zinc-500">TLS: {{ result.tlsConfig.applied ? 'restaurado' : (result.tlsConfig.skippedReason || 'no aplicado') }}</p>
+
+            @if (result.admins.errors.length > 0 || result.viewers.errors.length > 0 || result.notifications.errors.length > 0) {
+              <div class="max-h-32 overflow-y-auto space-y-1 border-t border-zinc-900 pt-2">
+                @for (e of result.admins.errors; track $index) {
+                  <p class="text-rose-400 font-mono text-[10px]">Admin #{{ e.index + 1 }}: {{ e.message }}</p>
+                }
+                @for (e of result.viewers.errors; track $index) {
+                  <p class="text-rose-400 font-mono text-[10px]">Viewer #{{ e.index + 1 }}: {{ e.message }}</p>
+                }
+                @for (e of result.notifications.errors; track $index) {
+                  <p class="text-rose-400 font-mono text-[10px]">Canal #{{ e.index + 1 }}: {{ e.message }}</p>
+                }
+              </div>
+            }
+          </div>
+        }
+
         <!-- Respaldos persistidos -->
         <div class="border-t border-zinc-850 pt-4 space-y-2">
           <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Respaldos guardados</span>
@@ -127,7 +165,10 @@ interface PurgeResult {
                   <span class="text-zinc-300 font-semibold">{{ b.createdAt | date:'short' }}</span>
                   <span class="text-zinc-600 ml-2 uppercase text-[9px] font-bold">{{ b.strategy }}</span>
                 </div>
-                <button (click)="downloadBackup(b.id)" class="text-orange-500 hover:text-orange-400 font-bold">Descargar</button>
+                <div class="flex items-center gap-3">
+                  <button (click)="downloadBackup(b.id)" class="text-orange-500 hover:text-orange-400 font-bold">Descargar</button>
+                  <button (click)="deleteBackup(b.id)" class="text-rose-500 hover:text-rose-400 font-bold">Eliminar</button>
+                </div>
               </div>
             }
           }
@@ -267,6 +308,7 @@ export class BackupsPanelComponent {
   private readonly fileDownload = inject(FileDownloadService);
   private readonly monitorService = inject(MonitorService);
   private readonly authService = inject(AuthService);
+  private readonly confirm = inject(ConfirmService);
   public readonly lang = inject(LanguageService);
 
   backupStrategy: 'accumulate' | 'replace' = 'accumulate';
@@ -277,6 +319,9 @@ export class BackupsPanelComponent {
 
   readonly isImportingAssets = signal(false);
   readonly assetsImportResult = signal<AssetImportResult | null>(null);
+
+  readonly isImportingBackup = signal(false);
+  readonly backupImportResult = signal<BackupImportResult | null>(null);
 
   readonly purgePreview = signal<PurgePreview | null>(null);
   readonly purgeConfirmText = signal('');
@@ -314,6 +359,22 @@ export class BackupsPanelComponent {
       next: (payload) => this.fileDownload.downloadJson(payload, 'azkin-backup'),
       error: () => this.toast.show('Error al descargar el respaldo.')
     });
+  }
+
+  deleteBackup(id: string): void {
+    this.confirm.ask(
+      '¿Eliminar respaldo?',
+      'Se eliminará permanentemente este respaldo guardado. Si no lo has descargado antes, perderás esta copia sin poder recuperarla.',
+      () => {
+        this.http.delete(`/api/v1/backup/${id}`).subscribe({
+          next: () => {
+            this.toast.show('Respaldo eliminado.');
+            this.loadBackups();
+          },
+          error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al eliminar el respaldo.'))
+        });
+      }
+    );
   }
 
   downloadCsvTemplate(): void {
@@ -392,28 +453,36 @@ export class BackupsPanelComponent {
 
     const reader = new FileReader();
     reader.onload = (e: any) => {
+      let data: unknown;
       try {
-        const data = JSON.parse(e.target.result);
-        this.http.post<BackupImportResult>('/api/v1/backup/import', data).subscribe({
-          next: (res) => {
-            const parts = [`Monitores: ${res.importedCount} nuevos, ${res.updatedCount} actualizados`];
-            if (res.admins) parts.push(`Admins: ${res.admins.createdCount} nuevos, ${res.admins.updatedCount} actualizados`);
-            if (res.viewers) parts.push(`Viewers: ${res.viewers.createdCount} nuevos, ${res.viewers.updatedCount} actualizados`);
-            if (res.notifications) parts.push(`Canales: ${res.notifications.createdCount} nuevos, ${res.notifications.updatedCount} actualizados`);
-            if (res.tlsConfig?.applied) parts.push('TLS restaurado');
-            this.toast.show(parts.join(' · '));
-            this.monitorService.loadMonitors().subscribe();
-            event.target.value = '';
-          },
-          error: (err) => {
-            this.toast.show(extractApiErrorMessage(err, 'Error al importar los datos en el servidor.'));
-            event.target.value = '';
-          }
-        });
+        data = JSON.parse(e.target.result);
       } catch {
         this.toast.show('El archivo seleccionado no es un JSON válido.');
         event.target.value = '';
+        return;
       }
+
+      this.isImportingBackup.set(true);
+      this.backupImportResult.set(null);
+      this.http.post<BackupImportResult>('/api/v1/backup/import', data).subscribe({
+        next: (res) => {
+          this.isImportingBackup.set(false);
+          this.backupImportResult.set(res);
+          const totalErrors = res.admins.errors.length + res.viewers.errors.length + res.notifications.errors.length;
+          this.toast.show(
+            totalErrors > 0
+              ? `Importado con ${totalErrors} error(es) — revisa el detalle bajo el botón de importar.`
+              : 'Importación completada correctamente.'
+          );
+          this.monitorService.loadMonitors().subscribe();
+          event.target.value = '';
+        },
+        error: (err) => {
+          this.isImportingBackup.set(false);
+          this.toast.show(extractApiErrorMessage(err, 'Error al importar los datos en el servidor.'));
+          event.target.value = '';
+        }
+      });
     };
     reader.readAsText(file);
   }

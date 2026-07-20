@@ -6,6 +6,7 @@ import { GetBackupUseCase } from "../../../application/use-cases/backup/get-back
 import { ImportBackupUseCase } from "../../../application/use-cases/backup/import-backup.usecase";
 import { PurgeInstanceUseCase } from "../../../application/use-cases/backup/purge-instance.usecase";
 import { GetPurgePreviewUseCase } from "../../../application/use-cases/backup/get-purge-preview.usecase";
+import { DeleteBackupUseCase } from "../../../application/use-cases/backup/delete-backup.usecase";
 
 export class BackupController {
   constructor(
@@ -15,6 +16,7 @@ export class BackupController {
     private readonly importUseCase: ImportBackupUseCase,
     private readonly purgeUseCase: PurgeInstanceUseCase,
     private readonly purgePreviewUseCase: GetPurgePreviewUseCase,
+    private readonly deleteUseCase: DeleteBackupUseCase,
     private readonly firstAdminEmail: string | undefined,
     private readonly firstAdminName: string | undefined,
   ) {}
@@ -70,5 +72,11 @@ export class BackupController {
       firstAdminName: this.firstAdminName,
     });
     res.status(200).json(result);
+  };
+
+  delete = async (req: Request, res: Response): Promise<void> => {
+    const id = req.params.id as string;
+    await this.deleteUseCase.execute(req.adminId!, id);
+    res.status(204).send();
   };
 }

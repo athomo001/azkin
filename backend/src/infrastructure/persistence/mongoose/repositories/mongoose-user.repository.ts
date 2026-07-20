@@ -61,7 +61,10 @@ export class MongooseUserRepository implements IUserRepository {
   }
 
   async findAllAdmins(): Promise<IUser[]> {
-    const docs = await UserModel.find({ role: "admin" });
+    // `.select("+passwordHash")`: el campo es `select: false` en el schema (nunca vuelve en
+    // queries por defecto) — sin este select explícito, el respaldo completo (CreateBackupUseCase)
+    // exportaría cada admin con passwordHash vacío, y la importación los rechazaría en bloque.
+    const docs = await UserModel.find({ role: "admin" }).select("+passwordHash");
     return docs.map((doc) => this.toDomain(doc));
   }
 
@@ -136,7 +139,9 @@ export class MongooseUserRepository implements IUserRepository {
   }
 
   async findAllViewersGlobal(): Promise<IUser[]> {
-    const docs = await UserModel.find({ role: "viewer" });
+    // Mismo motivo que en `findAllAdmins`: sin este select, el respaldo completo exportaría cada
+    // viewer con passwordHash vacío y la importación los rechazaría en bloque.
+    const docs = await UserModel.find({ role: "viewer" }).select("+passwordHash");
     return docs.map((doc) => this.toDomain(doc));
   }
 

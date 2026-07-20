@@ -31,6 +31,12 @@ export class MongooseBackupRepository implements IBackupRepository {
     return result.deletedCount ?? 0;
   }
 
+  async deleteById(id: string): Promise<boolean> {
+    if (!Types.ObjectId.isValid(id)) return false;
+    const result = await BackupModel.deleteOne({ _id: id });
+    return result.deletedCount > 0;
+  }
+
   private toDomain(doc: HydratedDocument<BackupDoc>): IBackup {
     return {
       id: toDomainId(doc._id),
