@@ -4,6 +4,8 @@ import { GetHistoryUseCase } from "../../../application/use-cases/stats/get-hist
 import { GetGroupsUseCase } from "../../../application/use-cases/stats/get-groups.usecase";
 import { GetGroupOverviewUseCase } from "../../../application/use-cases/stats/get-group-overview.usecase";
 import { GetRecentEventsUseCase } from "../../../application/use-cases/stats/get-recent-events.usecase";
+import { GetMonitorEventsUseCase } from "../../../application/use-cases/stats/get-monitor-events.usecase";
+import { GetGroupEventsUseCase } from "../../../application/use-cases/stats/get-group-events.usecase";
 import { toHistoryResponse, toGroupOverviewResponse } from "../presenters/monitor.presenter";
 
 /**
@@ -15,12 +17,27 @@ export class StatsController {
   private static readonly MIN_DURATION_MS = 5 * 60 * 1000;
   private static readonly MAX_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
+  // Ventanas para la tabla de eventos (heartbeats crudos, no agregados): más acotadas que el
+  // historial del gráfico porque cada fila es un heartbeat individual, no un punto bucketeado.
+  private static readonly EVENTS_DEFAULT_DURATION_MS = 30 * 60 * 1000;
+  private static readonly EVENTS_MIN_DURATION_MS = 60 * 1000;
+  private static readonly EVENTS_MAX_DURATION_MS = 24 * 60 * 60 * 1000;
+
   constructor(
     private readonly historyUseCase: GetHistoryUseCase,
     private readonly groupsUseCase: GetGroupsUseCase,
     private readonly groupOverviewUseCase: GetGroupOverviewUseCase,
     private readonly recentEventsUseCase: GetRecentEventsUseCase,
+    private readonly monitorEventsUseCase: GetMonitorEventsUseCase,
+    private readonly groupEventsUseCase: GetGroupEventsUseCase,
   ) {}
+
+  private parseEventsDuration(rawDuration: unknown): number {
+    const parsed = Number(rawDuration);
+    return Number.isFinite(parsed)
+      ? Math.max(StatsController.EVENTS_MIN_DURATION_MS, Math.min(StatsController.EVENTS_MAX_DURATION_MS, parsed))
+      : StatsController.EVENTS_DEFAULT_DURATION_MS;
+  }
 
   history = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
@@ -72,6 +89,41 @@ export class StatsController {
       req.userRole!,
       req.adminId!,
       req.permissions!,
+    );
+    res.status(200).json(result);
+  };
+
+  /**
+   * Eventos (heartbeats individuales) de UN monitor en una ventana de tiempo — tabla bajo el
+   * gráfico de detalle de monitor. `durationMs` acepta desde 1 minuto hasta 24h.
+   */
+  monitorEvents = async (req: Request, res: Response): Promise<void> => {
+    const id = req.params.id as string;
+    const durationMs = this.parseEventsDuration(req.query.durationMs);
+    const result = await this.monitorEventsUseCase.execute(
+      req.userId!,
+      req.userRole!,
+      req.adminId!,
+      req.permissions!,
+      id,
+      durationMs,
+    );
+    res.status(200).json(result);
+  };
+
+  /**
+   * Igual que `monitorEvents` pero para todos los monitores de un Monitor Group.
+   */
+  groupEvents = async (req: Request, res: Response): Promise<void> => {
+    const groupName = req.params.groupName as string;
+    const durationMs = this.parseEventsDuration(req.query.durationMs);
+    const result = await this.groupEventsUseCase.execute(
+      req.userId!,
+      req.userRole!,
+      req.adminId!,
+      req.permissions!,
+      groupName,
+      durationMs,
     );
     res.status(200).json(result);
   };

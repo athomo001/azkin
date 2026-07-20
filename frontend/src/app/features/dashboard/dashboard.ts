@@ -7,7 +7,8 @@ import * as echarts from 'echarts';
 import { SVGRenderer } from 'echarts/renderers';
 
 echarts.use([SVGRenderer]);
-import { MonitorService, IMonitor, IHeartbeat } from '../../core/services/monitor.service';
+import { MonitorService, IMonitor, IHeartbeat, MonitorEvent } from '../../core/services/monitor.service';
+import { FileDownloadService } from '../../core/services/file-download.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RealtimeService } from '../../core/services/realtime.service';
 import { NotificationService } from '../../core/services/notification.service';
@@ -24,6 +25,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { ToastComponent } from '../../shared/components/toast';
 import { DashboardNavbarComponent } from './dashboard-navbar';
 import { MonitorFormComponent } from './monitor-form';
+import { BadgeStatusComponent } from '../../shared/components/badge-status';
 
 type HistoryRangeOption = {
   label: string;
@@ -33,7 +35,7 @@ type HistoryRangeOption = {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, SkeletonLoaderComponent, QuickStatsPanelComponent, ConfirmModalComponent, ToastComponent, DashboardNavbarComponent, MonitorFormComponent],
+  imports: [CommonModule, RouterModule, FormsModule, SkeletonLoaderComponent, QuickStatsPanelComponent, ConfirmModalComponent, ToastComponent, DashboardNavbarComponent, MonitorFormComponent, BadgeStatusComponent],
   template: `
     <div class="min-h-screen bg-zinc-950 text-white flex flex-col font-sans transition-colors duration-300">
       <app-dashboard-navbar [isNyanCatMode]="isNyanCatMode()" (logoClick)="resetSelection()" (toggleNyanCat)="toggleNyanCat()" />
@@ -443,6 +445,48 @@ type HistoryRangeOption = {
                 </div>
                 <div #chartEl class="chart-canvas w-full h-64"></div>
               </div>
+
+              <!-- Tabla de revisiones recientes (últimos 30 min) -->
+              <div class="bg-zinc-900/20 border border-zinc-900/80 rounded-2xl overflow-hidden shadow-2xl">
+                <div class="p-4 bg-zinc-900/40 border-b border-zinc-900 flex flex-wrap justify-between items-center gap-2">
+                  <span class="text-xs font-black text-zinc-300 uppercase tracking-wider">Revisiones recientes (últimos 30 min)</span>
+                  <button (click)="exportEventsTable()" [disabled]="isExportingEvents()"
+                    class="text-[10px] text-orange-500 hover:text-orange-400 font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:text-zinc-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    {{ isExportingEvents() ? 'Exportando...' : 'Exportar 6h (CSV)' }}
+                  </button>
+                </div>
+                <div class="overflow-x-auto max-h-80 overflow-y-auto">
+                  <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr class="bg-zinc-950/80 text-zinc-500 border-b border-zinc-900 font-bold uppercase tracking-wider">
+                        <th class="p-3">Estado</th>
+                        <th class="p-3">Fecha/Hora</th>
+                        <th class="p-3">Mensaje</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-900/60">
+                      @if (isLoadingEvents()) {
+                        <tr><td colspan="3" class="p-8 text-center text-zinc-600 font-semibold">Cargando...</td></tr>
+                      } @else if (eventsTableRows().length === 0) {
+                        <tr><td colspan="3" class="p-8 text-center text-zinc-600 font-semibold">Sin revisiones en los últimos 30 min.</td></tr>
+                      } @else {
+                        @for (ev of eventsTableRows(); track $index) {
+                          <tr class="hover:bg-zinc-900/20 transition-colors">
+                            <td class="p-3"><app-badge-status [status]="ev.status"></app-badge-status></td>
+                            <td class="p-3 text-zinc-400 font-medium">{{ ev.timestamp | date:'HH:mm:ss dd/MM/yyyy' }}</td>
+                            <td class="p-3 font-mono text-zinc-500 text-[11px] truncate max-w-xs" [title]="ev.msg || ''">
+                              {{ ev.msg || 'OK' }} ({{ ev.ping !== null ? ev.ping + 'ms' : 'N/A' }})
+                            </td>
+                          </tr>
+                        }
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           } @else if (selectedGroup()) {
             <!-- VISTA DETALLADA DEL GRUPO (PUNTO 3) -->
@@ -533,6 +577,50 @@ type HistoryRangeOption = {
                     </div>
                   </div>
                 }
+              </div>
+
+              <!-- Tabla de revisiones recientes de todos los monitores del grupo (últimos 30 min) -->
+              <div class="bg-zinc-900/20 border border-zinc-900/80 rounded-2xl overflow-hidden shadow-2xl">
+                <div class="p-4 bg-zinc-900/40 border-b border-zinc-900 flex flex-wrap justify-between items-center gap-2">
+                  <span class="text-xs font-black text-zinc-300 uppercase tracking-wider">Revisiones recientes (últimos 30 min)</span>
+                  <button (click)="exportEventsTable()" [disabled]="isExportingEvents()"
+                    class="text-[10px] text-orange-500 hover:text-orange-400 font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:text-zinc-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    {{ isExportingEvents() ? 'Exportando...' : 'Exportar 6h (CSV)' }}
+                  </button>
+                </div>
+                <div class="overflow-x-auto max-h-80 overflow-y-auto">
+                  <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr class="bg-zinc-950/80 text-zinc-500 border-b border-zinc-900 font-bold uppercase tracking-wider">
+                        <th class="p-3">Monitor</th>
+                        <th class="p-3">Estado</th>
+                        <th class="p-3">Fecha/Hora</th>
+                        <th class="p-3">Mensaje</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-900/60">
+                      @if (isLoadingEvents()) {
+                        <tr><td colspan="4" class="p-8 text-center text-zinc-600 font-semibold">Cargando...</td></tr>
+                      } @else if (eventsTableRows().length === 0) {
+                        <tr><td colspan="4" class="p-8 text-center text-zinc-600 font-semibold">Sin revisiones en los últimos 30 min.</td></tr>
+                      } @else {
+                        @for (ev of eventsTableRows(); track $index) {
+                          <tr class="hover:bg-zinc-900/20 transition-colors">
+                            <td class="p-3 font-bold text-zinc-200">{{ ev.monitorName }}</td>
+                            <td class="p-3"><app-badge-status [status]="ev.status"></app-badge-status></td>
+                            <td class="p-3 text-zinc-400 font-medium">{{ ev.timestamp | date:'HH:mm:ss dd/MM/yyyy' }}</td>
+                            <td class="p-3 font-mono text-zinc-500 text-[11px] truncate max-w-xs" [title]="ev.msg || ''">
+                              {{ ev.msg || 'OK' }} ({{ ev.ping !== null ? ev.ping + 'ms' : 'N/A' }})
+                            </td>
+                          </tr>
+                        }
+                      }
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           } @else {
@@ -633,6 +721,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   readonly authService = inject(AuthService);
   private readonly monitorService = inject(MonitorService);
+  private readonly fileDownload = inject(FileDownloadService);
   private readonly realtimeService = inject(RealtimeService);
   readonly notificationService = inject(NotificationService);
   private readonly http = inject(HttpClient);
@@ -670,6 +759,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ];
   readonly selectedHistoryDurationMs = signal(this.getInitialHistoryDurationMs());
   groupHistoryMap = new Map<string, { name: string; points: { latency: number; timestamp: string; isLocalNetworkDown?: boolean }[] }>();
+
+  // Tabla de eventos (revisiones individuales) del monitor/grupo seleccionado — ventana fija de
+  // 30 min, independiente de la ventana del gráfico de latencia de arriba.
+  private static readonly EVENTS_TABLE_WINDOW_MS = 30 * 60 * 1000;
+  private static readonly EVENTS_EXPORT_WINDOW_MS = 6 * 60 * 60 * 1000;
+  readonly eventsTableRows = signal<MonitorEvent[]>([]);
+  readonly isLoadingEvents = signal(false);
+  readonly isExportingEvents = signal(false);
 
   // Eventos/Incidentes recientes consolidado (Dashboard General)
   readonly recentEvents = signal<RecentEvent[]>([]);
@@ -925,6 +1022,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
         };
         this.historyPoints.update(pts => this.filterPointsBySelectedRange([...pts, newPoint]));
         this.updateChart();
+
+        this.prependEventRow({
+          monitorId: hb.monitorId,
+          monitorName: current.name,
+          target: current.target ?? '',
+          timestamp: hb.timestamp,
+          status: hb.status === 1 || hb.status === 'UP' ? 'UP' : 'DOWN',
+          ping: hb.latency ?? hb.ping ?? null,
+          msg: hb.msg ?? null
+        });
       }
 
       // Si el grupo está seleccionado, actualizar la latencia y estado del monitor dentro del grupo en caliente
@@ -960,6 +1067,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
           avgPing,
           overallStatus: groupStatus
         });
+
+        const updatedMonitor = updatedMonitors.find((m: any) => m.id === hb.monitorId);
+        if (updatedMonitor) {
+          this.prependEventRow({
+            monitorId: hb.monitorId,
+            monitorName: updatedMonitor.name,
+            target: updatedMonitor.target ?? '',
+            timestamp: hb.timestamp,
+            status: hb.status === 1 || hb.status === 'UP' ? 'UP' : 'DOWN',
+            ping: hb.latency ?? hb.ping ?? null,
+            msg: hb.msg ?? null
+          });
+        }
 
         // Insertar en groupHistoryMap
         const hist = this.groupHistoryMap.get(hb.monitorId);
@@ -1010,6 +1130,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.selectedMonitor.set(null);
     this.selectedGroup.set(null);
     this.historyPoints.set([]);
+    this.eventsTableRows.set([]);
     this.chart?.dispose();
     this.chart = null;
     this.groupChart?.dispose();
@@ -1055,6 +1176,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
         setTimeout(() => this.initChart(), 50);
       }
     });
+
+    this.loadEventsTableForMonitor(monitor.id);
   }
 
   setHistoryRange(durationMs: number): void {
@@ -1098,6 +1221,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
 
     this.loadGroupHistory(g.monitors);
+    this.loadEventsTableForGroup(groupName);
   }
 
   getGroupUptime(groupName: string | undefined): number {
@@ -1140,6 +1264,87 @@ export class DashboardComponent implements OnInit, OnDestroy {
         }
       });
     });
+  }
+
+  /**
+   * Carga la tabla de "Revisiones recientes" (últimos 30 min, fijo) para el monitor seleccionado.
+   */
+  loadEventsTableForMonitor(monitorId: string): void {
+    this.isLoadingEvents.set(true);
+    this.monitorService.getMonitorEvents(monitorId, DashboardComponent.EVENTS_TABLE_WINDOW_MS).subscribe({
+      next: (rows) => {
+        this.isLoadingEvents.set(false);
+        this.eventsTableRows.set(rows);
+      },
+      error: () => this.isLoadingEvents.set(false)
+    });
+  }
+
+  /**
+   * Igual que `loadEventsTableForMonitor` pero para todos los monitores de un grupo.
+   */
+  loadEventsTableForGroup(groupName: string): void {
+    this.isLoadingEvents.set(true);
+    this.monitorService.getGroupEvents(groupName, DashboardComponent.EVENTS_TABLE_WINDOW_MS).subscribe({
+      next: (rows) => {
+        this.isLoadingEvents.set(false);
+        this.eventsTableRows.set(rows);
+      },
+      error: () => this.isLoadingEvents.set(false)
+    });
+  }
+
+  /**
+   * Exporta a CSV las revisiones de las últimas 6h (ventana distinta a la tabla en pantalla, que
+   * solo muestra 30 min) del monitor o grupo actualmente seleccionado.
+   */
+  exportEventsTable(): void {
+    const monitor = this.selectedMonitor();
+    const group = this.selectedGroup();
+    if (!monitor && !group) return;
+
+    this.isExportingEvents.set(true);
+    const request = monitor
+      ? this.monitorService.getMonitorEvents(monitor.id, DashboardComponent.EVENTS_EXPORT_WINDOW_MS)
+      : this.monitorService.getGroupEvents(group!.group, DashboardComponent.EVENTS_EXPORT_WINDOW_MS);
+
+    request.subscribe({
+      next: (rows) => {
+        this.isExportingEvents.set(false);
+        const label = monitor ? monitor.name : group!.group;
+        this.downloadEventsCsv(rows, label);
+      },
+      error: () => {
+        this.isExportingEvents.set(false);
+        this.toast.show('Error al exportar las revisiones.');
+      }
+    });
+  }
+
+  private downloadEventsCsv(rows: MonitorEvent[], label: string): void {
+    const escapeCsv = (value: string): string => (/[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+    const header = ['monitor', 'target', 'status', 'timestamp', 'ping_ms', 'message'];
+    const lines = rows.map((r) => [
+      escapeCsv(r.monitorName),
+      escapeCsv(r.target),
+      r.status,
+      r.timestamp,
+      r.ping !== null ? String(r.ping) : '',
+      escapeCsv(r.msg ?? ''),
+    ].join(','));
+    const csv = [header.join(','), ...lines].join('\n');
+    const safeLabel = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'monitor';
+    // Prefijo BOM UTF-8 para que Excel muestre correctamente tildes/ñ al abrir el archivo directo.
+    this.fileDownload.downloadText(String.fromCharCode(0xfeff) + csv, 'text/csv;charset=utf-8', `azkin-revisiones-${safeLabel}-6h.csv`);
+  }
+
+  /**
+   * Inserta un nuevo evento en caliente al frente de la tabla (más reciente primero) y descarta
+   * los que ya quedaron fuera de la ventana fija de 30 min.
+   */
+  private prependEventRow(row: MonitorEvent): void {
+    const cutoff = Date.now() - DashboardComponent.EVENTS_TABLE_WINDOW_MS;
+    this.eventsTableRows.update(rows => [row, ...rows].filter(r => new Date(r.timestamp).getTime() >= cutoff));
   }
 
   private filterPointsBySelectedRange(points: IHeartbeat[]): IHeartbeat[] {

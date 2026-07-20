@@ -53,6 +53,8 @@ import { GetHistoryUseCase } from "./application/use-cases/stats/get-history.use
 import { GetGroupsUseCase } from "./application/use-cases/stats/get-groups.usecase";
 import { GetGroupOverviewUseCase } from "./application/use-cases/stats/get-group-overview.usecase";
 import { GetRecentEventsUseCase } from "./application/use-cases/stats/get-recent-events.usecase";
+import { GetMonitorEventsUseCase } from "./application/use-cases/stats/get-monitor-events.usecase";
+import { GetGroupEventsUseCase } from "./application/use-cases/stats/get-group-events.usecase";
 
 // Use cases de Viewers y Backup
 import { ListViewersUseCase } from "./application/use-cases/users/list-viewers.usecase";
@@ -216,6 +218,8 @@ export function buildContainer(env: Env): AppContainer {
   const getGroups = new GetGroupsUseCase(monitors);
   const getGroupOverview = new GetGroupOverviewUseCase(monitors, heartbeats);
   const getRecentEvents = new GetRecentEventsUseCase(monitors, heartbeats);
+  const getMonitorEvents = new GetMonitorEventsUseCase(monitors, heartbeats);
+  const getGroupEvents = new GetGroupEventsUseCase(monitors, heartbeats);
 
   // Instanciación de Use cases de Viewers y Backup
   const listViewers = new ListViewersUseCase(users);
@@ -279,7 +283,7 @@ export function buildContainer(env: Env): AppContainer {
     importMonitorAssets,
     bulkAssignNotification,
   );
-  const statsController = new StatsController(getHistory, getGroups, getGroupOverview, getRecentEvents);
+  const statsController = new StatsController(getHistory, getGroups, getGroupOverview, getRecentEvents, getMonitorEvents, getGroupEvents);
   const userController = new UserController(
     listViewers,
     createViewer,

@@ -26,6 +26,12 @@ export interface IHeartbeatRepository {
   findLast24h(monitorId: string): Promise<IHeartbeat[]>;
   /** Obtener el historial filtrado por una duración de tiempo en milisegundos. */
   findHistory(monitorId: string, durationMs: number): Promise<IHeartbeat[]>;
+  /**
+   * Igual que `findHistory` pero para varios monitores a la vez (ej. todos los de un Monitor
+   * Group) — orden descendente por timestamp (más reciente primero), pensado para una tabla de
+   * eventos en vez de un gráfico.
+   */
+  findHistoryForMonitors(monitorIds: string[], durationMs: number): Promise<IHeartbeat[]>;
   deleteByMonitor(monitorId: string): Promise<void>;
   /** Resumen de estado (última 24 h) por monitor, en una sola agregación. */
   getSummaries(monitorIds: string[]): Promise<Record<string, HeartbeatSummary>>;

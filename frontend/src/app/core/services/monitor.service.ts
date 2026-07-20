@@ -54,6 +54,17 @@ export interface IHeartbeat {
   isLocalNetworkDown?: boolean;
 }
 
+/** Fila de la tabla de eventos (heartbeats individuales) bajo el gráfico de detalle. */
+export interface MonitorEvent {
+  monitorId: string;
+  monitorName: string;
+  target: string;
+  timestamp: string;
+  status: 'UP' | 'DOWN';
+  ping: number | null;
+  msg: string | null;
+}
+
 export interface IMonitorGroup {
   name: string;
   worstStatus: 'UP' | 'DOWN' | 'PENDING';
@@ -119,6 +130,25 @@ export class MonitorService {
    */
   getGroupOverview(groupName: string): Observable<any> {
     return this.http.get(`/api/v1/stats/groups/${encodeURIComponent(groupName)}/overview`);
+  }
+
+  /**
+   * Eventos (heartbeats individuales, con mensaje de error) de un monitor en una ventana de
+   * tiempo — alimenta la tabla bajo el gráfico de detalle (por defecto últimos 30 min).
+   */
+  getMonitorEvents(monitorId: string, durationMs: number = 30 * 60 * 1000): Observable<MonitorEvent[]> {
+    return this.http.get<MonitorEvent[]>(`/api/v1/stats/monitor/${monitorId}/events`, {
+      params: { durationMs: String(durationMs) }
+    });
+  }
+
+  /**
+   * Igual que `getMonitorEvents` pero para todos los monitores de un Monitor Group a la vez.
+   */
+  getGroupEvents(groupName: string, durationMs: number = 30 * 60 * 1000): Observable<MonitorEvent[]> {
+    return this.http.get<MonitorEvent[]>(`/api/v1/stats/groups/${encodeURIComponent(groupName)}/events`, {
+      params: { durationMs: String(durationMs) }
+    });
   }
 
   /**
