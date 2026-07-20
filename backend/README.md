@@ -43,7 +43,7 @@ Usa `compose.dev.yaml` — monta el código y recarga con `tsx watch`; los cambi
 en `backend/src` se aplican sin reconstruir la imagen:
 
 ```bash
-docker compose -f compose.dev.yaml up --build
+docker compose -f compose.dev.yaml build --no-cache && docker compose -f compose.dev.yaml up
 ```
 
 - Backend en `http://localhost:3000` · MongoDB en `localhost:27017`.
@@ -57,7 +57,7 @@ docker compose -f compose.dev.yaml up --build
 Usa el `compose.yaml` por defecto (imagen multi-stage optimizada):
 
 ```bash
-docker compose up --build   # levanta mongodb + backend
+docker compose build --no-cache && docker compose up -d   # levanta mongodb + backend
 ```
 
 ### Prueba rápida de la API

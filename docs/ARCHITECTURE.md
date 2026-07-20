@@ -81,6 +81,53 @@ La SPA del frontend está estructurada de forma moderna sin módulos clásicos (
 * **Combined Latency Chart:** Compara las latencias en tiempo real de todos los elementos pertenecientes a un mismo grupo jerárquico.
 * **Uptime Blocks:** Heatmap visual del historial de los últimos 30 chequeos de un monitor específico.
 
+### Descomposición de `dashboard.ts` y `settings.ts` (AZ-016)
+
+Ambos eran originalmente componentes "Dios" (`dashboard.ts` ~2300 líneas, `settings.ts` ~1180
+líneas) mezclando varios dominios funcionales no relacionados en una sola clase. Se descompusieron
+por fases en subcomponentes presentacionales, manteniendo el componente original como orquestador
+delgado:
+
+**`SettingsComponent` (171 líneas, orquestador de pestaña activa + restauración de `?tab=`)**
+delega cada dominio a un subcomponente propio:
+
+| Subcomponente | Pestaña / dominio |
+|---|---|
+| `TlsPanelComponent` | Certificados TLS (texto o archivo) y puerto HTTPS |
+| `AuditLogPanelComponent` | Consulta del historial de auditoría (`GET /api/v1/audit-log`) |
+| `ApiKeysPanelComponent` | Generación, listado, revocación y borrado permanente de API Keys |
+| `BackupsPanelComponent` | Respaldos JSON, restauración e importación masiva de monitores vía CSV |
+| `ViewersPanelComponent` | Gestión de cuentas Viewer y de otras cuentas Admin |
+| `AlertsPanelComponent` | Canales de notificación y plantillas por evento |
+
+**`DashboardComponent` (1580 líneas, bajó desde 2291)** extrajo:
+
+* `QuickStatsPanelComponent` — KPIs e incidentes recientes.
+* `DashboardNavbarComponent` — logo, selector de tema/idioma, Nyan Cat, logout.
+* `MonitorFormComponent` — slide-over de alta/edición de monitor (las 6 variantes de tipo).
+
+**Remanente sin extraer, documentado en [ISSUES.md](../ISSUES.md) (AZ-016):** los gráficos ECharts
+(`initChart`/`updateChart`/`initGroupChart`/`updateGroupChart`), el panel de detalle de
+monitor/grupo que los aloja y el árbol de monitores del sidebar siguen dentro de
+`DashboardComponent` — comparten estado en vivo (`selectedMonitor`/`selectedGroup`/
+`historyPoints`/`groupHistoryMap`) con el handler de heartbeats de Socket.io y el efecto Nyan Cat
+embebido en las opciones de ECharts, por lo que su extracción se dejó para una sesión con QA visual
+en navegador.
+
+### Componentes y servicios compartidos nuevos
+
+Introducidos durante la descomposición de AZ-016, viven en `shared/components` y `core/services`
+para reutilizarse fuera de Settings/Dashboard:
+
+* **`ConfirmService` + `ConfirmModalComponent`** — reemplaza los `confirm()` nativos del navegador
+  por un modal de confirmación programático (`confirmService.ask(...)` devuelve una `Promise<boolean>`).
+* **`ToastService` + `ToastComponent`** — notificaciones no bloqueantes (éxito/error/info) para
+  reemplazar los `alert()` nativos restantes.
+* **`ChangePasswordModalComponent`** — flujo de cambio de contraseña unificado, reutilizado tanto
+  desde `/profile` como desde la gestión de otras cuentas Admin/Viewer en `/settings`.
+* **`EmojiPickerComponent`** — selector de emojis reutilizado en el editor de plantillas de
+  notificación (`AlertsPanelComponent`).
+
 ---
 
 ## 4. Modo Nyan Cat (Easter Egg)

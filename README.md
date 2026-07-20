@@ -64,6 +64,7 @@ Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión d
 
 | Documento | Contenido |
 |---|---|
+| [docs/instalacion-docker.md](./docs/instalacion-docker.md) | Manual de instalación con Docker: variables de entorno, producción, desarrollo con hot-reload, HTTPS nativo, respaldos, problemas frecuentes. |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Clean Architecture, bypass de Cloudflare WAF, modo Nyan Cat, autenticación, API pública, auditoría. |
 | [docs/api-publica.md](./docs/api-publica.md) | Autenticación por `X-API-Key`, endpoints disponibles, gestión de keys, ejemplos `curl`. |
 | `spec/` (local, no versionado en git) | Especificaciones funcionales por fase (Spec-Driven Development): modelo de datos, contratos de API, arquitectura. |
@@ -77,21 +78,17 @@ Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión d
 
 La plataforma está completamente containerizada. Los nombres de los contenedores Docker están estandarizados como `azkin-front`, `azkin-back` y `azkin-db`.
 
-### Producción
-
-Para levantar el entorno completo de producción (Web en puerto `80`, API en puerto `3000`, MongoDB en `27017`):
-
 ```bash
-docker compose up -d --build
+cp .env.example .env        # ajusta credenciales antes de levantar el entorno
+
+# Producción: Web en :80, API en :3000, MongoDB en :27017
+docker compose build --no-cache && docker compose up -d
+
+# Desarrollo con hot-reload (Web en :4200)
+docker compose -f compose.dev.yaml build --no-cache && docker compose -f compose.dev.yaml up -d
 ```
 
-### Desarrollo Local (con Hot-Reload)
-
-Para desarrollo con recarga en caliente en frontend y backend:
-
-```bash
-docker compose -f compose.dev.yaml up -d --build
-```
+Guía completa (variables de entorno, verificación, HTTPS nativo, respaldos, problemas frecuentes) en [`docs/instalacion-docker.md`](./docs/instalacion-docker.md).
 
 ---
 
