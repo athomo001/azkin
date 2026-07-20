@@ -8,7 +8,7 @@ export interface AuditLogEntryOutput extends IAuditLog {
 }
 
 /**
- * Caso de uso para listar el historial de auditoría reciente (AZ-030).
+ * Caso de uso para listar el historial de auditoría reciente.
  * Sin aislamiento por tenant: cualquier Admin puede revisar acciones de otros admins
  * (ej. "quién borró estos monitores", "quién cambió el certificado TLS").
  */

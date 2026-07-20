@@ -6,7 +6,7 @@ import { AlertEventType } from "../../../domain/value-objects/alert-event-type";
 
 export interface NotificationEvent {
   notificationId: string; // ID de la configuración de notificación específica a disparar
-  eventType: AlertEventType; // Evento de alerta (para enrutamiento y selección de plantilla, AZ-007)
+  eventType: AlertEventType; // Evento de alerta (para enrutamiento y selección de plantilla)
   monitor: IMonitor;
   from: MonitorStatus;
   to: MonitorStatus;

@@ -60,7 +60,7 @@ export class AuthService {
   }
 
   /**
-   * Consulta si el registro público sigue habilitado (solo lo está hasta que exista el primer admin, AZ-002).
+   * Consulta si el registro público sigue habilitado (solo lo está hasta que exista el primer admin).
    */
   getBootstrapStatus(): Observable<{ canRegister: boolean }> {
     return this.http.get<{ canRegister: boolean }>(`${this.apiUrl}/bootstrap-status`);
@@ -75,7 +75,7 @@ export class AuthService {
   }
 
   /**
-   * Inicia sesión. El access token vive solo en memoria (nunca en localStorage, AZ-017);
+   * Inicia sesión. El access token vive solo en memoria (nunca en localStorage);
    * el backend persiste el refresh token como cookie HttpOnly, inaccesible a JS.
    */
   login(identifier: string, password: string, isTvSessionEnabled = false): Observable<AuthResponse> {
@@ -90,7 +90,7 @@ export class AuthService {
   }
 
   /**
-   * Renueva la sesión llamando al backend, que lee la cookie HttpOnly de refresh (AZ-011).
+   * Renueva la sesión llamando al backend, que lee la cookie HttpOnly de refresh.
    * Usado al arrancar la app (rehidratación tras recargar la página) y ante un 401 en el interceptor.
    */
   refresh(): Observable<AuthResponse> {

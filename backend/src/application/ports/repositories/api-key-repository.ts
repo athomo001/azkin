@@ -10,7 +10,7 @@ export interface CreateApiKeyData {
 }
 
 /**
- * Puerto (interfaz) para la persistencia de API Keys de la API pública (AZ-029).
+ * Puerto (interfaz) para la persistencia de API Keys de la API pública.
  */
 export interface IApiKeyRepository {
   create(data: CreateApiKeyData): Promise<IApiKey>;

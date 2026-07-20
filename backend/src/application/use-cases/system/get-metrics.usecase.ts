@@ -5,7 +5,7 @@ import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
 
 /**
  * Caso de uso para generar el reporte de métricas en formato Prometheus (text exposition format).
- * Extraído de `composition-root.ts` (AZ-013): antes consultaba Mongoose directamente dentro del
+ * Extraído de `composition-root.ts`: antes consultaba Mongoose directamente dentro del
  * wiring de dependencias, violando la regla de dependencia de Clean Architecture.
  */
 export class GetMetricsUseCase {

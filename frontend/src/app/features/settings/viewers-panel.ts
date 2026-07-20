@@ -12,7 +12,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
 import { extractApiErrorMessage } from '../../core/utils/api-error.util';
 import { ChangePasswordModalComponent } from '../../shared/components/change-password-modal';
 
-/** Pestaña "Viewers": gestión de cuentas Viewer y de otros Administradores. Extraido de settings.ts (AZ-016). */
+/** Pestaña "Viewers": gestión de cuentas Viewer y de otros Administradores. Extraido de settings.ts. */
 @Component({
   selector: 'app-viewers-panel',
   standalone: true,
@@ -494,7 +494,7 @@ export class ViewersPanelComponent {
     );
   }
 
-  // ================= ACCIONES DE OTROS ADMINISTRADORES (AZ-023) =================
+  // ================= ACCIONES DE OTROS ADMINISTRADORES =================
   onEditAdmin(admin: IAdmin): void {
     this.adminEditTarget = admin;
     this.adminEditEmail = admin.email;

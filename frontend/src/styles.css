@@ -137,7 +137,7 @@ body.light-theme .border-zinc-900\/60 {
 }
 
 /* ==============================================================================
-   AZ-027: Modo TV / Kiosko 4K (sesiones isTvSessionEnabled)
+   Modo TV / Kiosko 4K (sesiones isTvSessionEnabled)
    Escalado de fuente/espaciados basado en rem para lectura a distancia.
    ============================================================================== */
 body.kiosk-mode {

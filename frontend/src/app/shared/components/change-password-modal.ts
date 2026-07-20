@@ -5,7 +5,7 @@ import { LanguageService } from '../../core/services/language.service';
 
 /**
  * Modal de cambio/reseteo de contraseña — unifica los modales casi identicos que
- * settings.ts tenia por separado para Admin y Viewer (AZ-016). El padre sigue siendo dueño
+ * settings.ts tenia por separado para Admin y Viewer. El padre sigue siendo dueño
  * del valor de la contraseña (input/output controlado), como antes de la extraccion.
  */
 @Component({

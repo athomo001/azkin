@@ -3,7 +3,7 @@ export type MonitorStatusStr = 'UP' | 'DOWN' | 'PENDING';
 
 /**
  * Normaliza el estado de un monitor/heartbeat recibido del backend (numérico 0/1/2 o string)
- * a la representación textual usada en el frontend. Única fuente de verdad (AZ-018) —
+ * a la representación textual usada en el frontend. Única fuente de verdad —
  * antes duplicada en 8 puntos entre monitor.service.ts y dashboard.ts, con una divergencia real:
  * las variantes de create()/update() omitían la rama explícita de PENDING.
  */

@@ -26,7 +26,7 @@ export class RealtimeService implements OnDestroy {
 
     this.socket = io('/', {
       path: '/socket.io',
-      // AZ-017: el token solo va en `auth` (payload del handshake), nunca en `query`
+      // El token solo va en `auth` (payload del handshake), nunca en `query`
       // (los query strings quedan en logs de acceso/proxy).
       auth: { token: token ?? '' },
       transports: ['websocket', 'polling'],

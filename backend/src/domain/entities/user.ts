@@ -21,7 +21,7 @@ export interface IUser {
   isTvSessionEnabled?: boolean; // Habilita sesiones de visualización prolongadas (ej. 1 año) para TV
   resetPasswordTokenHash?: string | null; // hash SHA-256 del token de recuperación vigente (nunca el token en claro)
   resetPasswordExpiresAt?: Date | null; // expiración corta del token de recuperación
-  isBlocked?: boolean; // AZ-023: cuenta bloqueada por otro admin; impide login/refresh
+  isBlocked?: boolean; // Cuenta bloqueada por otro admin; impide login/refresh
   preferences: {
     nyanCatMode: boolean; // Activa el easter egg de nyan cat en los gráficos
   };

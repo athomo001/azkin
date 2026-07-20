@@ -4,7 +4,7 @@ import { Injectable, signal } from '@angular/core';
 /**
  * Toast de feedback compartido por toda la app — reemplaza el signal `toast`/
  * `showToastFeedback()` que antes cada componente (settings.ts, dashboard.ts) duplicaba
- * por su cuenta (AZ-016).
+ * por su cuenta.
  */
 @Injectable({ providedIn: 'root' })
 export class ToastService {

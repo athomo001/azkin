@@ -12,7 +12,7 @@ export interface RegisterInput {
 
 /**
  * Caso de uso para registrar el primer usuario administrador (Admin) del sistema (auto-bootstrap).
- * Una vez que existe al menos un admin, este endpoint queda deshabilitado (AZ-002): las altas
+ * Una vez que existe al menos un admin, este endpoint queda deshabilitado: las altas
  * posteriores de admins/viewers se hacen desde la gestión de usuarios de un admin autenticado,
  * o mediante el seeder de arranque (AZKIN_FIRST_ADMIN_*).
  */

@@ -17,7 +17,7 @@ interface ApiKeyEntry {
   revokedAt: string | null;
 }
 
-/** Pestaña "API" (AZ-029): gestión de API Keys para la API pública. Extraido de settings.ts (AZ-016). */
+/** Pestaña "API": gestión de API Keys para la API pública. Extraido de settings.ts. */
 @Component({
   selector: 'app-api-keys-panel',
   standalone: true,

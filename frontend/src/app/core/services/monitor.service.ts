@@ -151,7 +151,7 @@ export class MonitorService {
   }
 
   /**
-   * Elimina varios monitores en una sola operación (AZ-005).
+   * Elimina varios monitores en una sola operación.
    */
   bulkDelete(ids: string[]): Observable<{ deletedCount: number; deletedIds: string[] }> {
     return this.http.post<{ deletedCount: number; deletedIds: string[] }>(`${this.apiUrl}/monitors/bulk-delete`, { ids }).pipe(

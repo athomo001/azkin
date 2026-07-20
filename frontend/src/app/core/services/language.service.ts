@@ -1,7 +1,7 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Injectable, signal, effect } from '@angular/core';
 
-// AZ-020: diccionario a nivel de módulo (antes se reconstruía en cada llamada a t()).
+// Diccionario a nivel de módulo (antes se reconstruía en cada llamada a t()).
 // `TranslationKey` deriva de sus propias claves: un typo en `lang.t('clave.inexistente')`
 // ahora es un error de compilación en vez de devolver silenciosamente la clave cruda en runtime.
 const TRANSLATIONS = {

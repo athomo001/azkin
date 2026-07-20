@@ -13,10 +13,10 @@ export interface AuditLogEntry {
 }
 
 /**
- * Pestaña "Auditoría" (AZ-030): historial de acciones administrativas sensibles.
+ * Pestaña "Auditoría": historial de acciones administrativas sensibles.
  * Se carga sola al instanciarse — como solo existe mientras la pestaña está activa
  * (`@if (activeTab() === 'audit')` en el orquestador), esto preserva el comportamiento de
- * carga perezosa que tenía settings.ts antes de la extracción (AZ-016).
+ * carga perezosa que tenía settings.ts antes de la extracción.
  */
 @Component({
   selector: 'app-audit-log-panel',

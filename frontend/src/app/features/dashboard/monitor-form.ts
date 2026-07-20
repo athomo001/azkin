@@ -9,14 +9,14 @@ import { LanguageService } from '../../core/services/language.service';
 type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
 
 /**
- * Slide-over de creación/edición de monitor. Extraido de dashboard.ts (AZ-016).
+ * Slide-over de creación/edición de monitor. Extraido de dashboard.ts.
  *
  * `monitor` es `null` para creación, o el monitor a editar. El componente construye su propio
  * `formModel` a partir de ese input en `ngOnInit` (se instancia de nuevo cada vez que el shell
  * lo muestra, vía `@if (showForm())`, así que no necesita reaccionar a cambios posteriores del
  * input). Al guardar exitosamente emite `saved` con el monitor resultante — el shell decide qué
  * hacer después (reseleccionar, recargar incidentes, cerrar el panel), porque esa parte toca
- * estado de selección/chart que permanece en el shell (ver nota "Fuera de alcance" en AZ-016).
+ * estado de selección/chart que permanece en el shell (ver nota "Fuera de alcance" en ISSUES.md).
  */
 @Component({
   selector: 'app-monitor-form',

@@ -13,7 +13,7 @@ export class App {
   protected readonly title = signal('frontend');
 
   constructor() {
-    // AZ-022: aplica el tema guardado al arrancar, sin importar la ruta de entrada/refresh.
+    // Aplica el tema guardado al arrancar, sin importar la ruta de entrada/refresh.
     inject(ThemeService).applyToDom();
   }
 }

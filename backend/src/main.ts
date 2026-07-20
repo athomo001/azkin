@@ -22,7 +22,7 @@ async function bootstrap(): Promise<void> {
     logger.info(`Azkin backend listening on port ${env.port}`);
   });
 
-  // AZ-006: si ya existe una configuración TLS persistida, levantar el listener HTTPS al arrancar.
+  // Si ya existe una configuración TLS persistida, levantar el listener HTTPS al arrancar.
   const tlsConfig = await tlsConfigs.getActive();
   if (tlsConfig) {
     if (!tlsEncryptionKey) {

@@ -35,7 +35,7 @@ test("filterMonitorsByPermission filtra por monitor individual para un viewer co
   assert.deepEqual(result.map((m) => m.id), ["m3"]);
 });
 
-test("filterMonitorsByPermission devuelve vacío para un viewer sin ningún permiso (regresión AZ-001)", () => {
+test("filterMonitorsByPermission devuelve vacío para un viewer sin ningún permiso", () => {
   const result = filterMonitorsByPermission(monitors, "viewer", []);
   assert.deepEqual(result, []);
 });

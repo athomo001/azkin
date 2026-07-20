@@ -9,7 +9,7 @@ export interface LoginInput {
   password: string;
 }
 
-/** AZ-011: expiración del refresh token (7 días), acorde a spec/04-contratos-api.md §1.1. */
+/** Expiración del refresh token (7 días), acorde a spec/04-contratos-api.md §1.1. */
 export const REFRESH_TOKEN_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
 
 /**
@@ -41,10 +41,10 @@ export class LoginUseCase {
       throw new AccountBlockedError();
     }
 
-    // AZ-027: sesiones TV/Kiosko usan un token de larga duración (1 año) en vez del expiresIn por defecto.
+    // Sesiones TV/Kiosko usan un token de larga duración (1 año) en vez del expiresIn por defecto.
     const tvExpiresIn = user.isTvSessionEnabled ? 31536000 : undefined;
     const token = this.tokens.sign(user.id, user.role, user.adminId, user.permissions, tvExpiresIn);
-    // AZ-011: refresh token de larga duración, persistido solo como cookie HttpOnly por el controller.
+    // Refresh token de larga duración, persistido solo como cookie HttpOnly por el controller.
     const refreshToken = this.tokens.sign(
       user.id,
       user.role,

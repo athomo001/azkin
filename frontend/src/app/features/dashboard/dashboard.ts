@@ -38,7 +38,7 @@ type HistoryRangeOption = {
     <div class="min-h-screen bg-zinc-950 text-white flex flex-col font-sans transition-colors duration-300">
       <app-dashboard-navbar [isNyanCatMode]="isNyanCatMode()" (logoClick)="resetSelection()" (toggleNyanCat)="toggleNyanCat()" />
 
-      <!-- Toast de feedback (AZ-016: componente compartido, ver ToastService) -->
+      <!-- Toast de feedback (componente compartido, ver ToastService) -->
       <app-toast />
 
       <!-- Main Layout: Estilo Uptime Kuma de Dos Columnas -->
@@ -536,16 +536,16 @@ type HistoryRangeOption = {
         </main>
       </div>
 
-      <!-- Slide-over Formulario de Creación y Edición (AZ-016: componente propio) -->
+      <!-- Slide-over Formulario de Creación y Edición (componente propio) -->
       @if (showForm()) {
         <app-monitor-form [monitor]="editingMonitor()" (saved)="onMonitorSaved($event)" (cancel)="closeForm()" />
       }
 
       <!-- Custom Confirm Delete Monitor Modal (Punto 4) -->
-      <!-- AZ-016: modal de confirmacion generico (componente compartido, ver ConfirmService) -->
+      <!-- Modal de confirmacion generico (componente compartido, ver ConfirmService) -->
       <app-confirm-modal />
 
-      <!-- AZ-005: Confirmación de borrado masivo con resumen de impacto (lista dinámica de nombres —
+      <!-- Confirmación de borrado masivo con resumen de impacto (lista dinámica de nombres —
            no encaja en el modal de confirmación genérico, se mantiene como modal propio) -->
       @if (showBulkDeleteConfirm()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -661,10 +661,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // Control colapsable de grupos en el sidebar
   readonly collapsedGroups = signal<Record<string, boolean>>({});
 
-  // Control de tema claro/oscuro — delega en ThemeService (AZ-022, compartido con toda la app)
+  // Control de tema claro/oscuro — delega en ThemeService (compartido con toda la app)
   readonly isLightTheme = this.themeService.isLightTheme;
 
-  // AZ-027: Modo TV/Kiosko para sesiones isTvSessionEnabled — oculta controles no esenciales
+  // Modo TV/Kiosko para sesiones isTvSessionEnabled — oculta controles no esenciales
   readonly isKioskMode = computed(() => this.authService.currentUser()?.isTvSessionEnabled ?? false);
 
   // Easter egg NyanCat — persistido en localStorage para máxima robustez
@@ -686,7 +686,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  // AZ-005: selección múltiple y borrado masivo de monitores
+  // Selección múltiple y borrado masivo de monitores
   readonly selectionMode = signal(false);
   readonly selectedMonitorIds = signal<Set<string>>(new Set());
   readonly showBulkDeleteConfirm = signal(false);

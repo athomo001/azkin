@@ -5,7 +5,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
 
 /**
  * Modal de confirmacion generico — una sola instancia por pagina, montada fuera de cualquier
- * condicional de pestana/panel. Lee su estado directamente de ConfirmService (AZ-016): los
+ * condicional de pestana/panel. Lee su estado directamente de ConfirmService: los
  * paneles que necesitan confirmar una accion inyectan ConfirmService y llaman a `ask(...)`,
  * sin duplicar su propio triada de signals para esto.
  */

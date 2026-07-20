@@ -106,7 +106,7 @@ export class RegisterComponent implements OnInit {
   private readonly router = inject(Router);
   public readonly lang = inject(LanguageService);
 
-  // AZ-002: bloquea el acceso directo por URL si ya existe un admin (registro auto-bootstrap-only).
+  // Bloquea el acceso directo por URL si ya existe un admin (registro auto-bootstrap-only).
   ngOnInit(): void {
     this.authService.getBootstrapStatus().subscribe({
       next: (status) => {

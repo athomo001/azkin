@@ -10,7 +10,7 @@ import { SENSITIVE_NOTIFICATION_CONFIG_KEYS, SECRET_MASK_PREFIX } from "../../se
 /**
  * Caso de uso para actualizar la configuración de un canal de notificación.
  * Los campos sensibles (`webhookUrl`/`botToken`/`smtpPassword`) llegan enmascarados desde el
- * formulario de edición si el admin no los tocó (AZ-010): si el valor recibido tiene el formato
+ * formulario de edición si el admin no los tocó: si el valor recibido tiene el formato
  * de máscara, se conserva el valor real ya persistido en vez de sobrescribirlo con el placeholder.
  */
 export class UpdateNotificationUseCase {

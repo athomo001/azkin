@@ -43,7 +43,7 @@ services:
       # interno (3000) es fijo: coincide con el EXPOSE del Dockerfile y con
       # AZKIN_PORT de abajo, que no se deriva del host para evitar desincronía.
       - "${AZKIN_BACK_PORT:-3000}:3000"
-      # AZ-006: puerto HTTPS nativo, solo se usa si se aplica una configuración TLS
+      # Puerto HTTPS nativo, solo se usa si se aplica una configuración TLS
       # desde la UI. Ambos lados deben usar la MISMA variable: el backend escucha
       # internamente en el puerto que el admin eligió en /settings (no un valor
       # fijo del Dockerfile), así que el mapeo host:contenedor debe coincidir con
@@ -78,7 +78,7 @@ services:
       AZKIN_PROMETHEUS_USER: ${AZKIN_PROMETHEUS_USER}
       AZKIN_PROMETHEUS_PASS: ${AZKIN_PROMETHEUS_PASS}
       AZKIN_PROMETHEUS_API_KEY: ${AZKIN_PROMETHEUS_API_KEY}
-      # AZ-006: clave de cifrado en reposo para la clave privada TLS subida desde la UI.
+      # Clave de cifrado en reposo para la clave privada TLS subida desde la UI.
       AZKIN_TLS_ENCRYPTION_KEY: ${AZKIN_TLS_ENCRYPTION_KEY}
 
   frontend:

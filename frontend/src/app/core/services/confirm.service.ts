@@ -4,7 +4,7 @@ import { Injectable, signal } from '@angular/core';
 /**
  * Estado del modal de confirmacion generico, compartido por toda la app — reemplaza la
  * triada showConfirmModal/confirmModalTitle/confirmModalMsg/confirmActionCallback que antes
- * cada componente (settings.ts, dashboard.ts) duplicaba por su cuenta (AZ-016).
+ * cada componente (settings.ts, dashboard.ts) duplicaba por su cuenta.
  */
 @Injectable({ providedIn: 'root' })
 export class ConfirmService {

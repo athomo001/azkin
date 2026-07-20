@@ -3,7 +3,7 @@ import { INotification } from "../../../domain/entities/notification";
 import { SENSITIVE_NOTIFICATION_CONFIG_KEYS, maskSecret } from "../../../application/services/notification-secrets";
 
 /**
- * AZ-010: presenta un canal de notificación enmascarando sus campos sensibles
+ * Presenta un canal de notificación enmascarando sus campos sensibles
  * (`webhookUrl`/`botToken`/`smtpPassword`), igual que `passwordHash` nunca sale del dominio.
  * El enmascarado conserva los últimos 4 caracteres para que el admin identifique cuál es cuál
  * sin exponer el secreto completo. `UpdateNotificationUseCase` reconoce este formato para no

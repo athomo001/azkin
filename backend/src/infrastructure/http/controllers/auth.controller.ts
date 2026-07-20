@@ -46,7 +46,7 @@ export class AuthController {
   };
 
   /**
-   * Renueva la sesión a partir de la cookie HttpOnly de refresh (AZ-011).
+   * Renueva la sesión a partir de la cookie HttpOnly de refresh.
    * Nunca lee el refresh token del body: solo la cookie, para que sea inaccesible a JS (XSS).
    */
   refresh = async (req: Request, res: Response): Promise<void> => {
@@ -64,7 +64,7 @@ export class AuthController {
     res.status(200).json({ message: "Sesión cerrada correctamente." });
   };
 
-  // AZ-002: el frontend consulta este endpoint público para decidir si mostrar el CTA de registro.
+  // El frontend consulta este endpoint público para decidir si mostrar el CTA de registro.
   bootstrapStatus = async (_req: Request, res: Response): Promise<void> => {
     const adminCount = await this.users.countAdmins();
     res.status(200).json({ canRegister: adminCount === 0 });

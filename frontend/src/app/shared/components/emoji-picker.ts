@@ -2,7 +2,7 @@
 import { Component, inject, input, output } from '@angular/core';
 import { LanguageService } from '../../core/services/language.service';
 
-/** Selector de emojis genérico (AZ-026), extraido de settings.ts (AZ-016). */
+/** Selector de emojis genérico, extraido de settings.ts. */
 @Component({
   selector: 'app-emoji-picker',
   standalone: true,

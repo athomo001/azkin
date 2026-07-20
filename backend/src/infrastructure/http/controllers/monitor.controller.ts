@@ -6,6 +6,8 @@ import { UpdateMonitorUseCase } from "../../../application/use-cases/monitors/up
 import { DeleteMonitorUseCase } from "../../../application/use-cases/monitors/delete-monitor.usecase";
 import { BulkDeleteMonitorsUseCase } from "../../../application/use-cases/monitors/bulk-delete-monitors.usecase";
 import { BulkImportMonitorsFromCsvUseCase } from "../../../application/use-cases/backup/bulk-import-monitors-from-csv.usecase";
+import { ExportMonitorAssetsUseCase } from "../../../application/use-cases/monitors/export-monitor-assets.usecase";
+import { ImportMonitorAssetsUseCase } from "../../../application/use-cases/monitors/import-monitor-assets.usecase";
 import { ValidationError } from "../../../domain/errors/domain-error";
 import { toMonitorResponse } from "../presenters/monitor.presenter";
 
@@ -17,6 +19,8 @@ export class MonitorController {
     private readonly deleteUseCase: DeleteMonitorUseCase,
     private readonly bulkDeleteUseCase: BulkDeleteMonitorsUseCase,
     private readonly bulkImportCsvUseCase: BulkImportMonitorsFromCsvUseCase,
+    private readonly exportAssetsUseCase: ExportMonitorAssetsUseCase,
+    private readonly importAssetsUseCase: ImportMonitorAssetsUseCase,
   ) {}
 
   list = async (req: Request, res: Response): Promise<void> => {
@@ -66,6 +70,20 @@ export class MonitorController {
       throw new ValidationError("Se requiere el campo 'csv' con el contenido del archivo");
     }
     const result = await this.bulkImportCsvUseCase.execute({ userId: req.adminId!, csv });
+    res.status(200).json(result);
+  };
+
+  exportAssets = async (_req: Request, res: Response): Promise<void> => {
+    const monitors = await this.exportAssetsUseCase.execute();
+    res.status(200).json({ version: "1.0", exportedAt: new Date().toISOString(), monitors });
+  };
+
+  importAssets = async (req: Request, res: Response): Promise<void> => {
+    const monitors = req.body.monitors;
+    if (!Array.isArray(monitors) || monitors.length === 0) {
+      throw new ValidationError("Se requiere un arreglo 'monitors' no vacío");
+    }
+    const result = await this.importAssetsUseCase.execute({ userId: req.adminId!, monitors });
     res.status(200).json(result);
   };
 }

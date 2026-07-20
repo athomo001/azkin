@@ -12,7 +12,7 @@ import { EmojiPickerComponent } from '../../shared/components/emoji-picker';
 /**
  * Pestaña "Canales de Alerta": CRUD de canales de notificación (Slack/Discord/Telegram/Webhook/
  * Email) con plantillas de mensaje por evento, cheatsheet de variables y selector de emojis.
- * Extraido de settings.ts (AZ-016).
+ * Extraido de settings.ts.
  */
 @Component({
   selector: 'app-alerts-panel',
@@ -20,7 +20,7 @@ import { EmojiPickerComponent } from '../../shared/components/emoji-picker';
   imports: [CommonModule, FormsModule, EmojiPickerComponent],
   template: `
     <div class="grid grid-cols-1 xl:grid-cols-5 gap-8">
-      <!-- Formulario de canal: layout de 2 columnas (AZ-025) basado en el ancho real de la
+      <!-- Formulario de canal: layout de 2 columnas basado en el ancho real de la
            tarjeta (@container), no en el viewport — evita que se corte cuando la tarjeta
            ocupa solo una fracción angosta de una pantalla ancha. -->
       <div class="@container xl:col-span-2 bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg h-fit">
@@ -51,7 +51,7 @@ import { EmojiPickerComponent } from '../../shared/components/emoji-picker';
                 </select>
               </div>
 
-              <!-- AZ-007: Enrutamiento centralizado por evento -->
+              <!-- Enrutamiento centralizado por evento -->
               <div class="space-y-2 border-t border-zinc-850 pt-4">
                 <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">{{ lang.t('settings.alerts.scope') }}</span>
                 <div class="flex flex-wrap gap-4 text-xs">
@@ -152,7 +152,7 @@ import { EmojiPickerComponent } from '../../shared/components/emoji-picker';
                 </div>
               }
 
-              <!-- AZ-004/AZ-026: Plantillas por evento con cheatsheet de variables y selector de emojis -->
+              <!-- Plantillas por evento con cheatsheet de variables y selector de emojis -->
               <div class="space-y-2 border-t border-zinc-850 pt-4">
                 <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">{{ lang.t('settings.alerts.templateLabel') }}</span>
                 <select [(ngModel)]="channelForm.activeTemplateEvent"
@@ -296,7 +296,7 @@ export class AlertsPanelComponent {
     detail: 'Ejemplo de detalle',
   };
 
-  // ================= AZ-026: cheatsheet de variables + selector de emojis =================
+  // ================= Cheatsheet de variables + selector de emojis =================
   readonly templateVariableChips = ['monitor', 'url', 'status', 'previousStatus', 'datetime', 'httpCode', 'ping', 'detail']
     .map(name => ({ name, token: `{{${name}}}` }));
 

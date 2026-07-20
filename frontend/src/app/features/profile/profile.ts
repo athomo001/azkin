@@ -12,7 +12,7 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
 /**
  * Página de autoservicio disponible para CUALQUIER rol autenticado (admin o viewer):
  * solo cambio de la propia contraseña. Separada de /settings (exclusiva de admin) para
- * cerrar la exposición de datos administrativos a viewers (ver AZ-021).
+ * cerrar la exposición de datos administrativos a viewers.
  */
 @Component({
   selector: 'app-profile',

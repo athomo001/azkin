@@ -6,7 +6,7 @@ export interface SendMailInput {
 }
 
 export interface SendMailOptions {
-  /** Si es true, propaga el error en vez de caer a modo mock (usado por el test de SMTP, AZ-031). */
+  /** Si es true, propaga el error en vez de caer a modo mock (usado por el test de SMTP). */
   throwOnFailure?: boolean;
 }
 

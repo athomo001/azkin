@@ -8,11 +8,11 @@ import { ThemeService } from '../../core/services/theme.service';
 
 /**
  * Navbar del dashboard: logo (vuelve a Quick Stats), tema/idioma, info de usuario, easter egg
- * NyanCat (admin), link a settings/perfil, logout. Extraido de dashboard.ts (AZ-016).
+ * NyanCat (admin), link a settings/perfil, logout. Extraido de dashboard.ts.
  *
  * `isNyanCatMode` se recibe como input (en vez de tener su propio signal) porque ese estado
  * también lo lee el renderizado de los gráficos ECharts en el shell — esa parte permanece en el
- * shell por ahora (ver nota "Fuera de alcance" en AZ-016), así que el signal debe seguir viviendo
+ * shell por ahora (ver nota "Fuera de alcance" en ISSUES.md), así que el signal debe seguir viviendo
  * ahí. Este componente solo refleja su valor y emite la intención de cambiarlo.
  */
 @Component({
