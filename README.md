@@ -12,7 +12,9 @@
 
 **Azkin** es una solución para el monitoreo de disponibilidad, integridad y rendimiento de servicios web y redes en tiempo real.
 
+> 📚 **Explicacion Coloquial**
 Esta wea está pensada para cachar al tiro el uptime de varias páginas, servicios y redes, ver cuándo algo se cae (downtime), cuánto se demora en responder (latency) y recibir alerts en tiempo real para reaccionar rápido sin andar adivinando qué wea pasó.
+--
 
 La plataforma soporta múltiples tipos de verificación:
 
