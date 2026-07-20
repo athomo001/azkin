@@ -20,7 +20,7 @@ function makeAdmin(): IUser {
   };
 }
 
-test("RegisterUseCase rechaza el registro si ya existe un admin (auto-bootstrap, AZ-002)", async () => {
+test("RegisterUseCase rechaza el registro si ya existe un admin (auto-bootstrap)", async () => {
   const admin = makeAdmin();
   const users: IUserRepository = {
     create: async () => admin,

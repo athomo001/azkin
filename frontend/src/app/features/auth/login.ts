@@ -126,7 +126,7 @@ export class LoginComponent implements OnInit {
   password = '';
   readonly isLoading = signal(false);
   readonly showPassword = signal(false);
-  // AZ-002: el CTA de registro solo se muestra mientras no exista ningún admin todavía.
+  // El CTA de registro solo se muestra mientras no exista ningún admin todavía.
   readonly canRegister = signal(false);
 
   ngOnInit(): void {

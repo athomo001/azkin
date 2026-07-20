@@ -8,7 +8,7 @@ export interface INotificationTemplate {
   body: string; // texto (slack/discord/telegram/email) o JSON (webhook), con variables {{var}}
 }
 
-// AZ-009: tipos discriminados por canal para `config` — reemplazan los `as any` que existían en
+// Tipos discriminados por canal para `config` — reemplazan los `as any` que existían en
 // multichannel-notifier.ts. `INotification.config` sigue siendo `Record<string, unknown>` en el
 // dominio (el shape real depende de `type`); estas interfaces documentan y tipan ese contrato en
 // el borde donde se conoce el canal (los senders de `MultichannelNotifier`).
@@ -53,7 +53,7 @@ export interface INotification {
   config: Record<string, unknown>; // Parámetros específicos de configuración (tokens, urls, credenciales, etc.)
   isActive: boolean; // Indica si el canal de notificación se encuentra activo
   events: AlertEventType[] | "all"; // Enrutamiento: "all" o lista explícita de eventos suscritos
-  templates: Partial<Record<AlertEventType, INotificationTemplate>>; // Plantillas por evento (AZ-004)
+  templates: Partial<Record<AlertEventType, INotificationTemplate>>; // Plantillas por evento
   createdAt: Date;
   updatedAt: Date;
 }

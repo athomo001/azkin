@@ -151,12 +151,21 @@ export class MonitorService {
   }
 
   /**
-   * Elimina varios monitores en una sola operación (AZ-005).
+   * Elimina varios monitores en una sola operación.
    */
   bulkDelete(ids: string[]): Observable<{ deletedCount: number; deletedIds: string[] }> {
     return this.http.post<{ deletedCount: number; deletedIds: string[] }>(`${this.apiUrl}/monitors/bulk-delete`, { ids }).pipe(
       tap(({ deletedIds }) => this.monitors.update(list => list.filter(m => !deletedIds.includes(m.id))))
     );
+  }
+
+  /**
+   * Asigna o quita un canal de notificación en varios monitores a la vez — evita tener que
+   * editar monitor por monitor cuando se reemplaza un canal (crear uno nuevo no lo vuelve a
+   * asociar automáticamente a los monitores que usaban el anterior).
+   */
+  bulkAssignNotification(monitorIds: string[], notificationId: string, action: 'add' | 'remove'): Observable<{ updatedCount: number }> {
+    return this.http.post<{ updatedCount: number }>(`${this.apiUrl}/monitors/bulk-assign-notification`, { monitorIds, notificationId, action });
   }
 
   /**

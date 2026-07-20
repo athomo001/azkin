@@ -34,10 +34,10 @@ export interface IUserRepository {
   findByIdentifier(identifier: string): Promise<IUser | null>;
   findById(id: string): Promise<IUser | null>;
   changePassword(id: string, newPasswordHash: string): Promise<boolean>;
-  /** Cantidad total de cuentas con rol admin (usado para el auto-bootstrap de registro, AZ-002). */
+  /** Cantidad total de cuentas con rol admin (usado para el auto-bootstrap de registro). */
   countAdmins(): Promise<number>;
   findAllAdmins(): Promise<IUser[]>;
-  // AZ-023: gestión de otras cuentas Admin
+  // Gestión de otras cuentas Admin
   updateAdminEmail(id: string, email: string): Promise<IUser | null>;
   setAdminBlocked(id: string, isBlocked: boolean): Promise<IUser | null>;
   deleteAdmin(id: string): Promise<boolean>;

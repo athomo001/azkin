@@ -69,6 +69,9 @@ import { ListBackupsUseCase } from "./application/use-cases/backup/list-backups.
 import { GetBackupUseCase } from "./application/use-cases/backup/get-backup.usecase";
 import { ImportBackupUseCase } from "./application/use-cases/backup/import-backup.usecase";
 import { BulkImportMonitorsFromCsvUseCase } from "./application/use-cases/backup/bulk-import-monitors-from-csv.usecase";
+import { ExportMonitorAssetsUseCase } from "./application/use-cases/monitors/export-monitor-assets.usecase";
+import { ImportMonitorAssetsUseCase } from "./application/use-cases/monitors/import-monitor-assets.usecase";
+import { BulkAssignNotificationUseCase } from "./application/use-cases/monitors/bulk-assign-notification.usecase";
 
 // Use cases de Notificaciones
 import { CreateNotificationUseCase } from "./application/use-cases/notifications/create-notification.usecase";
@@ -83,7 +86,7 @@ import { GetTlsConfigUseCase } from "./application/use-cases/system/get-tls-conf
 import { GetSmtpStatusUseCase } from "./application/use-cases/system/get-smtp-status.usecase";
 import { SendTestEmailUseCase } from "./application/use-cases/system/send-test-email.usecase";
 
-// Use cases de API Keys (API pública, AZ-029)
+// Use cases de API Keys (API pública)
 import { CreateApiKeyUseCase } from "./application/use-cases/api-keys/create-api-key.usecase";
 import { ListApiKeysUseCase } from "./application/use-cases/api-keys/list-api-keys.usecase";
 import { RevokeApiKeyUseCase } from "./application/use-cases/api-keys/revoke-api-key.usecase";
@@ -138,7 +141,7 @@ export interface AppContainer {
 export function buildContainer(env: Env): AppContainer {
   const app = express();
   // Confía en el primer hop (nginx del contenedor frontend) para resolver la IP real del
-  // cliente desde X-Forwarded-For — requerido para que express-rate-limit (AZ-010) limite
+  // cliente desde X-Forwarded-For — requerido para que express-rate-limit limite
   // por IP de cliente real y no por la IP interna del proxy.
   app.set("trust proxy", 1);
   app.use(cors({ origin: env.corsOrigin }));
@@ -150,7 +153,7 @@ export function buildContainer(env: Env): AppContainer {
   const io = new Server(server, { cors: { origin: env.corsOrigin } });
   const tlsServerManager = new HttpsServerManager(app);
 
-  // AZ-006: redirección opcional HTTP -> HTTPS. Nota operativa: si el backend corre detrás de un
+  // Redirección opcional HTTP -> HTTPS. Nota operativa: si el backend corre detrás de un
   // proxy (ej. nginx) que le reenvía tráfico por HTTP interno, habilitar esta opción redirigirá
   // también ese tráfico interno; solo se recomienda cuando el backend recibe tráfico público directo.
   app.use((req, res, next) => {
@@ -204,6 +207,9 @@ export function buildContainer(env: Env): AppContainer {
   const deleteMonitor = new DeleteMonitorUseCase(monitors, heartbeats, scheduler);
   const bulkDeleteMonitors = new BulkDeleteMonitorsUseCase(monitors, heartbeats, scheduler, auditLog);
   const bulkImportMonitorsFromCsv = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+  const exportMonitorAssets = new ExportMonitorAssetsUseCase(monitors);
+  const importMonitorAssets = new ImportMonitorAssetsUseCase(monitors, scheduler);
+  const bulkAssignNotification = new BulkAssignNotificationUseCase(monitors, scheduler, auditLog);
   const getHistory = new GetHistoryUseCase(monitors, heartbeats);
   const getGroups = new GetGroupsUseCase(monitors);
   const getGroupOverview = new GetGroupOverviewUseCase(monitors, heartbeats);
@@ -241,7 +247,7 @@ export function buildContainer(env: Env): AppContainer {
   );
   const getTlsConfig = new GetTlsConfigUseCase(tlsConfigs, tlsServerManager);
 
-  // Instanciación de Use cases de API Keys (API pública, AZ-029)
+  // Instanciación de Use cases de API Keys (API pública)
   const createApiKey = new CreateApiKeyUseCase(apiKeysRepo);
   const listApiKeys = new ListApiKeysUseCase(apiKeysRepo);
   const revokeApiKey = new RevokeApiKeyUseCase(apiKeysRepo);
@@ -256,6 +262,9 @@ export function buildContainer(env: Env): AppContainer {
     deleteMonitor,
     bulkDeleteMonitors,
     bulkImportMonitorsFromCsv,
+    exportMonitorAssets,
+    importMonitorAssets,
+    bulkAssignNotification,
   );
   const statsController = new StatsController(getHistory, getGroups, getGroupOverview, getRecentEvents);
   const userController = new UserController(
@@ -307,7 +316,7 @@ export function buildContainer(env: Env): AppContainer {
   app.use("/api/v1/system", authGuard, systemRoutes(systemController));
   app.use("/api/v1/api-keys", authGuard, apiKeyRoutes(apiKeyController));
   app.use("/api/v1/audit-log", authGuard, auditLogRoutes(auditLogController));
-  // AZ-029: API pública autenticada por API Key en vez de sesión JWT — reutiliza el mismo
+  // API pública autenticada por API Key en vez de sesión JWT — reutiliza el mismo
   // MonitorController/monitorRoutes, sin duplicar lógica de negocio.
   app.use("/api/public/v1/monitors", apiKeyAuth, monitorRoutes(monitorController));
   app.use(errorHandler);

@@ -3,7 +3,7 @@ import { Injectable, signal } from '@angular/core';
 
 /**
  * Estado y aplicación del tema claro/oscuro, centralizado para toda la app.
- * AZ-022: antes solo DashboardComponent aplicaba la clase 'light-theme' a <body>,
+ * Antes solo DashboardComponent aplicaba la clase 'light-theme' a <body>,
  * así que refrescar en /settings o /profile dejaba la UI en oscuro pese a que
  * localStorage decía 'light'. Ahora se aplica desde el componente raíz (app.ts),
  * sin importar la ruta de entrada.

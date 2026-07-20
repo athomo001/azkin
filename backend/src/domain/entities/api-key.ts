@@ -2,7 +2,7 @@
 export type ApiKeyScope = "read" | "write";
 
 /**
- * Credencial de acceso a la API pública (AZ-029). Solo se persiste el hash SHA-256 de la key;
+ * Credencial de acceso a la API pública. Solo se persiste el hash SHA-256 de la key;
  * el valor en texto plano se muestra al Admin una única vez, en el momento de su creación.
  */
 export interface IApiKey {

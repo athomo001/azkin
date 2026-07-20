@@ -20,7 +20,7 @@ export interface CreateApiKeyOutput {
 }
 
 /**
- * Caso de uso para generar una nueva API Key de la API pública (AZ-029).
+ * Caso de uso para generar una nueva API Key de la API pública.
  * Solo se persiste el hash SHA-256; el valor en claro se devuelve una única vez al Admin.
  */
 export class CreateApiKeyUseCase {

@@ -41,7 +41,7 @@ export const routes: Routes = [
   },
   {
     path: 'settings',
-    // Exclusivo de Admin: bloquea la renderización completa para Viewers (AZ-021).
+    // Exclusivo de Admin: bloquea la renderización completa para Viewers.
     canActivate: [authGuard, adminGuard],
     loadComponent: () => import('./features/settings/settings').then(m => m.SettingsComponent)
   },

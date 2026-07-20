@@ -38,7 +38,7 @@ type HistoryRangeOption = {
     <div class="min-h-screen bg-zinc-950 text-white flex flex-col font-sans transition-colors duration-300">
       <app-dashboard-navbar [isNyanCatMode]="isNyanCatMode()" (logoClick)="resetSelection()" (toggleNyanCat)="toggleNyanCat()" />
 
-      <!-- Toast de feedback (AZ-016: componente compartido, ver ToastService) -->
+      <!-- Toast de feedback (componente compartido, ver ToastService) -->
       <app-toast />
 
       <!-- Main Layout: Estilo Uptime Kuma de Dos Columnas -->
@@ -94,6 +94,22 @@ type HistoryRangeOption = {
               @if (selectionMode() && selectedMonitorIds().size > 0) {
                 <div class="flex items-center gap-2">
                   <span class="text-[10px] font-mono text-zinc-500">{{ selectedMonitorIds().size }} seleccionados</span>
+                  @if (notificationService.channels().length > 0) {
+                    <select [(ngModel)]="bulkAssignChannelId"
+                      class="bg-zinc-950 border border-zinc-800 rounded px-1.5 py-1 text-[9px] text-zinc-300 focus:outline-none focus:border-orange-500 max-w-[100px]"
+                      title="Canal de notificación a asignar/quitar en los monitores seleccionados">
+                      <option value="">Canal...</option>
+                      @for (c of notificationService.channels(); track c.id) {
+                        <option [value]="c.id">{{ c.name }}</option>
+                      }
+                    </select>
+                    <button (click)="onBulkAssignNotification('add')" [disabled]="!bulkAssignChannelId"
+                      class="text-[10px] font-bold text-emerald-500 hover:text-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      title="Asignar este canal a todos los monitores seleccionados">+ Asignar</button>
+                    <button (click)="onBulkAssignNotification('remove')" [disabled]="!bulkAssignChannelId"
+                      class="text-[10px] font-bold text-amber-500 hover:text-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      title="Quitar este canal de todos los monitores seleccionados">− Quitar</button>
+                  }
                   <button (click)="onBulkDelete()" class="text-[10px] font-bold text-rose-500 hover:text-rose-400 transition-colors">Eliminar</button>
                 </div>
               }
@@ -536,16 +552,16 @@ type HistoryRangeOption = {
         </main>
       </div>
 
-      <!-- Slide-over Formulario de Creación y Edición (AZ-016: componente propio) -->
+      <!-- Slide-over Formulario de Creación y Edición (componente propio) -->
       @if (showForm()) {
         <app-monitor-form [monitor]="editingMonitor()" (saved)="onMonitorSaved($event)" (cancel)="closeForm()" />
       }
 
       <!-- Custom Confirm Delete Monitor Modal (Punto 4) -->
-      <!-- AZ-016: modal de confirmacion generico (componente compartido, ver ConfirmService) -->
+      <!-- Modal de confirmacion generico (componente compartido, ver ConfirmService) -->
       <app-confirm-modal />
 
-      <!-- AZ-005: Confirmación de borrado masivo con resumen de impacto (lista dinámica de nombres —
+      <!-- Confirmación de borrado masivo con resumen de impacto (lista dinámica de nombres —
            no encaja en el modal de confirmación genérico, se mantiene como modal propio) -->
       @if (showBulkDeleteConfirm()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -618,7 +634,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   private readonly monitorService = inject(MonitorService);
   private readonly realtimeService = inject(RealtimeService);
-  private readonly notificationService = inject(NotificationService);
+  readonly notificationService = inject(NotificationService);
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   public readonly lang = inject(LanguageService);
@@ -661,10 +677,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // Control colapsable de grupos en el sidebar
   readonly collapsedGroups = signal<Record<string, boolean>>({});
 
-  // Control de tema claro/oscuro — delega en ThemeService (AZ-022, compartido con toda la app)
+  // Control de tema claro/oscuro — delega en ThemeService (compartido con toda la app)
   readonly isLightTheme = this.themeService.isLightTheme;
 
-  // AZ-027: Modo TV/Kiosko para sesiones isTvSessionEnabled — oculta controles no esenciales
+  // Modo TV/Kiosko para sesiones isTvSessionEnabled — oculta controles no esenciales
   readonly isKioskMode = computed(() => this.authService.currentUser()?.isTvSessionEnabled ?? false);
 
   // Easter egg NyanCat — persistido en localStorage para máxima robustez
@@ -686,10 +702,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  // AZ-005: selección múltiple y borrado masivo de monitores
+  // Selección múltiple y borrado masivo de monitores
   readonly selectionMode = signal(false);
   readonly selectedMonitorIds = signal<Set<string>>(new Set());
   readonly showBulkDeleteConfirm = signal(false);
+  bulkAssignChannelId = '';
   readonly selectedMonitorNames = computed(() => {
     const ids = this.selectedMonitorIds();
     return this.monitorService.monitors().filter(m => ids.has(m.id)).map(m => m.name);
@@ -715,6 +732,24 @@ export class DashboardComponent implements OnInit, OnDestroy {
   onBulkDelete(): void {
     if (this.selectedMonitorIds().size === 0) return;
     this.showBulkDeleteConfirm.set(true);
+  }
+
+  onBulkAssignNotification(action: 'add' | 'remove'): void {
+    const ids = Array.from(this.selectedMonitorIds());
+    if (ids.length === 0 || !this.bulkAssignChannelId) return;
+    const channelName = this.notificationService.channels().find(c => c.id === this.bulkAssignChannelId)?.name ?? 'canal';
+
+    this.monitorService.bulkAssignNotification(ids, this.bulkAssignChannelId, action).subscribe({
+      next: ({ updatedCount }) => {
+        this.showSuccessToast(
+          action === 'add'
+            ? `"${channelName}" asignado a ${updatedCount} monitor(es).`
+            : `"${channelName}" quitado de ${updatedCount} monitor(es).`
+        );
+        this.monitorService.loadMonitors().subscribe();
+      },
+      error: (err) => this.showSuccessToast(extractApiErrorMessage(err, 'Error al asignar el canal de notificación.'))
+    });
   }
 
   confirmBulkDelete(): void {

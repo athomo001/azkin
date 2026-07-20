@@ -19,11 +19,11 @@ export interface RecentEvent {
 /**
  * Panel de "Quick Stats" general del dashboard — KPIs (UP/DOWN/PENDING/TOTAL), banner de caída
  * global y bitácora de incidentes recientes. Se muestra cuando no hay un monitor ni un grupo
- * seleccionado. Extraido de dashboard.ts (AZ-016).
+ * seleccionado. Extraido de dashboard.ts.
  *
  * `recentEvents` se recibe como input (en vez de cargarse aquí mismo) porque el shell lo
  * refresca también desde el handler de heartbeats en tiempo real — esa parte permanece en el
- * shell por ahora (ver nota "Fuera de alcance" en AZ-016).
+ * shell por ahora (ver nota "Fuera de alcance" en ISSUES.md).
  */
 @Component({
   selector: 'app-quick-stats-panel',

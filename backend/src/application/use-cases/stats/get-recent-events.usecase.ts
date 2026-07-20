@@ -16,8 +16,8 @@ export interface RecentEventOutput {
 /**
  * Caso de uso para obtener los últimos eventos (heartbeats) de los monitores autorizados
  * para un usuario (Admin o Viewer). Reemplaza el acceso directo a Mongoose que antes vivía
- * dentro de `StatsController` (AZ-013), reutilizando la misma política de acceso que
- * `ListMonitorsUseCase`/`GetGroupsUseCase` (AZ-008).
+ * dentro de `StatsController`, reutilizando la misma política de acceso que
+ * `ListMonitorsUseCase`/`GetGroupsUseCase`.
  */
 export class GetRecentEventsUseCase {
   constructor(

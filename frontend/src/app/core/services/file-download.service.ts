@@ -2,7 +2,7 @@
 import { Injectable } from '@angular/core';
 
 /**
- * Centraliza la descarga de archivos generados en el cliente (AZ-020) — antes cada componente
+ * Centraliza la descarga de archivos generados en el cliente — antes cada componente
  * repetía su propio `Blob`/`URL.createObjectURL`/`document.createElement('a')`.
  */
 @Injectable({ providedIn: 'root' })

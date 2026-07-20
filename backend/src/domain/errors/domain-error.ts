@@ -80,7 +80,7 @@ export class NotFoundError extends DomainError {
 }
 
 export class QuotaExceededError extends DomainError {
-  // AZ-014: código propio (antes reutilizaba "VALIDATION_ERROR"), para que el frontend pueda
+  // Código propio (antes reutilizaba "VALIDATION_ERROR"), para que el frontend pueda
   // distinguir "cuota de 50 monitores superada" de un error de validación de campos sin parsear el mensaje.
   readonly code = "QUOTA_EXCEEDED";
   readonly httpStatus = 400;

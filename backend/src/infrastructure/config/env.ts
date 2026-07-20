@@ -17,12 +17,12 @@ const schema = z.object({
   AZKIN_JWT_EXPIRES_IN: z.coerce.number().int().positive().default(7200),
   AZKIN_CHECK_CONCURRENCY: z.coerce.number().int().positive().default(50),
   AZKIN_FIRST_CHECK_DELAY_MS: z.coerce.number().int().nonnegative().default(1000),
-  // AZ-010: sin default permisivo — se exige configuración explícita (puede ser "*" a propósito
+  // Sin default permisivo — se exige configuración explícita (puede ser "*" a propósito
   // en desarrollo, pero debe ser una decisión consciente, no un fallback silencioso del código).
   AZKIN_CORS_ORIGIN: z.string().min(1, "AZKIN_CORS_ORIGIN es requerido (usa '*' solo si es intencional)"),
-  // AZ-010: costo de bcrypt configurable por entorno (ej. reducirlo en tests, subirlo en prod).
+  // Costo de bcrypt configurable por entorno (ej. reducirlo en tests, subirlo en prod).
   AZKIN_BCRYPT_COST: z.coerce.number().int().min(4).max(15).default(10),
-  // AZ-010/013: credenciales de /metrics — sin fallback hardcodeado; si no están configuradas,
+  // Credenciales de /metrics — sin fallback hardcodeado; si no están configuradas,
   // el endpoint queda inaccesible en vez de aceptar una contraseña conocida de antemano.
   AZKIN_PROMETHEUS_USER: z.preprocess(emptyToUndefined, z.string().optional()),
   AZKIN_PROMETHEUS_PASS: z.preprocess(emptyToUndefined, z.string().optional()),
@@ -31,7 +31,7 @@ const schema = z.object({
   AZKIN_FIRST_ADMIN_NAME: z.string().optional(),
   AZKIN_FIRST_ADMIN_EMAIL: z.preprocess(emptyToUndefined, z.string().email().optional()),
   AZKIN_FIRST_ADMIN_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(8).optional()),
-  // AZ-006: clave de 32 bytes en hex (64 caracteres) para cifrar la clave privada TLS en reposo.
+  // Clave de 32 bytes en hex (64 caracteres) para cifrar la clave privada TLS en reposo.
   AZKIN_TLS_ENCRYPTION_KEY: z.preprocess(
     emptyToUndefined,
     z
@@ -39,7 +39,7 @@ const schema = z.object({
       .regex(/^[0-9a-fA-F]{64}$/, "AZKIN_TLS_ENCRYPTION_KEY debe ser hexadecimal de 64 caracteres (32 bytes)")
       .optional(),
   ),
-  // AZ-002: SMTP a nivel de aplicación para correos transaccionales (recuperación de contraseña).
+  // SMTP a nivel de aplicación para correos transaccionales (recuperación de contraseña).
   AZKIN_SMTP_HOST: z.string().optional(),
   AZKIN_SMTP_PORT: z.coerce.number().int().positive().default(587),
   AZKIN_SMTP_SECURE: z.coerce.boolean().default(false),
@@ -114,7 +114,7 @@ export const env: Env = {
   appUrl: raw.AZKIN_APP_URL,
 };
 
-// AZ-010: advertencia de arranque para configuraciones explícitas pero permisivas —
+// Advertencia de arranque para configuraciones explícitas pero permisivas —
 // no bloquea el arranque (puede ser intencional en desarrollo), pero deja rastro visible.
 if (env.corsOrigin === "*") {
   console.warn("[env] AZKIN_CORS_ORIGIN='*' permite cualquier origen. No usar en producción.");

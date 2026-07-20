@@ -4,7 +4,7 @@ import { ValidationError } from "../../../domain/errors/domain-error";
 import { getErrorMessage } from "../../services/get-error-message";
 
 /**
- * Caso de uso para enviar un correo de prueba usando el SMTP de aplicación (AZ-031),
+ * Caso de uso para enviar un correo de prueba usando el SMTP de aplicación,
  * sin esperar a que un usuario real solicite una recuperación de contraseña para
  * descubrir si la configuración funciona.
  */

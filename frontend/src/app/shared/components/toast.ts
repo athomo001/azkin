@@ -2,7 +2,7 @@
 import { Component, inject } from '@angular/core';
 import { ToastService } from '../../core/services/toast.service';
 
-/** Toast de feedback — una sola instancia por pagina, lee su estado de ToastService (AZ-016). */
+/** Toast de feedback — una sola instancia por pagina, lee su estado de ToastService. */
 @Component({
   selector: 'app-toast',
   standalone: true,

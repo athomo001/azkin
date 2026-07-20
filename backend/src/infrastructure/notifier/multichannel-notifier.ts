@@ -27,7 +27,7 @@ export class MultichannelNotifier implements INotifier {
       return;
     }
 
-    // AZ-007: enrutamiento centralizado — el canal solo recibe los eventos para los que está suscrito.
+    // Enrutamiento centralizado — el canal solo recibe los eventos para los que está suscrito.
     const isSubscribed = config.events === "all" || config.events.includes(event.eventType);
     if (!isSubscribed && !event.isTest) {
       return;
@@ -46,7 +46,7 @@ export class MultichannelNotifier implements INotifier {
       detail: event.beat.msg ?? "Sin mensaje descriptivo",
     };
 
-    // AZ-004: plantilla configurada por el admin para este evento, o la plantilla por defecto del canal.
+    // Plantilla configurada por el admin para este evento, o la plantilla por defecto del canal.
     const template = config.templates[event.eventType] ?? defaultTemplateFor(event.eventType, config.type);
     const title = renderTemplate(template.subject ?? defaultTemplateFor(event.eventType, config.type).subject ?? "", context);
     const message = renderTemplate(template.body, context);

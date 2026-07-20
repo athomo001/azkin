@@ -52,7 +52,7 @@ import { AlertsPanelComponent } from './alerts-panel';
         </div>
       </nav>
 
-      <!-- Toast de feedback (AZ-016: componente compartido, ver ToastService) -->
+      <!-- Toast de feedback (componente compartido, ver ToastService) -->
       <app-toast />
 
       <main class="flex-1 p-6 lg:p-10 max-w-5xl w-full mx-auto space-y-8">
@@ -114,17 +114,17 @@ import { AlertsPanelComponent } from './alerts-panel';
             <app-backups-panel />
           }
 
-          <!-- ================= PESTAÑA: TLS / SISTEMA (AZ-006/AZ-031) ================= -->
+          <!-- ================= PESTAÑA: TLS / SISTEMA ================= -->
           @if (activeTab() === 'tls') {
             <app-tls-panel />
           }
 
-          <!-- ================= PESTAÑA: API PÚBLICA (AZ-029) ================= -->
+          <!-- ================= PESTAÑA: API PÚBLICA ================= -->
           @if (activeTab() === 'api') {
             <app-api-keys-panel />
           }
 
-          <!-- ================= PESTAÑA: AUDITORÍA (AZ-030) ================= -->
+          <!-- ================= PESTAÑA: AUDITORÍA ================= -->
           @if (activeTab() === 'audit') {
             <app-audit-log-panel />
           }
@@ -137,7 +137,7 @@ import { AlertsPanelComponent } from './alerts-panel';
         </footer>
       </main>
 
-      <!-- Modal de confirmacion generico (AZ-016: componente compartido, ver ConfirmService) -->
+      <!-- Modal de confirmacion generico (componente compartido, ver ConfirmService) -->
       <app-confirm-modal />
     </div>
   `,

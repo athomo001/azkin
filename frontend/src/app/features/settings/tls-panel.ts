@@ -23,9 +23,9 @@ interface SmtpStatus {
 }
 
 /**
- * Pestaña "TLS / Sistema": configuracion de certificado SSL/TLS (AZ-006) + estado/prueba del
- * SMTP de aplicacion (AZ-031), deliberadamente separado del SMTP por canal de alerta.
- * Extraido de settings.ts (AZ-016).
+ * Pestaña "TLS / Sistema": configuracion de certificado SSL/TLS + estado/prueba del
+ * SMTP de aplicacion, deliberadamente separado del SMTP por canal de alerta.
+ * Extraido de settings.ts.
  */
 @Component({
   selector: 'app-tls-panel',
@@ -96,7 +96,7 @@ interface SmtpStatus {
       </div>
     </div>
 
-    <!-- AZ-031/AZ-035: estado del SMTP de aplicación (recuperación de contraseña) — deliberadamente
+    <!-- Estado del SMTP de aplicación (recuperación de contraseña) — deliberadamente
          separado del SMTP por canal de alerta (pestaña "Canales de Alerta"): este es el único
          correo que el sistema puede enviar sin que exista ningún canal de alerta configurado. -->
     <div class="max-w-xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg mt-6">

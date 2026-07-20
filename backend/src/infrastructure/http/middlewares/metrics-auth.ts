@@ -16,7 +16,7 @@ function timingSafeEqualString(a: string, b: string): boolean {
 }
 
 /**
- * Middleware de autenticación para `/metrics` (AZ-010/AZ-013).
+ * Middleware de autenticación para `/metrics`.
  * Sin credenciales por defecto hardcodeadas: si no hay `AZKIN_PROMETHEUS_API_KEY` ni
  * `AZKIN_PROMETHEUS_USER`+`PASS` configurados, el endpoint queda inaccesible (401 siempre).
  * La API Key solo se acepta por header (nunca por query string, para no quedar en logs de acceso).

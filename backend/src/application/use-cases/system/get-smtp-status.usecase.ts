@@ -14,7 +14,7 @@ export interface SmtpStatusOutput {
 }
 
 /**
- * Caso de uso para exponer el estado de la configuración SMTP de aplicación (AZ-031) —
+ * Caso de uso para exponer el estado de la configuración SMTP de aplicación —
  * usada para el correo de recuperación de contraseña, distinta del SMTP por canal de
  * notificación. Nunca expone la contraseña; solo si está configurada y con qué host/puerto.
  */

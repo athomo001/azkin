@@ -7,7 +7,7 @@ import { UnauthorizedError, ForbiddenError } from "../../../domain/errors/domain
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 /**
- * Middleware de autenticación alternativa para la API pública (AZ-029): lee el header
+ * Middleware de autenticación alternativa para la API pública: lee el header
  * X-API-Key en vez del JWT de sesión, y puebla el mismo contexto de request (userId,
  * userRole, adminId, permissions) que authGuard, para que los controllers/use-cases
  * existentes no necesiten distinguir el origen de la petición.

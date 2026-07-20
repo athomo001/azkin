@@ -15,6 +15,6 @@ export interface RecordAuditLogData {
 export interface IAuditLogRepository {
   record(data: RecordAuditLogData): Promise<IAuditLog>;
   listRecent(actorId: string, limit?: number): Promise<IAuditLog[]>;
-  /** AZ-030: sin aislamiento por tenant — cualquier Admin puede auditar acciones de otros admins. */
+  /** Sin aislamiento por tenant — cualquier Admin puede auditar acciones de otros admins. */
   listAll(limit?: number): Promise<IAuditLog[]>;
 }

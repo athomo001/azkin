@@ -60,7 +60,7 @@ function makeEvent(overrides: Partial<NotificationEvent>): NotificationEvent {
   };
 }
 
-test("MultichannelNotifier no envía si el canal no está suscrito al evento (AZ-007)", async () => {
+test("MultichannelNotifier no envía si el canal no está suscrito al evento", async () => {
   const channel = makeChannel({ events: ["RECOVERED"] });
   const repo: INotificationRepository = {
     create: async () => channel,

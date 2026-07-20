@@ -20,7 +20,7 @@ function makeViewer(): IUser {
   };
 }
 
-test("LoginUseCase pasa los permisos del usuario al firmar el token (regresión AZ-001)", async () => {
+test("LoginUseCase pasa los permisos del usuario al firmar el token", async () => {
   const viewer = makeViewer();
 
   const users: IUserRepository = {

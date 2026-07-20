@@ -105,7 +105,7 @@ export class HttpChecker implements ICheckStrategy {
         // Ignorar errores menores
       }
     }
-    // AZ-012: domainExpiry (vencimiento de dominio vía WHOIS/RDAP) no está implementado — se
+    // domainExpiry (vencimiento de dominio vía WHOIS/RDAP) no está implementado — se
     // deja explícitamente en null en vez de fabricar un número determinista a partir de un hash
     // del hostname (bug real detectado en auditoría: presentaba un valor falso como si fuera un
     // dato real de WHOIS). El frontend debe mostrar "N/D" para `domainExpiry === null`.

@@ -32,10 +32,10 @@ export class RefreshUseCase {
       }
 
       // Emite un nuevo access token con claims extendidos actualizados
-      // AZ-027: preserva la sesión larga (1 año) para cuentas TV/Kiosko en cada refresh
+      // Preserva la sesión larga (1 año) para cuentas TV/Kiosko en cada refresh
       const tvExpiresIn = user.isTvSessionEnabled ? 31536000 : undefined;
       const token = this.tokens.sign(user.id, user.role, user.adminId, user.permissions, tvExpiresIn);
-      // AZ-011: rotación del refresh token en cada uso (reduce la ventana de un token filtrado).
+      // Rotación del refresh token en cada uso (reduce la ventana de un token filtrado).
       const refreshToken = this.tokens.sign(
         user.id,
         user.role,
