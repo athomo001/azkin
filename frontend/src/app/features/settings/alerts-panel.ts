@@ -225,10 +225,16 @@ import { EmojiPickerComponent } from '../../shared/components/emoji-picker';
         } @else {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             @for (c of notificationService.channels(); track c.id) {
-              <div class="bg-zinc-900/20 border border-zinc-850 hover:border-zinc-800 rounded-xl p-5 flex flex-col justify-between gap-4 transition-all">
+              <div class="bg-zinc-900/20 border border-zinc-850 hover:border-zinc-800 rounded-xl p-5 flex flex-col justify-between gap-4 transition-all"
+                [class.opacity-60]="!c.isActive">
                 <div class="space-y-2">
                   <div class="flex justify-between items-center">
-                    <span class="text-xs font-black text-zinc-200">{{ c.name }}</span>
+                    <span class="text-xs font-black text-zinc-200 flex items-center gap-1.5">
+                      {{ c.name }}
+                      @if (!c.isActive) {
+                        <span class="text-[8px] font-black tracking-wider uppercase text-zinc-400 bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 rounded">Pausado</span>
+                      }
+                    </span>
                     <span class="text-[9px] bg-zinc-950 px-2 py-0.5 border border-zinc-800/80 text-zinc-500 rounded font-mono uppercase font-bold">{{ c.type }}</span>
                   </div>
                   <p class="text-[10px] text-zinc-500 truncate font-mono bg-zinc-950/60 p-2 rounded border border-zinc-900">
@@ -256,6 +262,13 @@ import { EmojiPickerComponent } from '../../shared/components/emoji-picker';
                     </button>
                   </div>
                   <div class="flex items-center space-x-3">
+                    <button (click)="onToggleChannelActive(c)"
+                      [title]="c.isActive ? 'Pausar: deja de enviar alertas por este canal sin borrarlo ni desvincularlo de los monitores' : 'Reactivar este canal'"
+                      [class.text-amber-500]="c.isActive" [class.hover:text-amber-400]="c.isActive"
+                      [class.text-emerald-500]="!c.isActive" [class.hover:text-emerald-400]="!c.isActive"
+                      class="transition-colors">
+                      {{ c.isActive ? 'Pausar' : 'Reactivar' }}
+                    </button>
                     <button (click)="onEditChannel(c)" class="text-zinc-400 hover:text-zinc-200 transition-colors">{{ lang.t('settings.alerts.edit') }}</button>
                     <button (click)="onDeleteChannel(c.id)" class="text-rose-500 hover:text-rose-400 transition-colors">{{ lang.t('settings.alerts.delete') }}</button>
                   </div>
@@ -333,6 +346,7 @@ export class AlertsPanelComponent {
       selectedEvents: [] as AlertEventType[],
       templates: {} as Partial<Record<AlertEventType, INotificationTemplate>>,
       activeTemplateEvent: 'DOWN' as AlertEventType,
+      isActive: true,
     };
   }
 
@@ -453,6 +467,7 @@ export class AlertsPanelComponent {
       selectedEvents: channel.events === 'all' ? [] : [...channel.events],
       templates: channel.templates ?? {},
       activeTemplateEvent: 'DOWN',
+      isActive: channel.isActive,
     };
   }
 
@@ -480,7 +495,7 @@ export class AlertsPanelComponent {
       name: this.channelForm.name,
       type: this.channelForm.type,
       config,
-      isActive: true,
+      isActive: this.channelForm.isActive,
       events: this.channelForm.eventsScope === 'all' ? 'all' : this.channelForm.selectedEvents,
       templates: this.channelForm.templates,
     };
@@ -500,6 +515,18 @@ export class AlertsPanelComponent {
         }
       });
     }
+  }
+
+  /**
+   * Pausa o reactiva un canal sin abrir el formulario de edición ni tocar su configuración —
+   * pensado para silenciar alertas rápidamente mientras se reconfiguran monitores en lote
+   * (el notifier ya ignora los canales con isActive=false, ver MultichannelNotifier).
+   */
+  onToggleChannelActive(channel: INotificationChannel): void {
+    this.notificationService.update(channel.id, { isActive: !channel.isActive }).subscribe({
+      next: (updated) => this.showToastFeedback(updated.isActive ? `Canal "${updated.name}" reactivado.` : `Canal "${updated.name}" pausado — no enviará alertas hasta que lo reactives.`),
+      error: (err) => this.showToastFeedback(extractApiErrorMessage(err, 'Error al cambiar el estado del canal.'))
+    });
   }
 
   onDeleteChannel(id: string): void {

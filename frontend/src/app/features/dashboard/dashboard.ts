@@ -94,6 +94,22 @@ type HistoryRangeOption = {
               @if (selectionMode() && selectedMonitorIds().size > 0) {
                 <div class="flex items-center gap-2">
                   <span class="text-[10px] font-mono text-zinc-500">{{ selectedMonitorIds().size }} seleccionados</span>
+                  @if (notificationService.channels().length > 0) {
+                    <select [(ngModel)]="bulkAssignChannelId"
+                      class="bg-zinc-950 border border-zinc-800 rounded px-1.5 py-1 text-[9px] text-zinc-300 focus:outline-none focus:border-orange-500 max-w-[100px]"
+                      title="Canal de notificación a asignar/quitar en los monitores seleccionados">
+                      <option value="">Canal...</option>
+                      @for (c of notificationService.channels(); track c.id) {
+                        <option [value]="c.id">{{ c.name }}</option>
+                      }
+                    </select>
+                    <button (click)="onBulkAssignNotification('add')" [disabled]="!bulkAssignChannelId"
+                      class="text-[10px] font-bold text-emerald-500 hover:text-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      title="Asignar este canal a todos los monitores seleccionados">+ Asignar</button>
+                    <button (click)="onBulkAssignNotification('remove')" [disabled]="!bulkAssignChannelId"
+                      class="text-[10px] font-bold text-amber-500 hover:text-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      title="Quitar este canal de todos los monitores seleccionados">− Quitar</button>
+                  }
                   <button (click)="onBulkDelete()" class="text-[10px] font-bold text-rose-500 hover:text-rose-400 transition-colors">Eliminar</button>
                 </div>
               }
@@ -618,7 +634,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   private readonly monitorService = inject(MonitorService);
   private readonly realtimeService = inject(RealtimeService);
-  private readonly notificationService = inject(NotificationService);
+  readonly notificationService = inject(NotificationService);
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   public readonly lang = inject(LanguageService);
@@ -690,6 +706,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly selectionMode = signal(false);
   readonly selectedMonitorIds = signal<Set<string>>(new Set());
   readonly showBulkDeleteConfirm = signal(false);
+  bulkAssignChannelId = '';
   readonly selectedMonitorNames = computed(() => {
     const ids = this.selectedMonitorIds();
     return this.monitorService.monitors().filter(m => ids.has(m.id)).map(m => m.name);
@@ -715,6 +732,24 @@ export class DashboardComponent implements OnInit, OnDestroy {
   onBulkDelete(): void {
     if (this.selectedMonitorIds().size === 0) return;
     this.showBulkDeleteConfirm.set(true);
+  }
+
+  onBulkAssignNotification(action: 'add' | 'remove'): void {
+    const ids = Array.from(this.selectedMonitorIds());
+    if (ids.length === 0 || !this.bulkAssignChannelId) return;
+    const channelName = this.notificationService.channels().find(c => c.id === this.bulkAssignChannelId)?.name ?? 'canal';
+
+    this.monitorService.bulkAssignNotification(ids, this.bulkAssignChannelId, action).subscribe({
+      next: ({ updatedCount }) => {
+        this.showSuccessToast(
+          action === 'add'
+            ? `"${channelName}" asignado a ${updatedCount} monitor(es).`
+            : `"${channelName}" quitado de ${updatedCount} monitor(es).`
+        );
+        this.monitorService.loadMonitors().subscribe();
+      },
+      error: (err) => this.showSuccessToast(extractApiErrorMessage(err, 'Error al asignar el canal de notificación.'))
+    });
   }
 
   confirmBulkDelete(): void {

@@ -160,6 +160,15 @@ export class MonitorService {
   }
 
   /**
+   * Asigna o quita un canal de notificación en varios monitores a la vez — evita tener que
+   * editar monitor por monitor cuando se reemplaza un canal (crear uno nuevo no lo vuelve a
+   * asociar automáticamente a los monitores que usaban el anterior).
+   */
+  bulkAssignNotification(monitorIds: string[], notificationId: string, action: 'add' | 'remove'): Observable<{ updatedCount: number }> {
+    return this.http.post<{ updatedCount: number }>(`${this.apiUrl}/monitors/bulk-assign-notification`, { monitorIds, notificationId, action });
+  }
+
+  /**
    * Actualiza el estado de un monitor en el Signal local al recibir eventos de Socket.io
    */
   applyHeartbeat(heartbeat: IHeartbeatEvent): void {

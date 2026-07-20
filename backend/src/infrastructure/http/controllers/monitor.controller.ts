@@ -8,6 +8,7 @@ import { BulkDeleteMonitorsUseCase } from "../../../application/use-cases/monito
 import { BulkImportMonitorsFromCsvUseCase } from "../../../application/use-cases/backup/bulk-import-monitors-from-csv.usecase";
 import { ExportMonitorAssetsUseCase } from "../../../application/use-cases/monitors/export-monitor-assets.usecase";
 import { ImportMonitorAssetsUseCase } from "../../../application/use-cases/monitors/import-monitor-assets.usecase";
+import { BulkAssignNotificationUseCase } from "../../../application/use-cases/monitors/bulk-assign-notification.usecase";
 import { ValidationError } from "../../../domain/errors/domain-error";
 import { toMonitorResponse } from "../presenters/monitor.presenter";
 
@@ -21,6 +22,7 @@ export class MonitorController {
     private readonly bulkImportCsvUseCase: BulkImportMonitorsFromCsvUseCase,
     private readonly exportAssetsUseCase: ExportMonitorAssetsUseCase,
     private readonly importAssetsUseCase: ImportMonitorAssetsUseCase,
+    private readonly bulkAssignNotificationUseCase: BulkAssignNotificationUseCase,
   ) {}
 
   list = async (req: Request, res: Response): Promise<void> => {
@@ -84,6 +86,26 @@ export class MonitorController {
       throw new ValidationError("Se requiere un arreglo 'monitors' no vacío");
     }
     const result = await this.importAssetsUseCase.execute({ userId: req.adminId!, monitors });
+    res.status(200).json(result);
+  };
+
+  bulkAssignNotification = async (req: Request, res: Response): Promise<void> => {
+    const { monitorIds, notificationId, action } = req.body;
+    if (!Array.isArray(monitorIds) || monitorIds.length === 0 || !monitorIds.every((id) => typeof id === "string")) {
+      throw new ValidationError("Se requiere un arreglo 'monitorIds' no vacío de strings");
+    }
+    if (typeof notificationId !== "string" || !notificationId) {
+      throw new ValidationError("Se requiere el campo 'notificationId'");
+    }
+    if (action !== "add" && action !== "remove") {
+      throw new ValidationError("El campo 'action' debe ser 'add' o 'remove'");
+    }
+    const result = await this.bulkAssignNotificationUseCase.execute({
+      actorId: req.adminId!,
+      monitorIds,
+      notificationId,
+      action,
+    });
     res.status(200).json(result);
   };
 }

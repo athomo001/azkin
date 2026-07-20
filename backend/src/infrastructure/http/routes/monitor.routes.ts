@@ -14,6 +14,7 @@ export function monitorRoutes(controller: MonitorController): Router {
   router.post("/bulk-delete", requireRole("admin"), asyncHandler(controller.bulkRemove));
   router.post("/bulk-import", requireRole("admin"), asyncHandler(controller.bulkImportCsv));
   router.post("/import-assets", requireRole("admin"), asyncHandler(controller.importAssets));
+  router.post("/bulk-assign-notification", requireRole("admin"), asyncHandler(controller.bulkAssignNotification));
   router.put("/:id", requireRole("admin"), validateBody(updateMonitorSchema), asyncHandler(controller.update));
   router.delete("/:id", requireRole("admin"), asyncHandler(controller.remove));
   return router;
