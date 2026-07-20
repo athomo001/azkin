@@ -175,3 +175,27 @@ test("BulkImportMonitorsFromCsvUseCase importa la plantilla real (BOM + sep= + c
   );
   assert.equal(monitors.created.find((m) => m.name.startsWith("Otro"))?.group, "Produccion, Santiago");
 });
+
+test("BulkImportMonitorsFromCsvUseCase importa un archivo delimitado por ';' aunque un comentario quede citado (reabierto/regrabado por Excel en configuración regional con coma decimal)", async () => {
+  const monitors = makeMonitorsRepo([]);
+  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+
+  // Cuando Excel/Sheets reabre la plantilla (que usa ',') en una configuración regional donde la
+  // coma es el separador decimal, reexporta el CSV con ';' como delimitador de columnas. Como la
+  // línea de comentario sobre las tags contiene un ';' literal, Excel la cita entre comillas para
+  // proteger ese caracter — y esa línea deja de "empezar con #" a nivel de texto crudo.
+  const csv = [
+    "# Plantilla de importacion de monitores - Azkin;;;;;;;;",
+    '"# Las tags se separan con ; dentro de la misma celda (ej. web;produccion)";;;;;;;;',
+    "name;type;target;port;interval;retries;retryInterval;group;tags",
+    "FOSS;http;https://10.0.100.13:7000/;;60;0;30;CDC;Docker",
+    "NIC Chile;http;https://nic.cl/;;60;0;30;Otros;",
+  ].join("\n");
+
+  const result = await useCase.execute({ userId: "admin-1", csv });
+
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.createdCount, 2);
+  assert.deepEqual(monitors.created.map((m) => m.name).sort(), ["FOSS", "NIC Chile"]);
+  assert.deepEqual(monitors.created.find((m) => m.name === "FOSS")?.tags, ["Docker"]);
+});
