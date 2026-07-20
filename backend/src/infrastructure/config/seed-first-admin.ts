@@ -34,6 +34,7 @@ export async function seedFirstAdmin(
   const passwordHash = await hasher.hash(env.firstAdminPassword);
   await users.create({
     email: env.firstAdminEmail,
+    username: env.firstAdminName,
     passwordHash,
   });
 

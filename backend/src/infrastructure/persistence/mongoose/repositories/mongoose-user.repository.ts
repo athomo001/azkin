@@ -14,6 +14,7 @@ export class MongooseUserRepository implements IUserRepository {
   async create(data: CreateUserData): Promise<IUser> {
     const doc = await UserModel.create({
       email: data.email.toLowerCase(),
+      username: data.username?.toLowerCase().trim() || undefined,
       passwordHash: data.passwordHash,
       role: "admin",
       adminId: null,
