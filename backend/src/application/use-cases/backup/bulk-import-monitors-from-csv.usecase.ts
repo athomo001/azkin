@@ -22,6 +22,19 @@ export interface BulkImportMonitorsFromCsvOutput {
   errors: BulkImportRowError[];
 }
 
+/**
+ * Interpreta una celda de CSV como booleano sin el defecto clásico de `z.coerce.boolean()`
+ * (que hace `Boolean("false") === true`, porque cualquier string no vacío es verdadero para
+ * JS): acepta true/false/1/0/si/sí/no, sin distinguir mayúsculas, y trata la celda vacía o
+ * ausente como `false` (mismo default que crear un monitor a mano desde la UI).
+ */
+const booleanFromCsvCell = z.preprocess((val) => {
+  if (typeof val === "boolean") return val;
+  if (val === undefined || val === "") return false;
+  const normalized = String(val).trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "si" || normalized === "sí" || normalized === "yes";
+}, z.boolean());
+
 /** Fila del CSV: columnas planas; `tags` separadas por ';' dentro de la celda. */
 const csvRowSchema = z
   .object({
@@ -34,6 +47,9 @@ const csvRowSchema = z
     retryInterval: z.coerce.number().int().min(20).default(60),
     group: z.string().max(100).optional(),
     tags: z.string().optional(),
+    // Columna opcional: ausente/vacía = false (valida el certificado TLS), igual que crear un
+    // monitor a mano. Solo tiene efecto para type=http (los demás tipos la ignoran en el checker).
+    ignoreTls: booleanFromCsvCell,
   })
   .superRefine((data, ctx) => {
     if (data.type !== "push" && !data.target) {
@@ -145,6 +161,7 @@ export class BulkImportMonitorsFromCsvUseCase {
           group: data.group || null,
           tags,
           notificationIds: [],
+          ignoreTls: data.ignoreTls,
         };
 
         if (found) {

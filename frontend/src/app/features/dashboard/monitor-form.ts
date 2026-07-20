@@ -139,6 +139,31 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
                   </p>
                 }
               </div>
+
+              <div class="grid grid-cols-1 @3xl:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.keywordLabel') }}</label>
+                  <input type="text" [(ngModel)]="formModel.keyword" [placeholder]="lang.t('monitor.modal.keywordPlaceholder')"
+                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
+                  @if (formModel.keyword.trim()) {
+                    <div class="flex gap-4 mt-1.5 text-xs animate-fade-in">
+                      <label class="flex items-center gap-1.5 cursor-pointer text-zinc-400">
+                        <input type="radio" name="keywordMethod" value="presence" [(ngModel)]="formModel.keywordMethod" class="text-orange-500 focus:ring-0">
+                        {{ lang.t('monitor.modal.keywordPresence') }}
+                      </label>
+                      <label class="flex items-center gap-1.5 cursor-pointer text-zinc-400">
+                        <input type="radio" name="keywordMethod" value="absence" [(ngModel)]="formModel.keywordMethod" class="text-orange-500 focus:ring-0">
+                        {{ lang.t('monitor.modal.keywordAbsence') }}
+                      </label>
+                    </div>
+                  }
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.userAgentLabel') }}</label>
+                  <input type="text" [(ngModel)]="formModel.userAgent" [placeholder]="lang.t('monitor.modal.userAgentPlaceholder')"
+                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
+                </div>
+              </div>
             }
           </div>
 

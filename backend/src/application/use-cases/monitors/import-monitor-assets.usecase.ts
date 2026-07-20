@@ -102,7 +102,17 @@ export class ImportMonitorAssetsUseCase {
     const validRows: { index: number; data: z.infer<typeof monitorAssetSchema> }[] = [];
 
     input.monitors.forEach((raw, index) => {
-      const result = monitorAssetSchema.safeParse(raw);
+      // Varios campos de Monitor tienen `default: null` en Mongoose (keyword, dnsResolver,
+      // group, pushToken) en vez de quedar simplemente ausentes — un monitor exportado que
+      // nunca los configuró trae `null` literal, no `undefined`. El schema de abajo modela esos
+      // campos como "opcionales" (ausentes), no "nulables", así que se normaliza null -> undefined
+      // ANTES de validar: evita repetir este mismo bug cada vez que se agregue un campo nuevo con
+      // ese mismo patrón de default en el esquema de Mongoose.
+      const normalized =
+        raw && typeof raw === "object"
+          ? Object.fromEntries(Object.entries(raw as Record<string, unknown>).map(([k, v]) => [k, v === null ? undefined : v]))
+          : raw;
+      const result = monitorAssetSchema.safeParse(normalized);
       if (!result.success) {
         const name = typeof (raw as { name?: unknown })?.name === "string" ? (raw as { name: string }).name : undefined;
         errors.push({ index, name, message: result.error.issues.map((i) => i.message).join("; ") });

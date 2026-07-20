@@ -181,6 +181,12 @@ const TRANSLATIONS = {
         es: 'Selecciona al menos un canal de notificación en "Canales de Alerta" antes de guardar — hay varios configurados y ninguno quedaría avisado si el monitor se cae.',
         en: 'Select at least one notification channel under "Alert Channels" before saving — several are configured and none would be notified if the monitor goes down.',
       },
+      'monitor.modal.keywordLabel': { es: 'Palabra clave (opcional)', en: 'Keyword (optional)' },
+      'monitor.modal.keywordPlaceholder': { es: 'Ej. "Bienvenido" o "Error 500"', en: 'E.g. "Welcome" or "Error 500"' },
+      'monitor.modal.keywordPresence': { es: 'Debe estar presente', en: 'Must be present' },
+      'monitor.modal.keywordAbsence': { es: 'Debe estar ausente', en: 'Must be absent' },
+      'monitor.modal.userAgentLabel': { es: 'User-Agent personalizado (opcional)', en: 'Custom User-Agent (optional)' },
+      'monitor.modal.userAgentPlaceholder': { es: 'Vacío = Chrome de escritorio (evade bloqueos básicos de WAF)', en: 'Empty = desktop Chrome (evades basic WAF blocks)' },
       'monitor.modal.ignoreTlsHint': {
         es: 'Actívalo si este HTTPS usa un certificado autofirmado, vencido, o emitido por una CA interna/corporativa que tu navegador confía pero el contenedor de Azkin no (caso típico: acceder por IP en vez de dominio). Sin esto, el chequeo falla con "fetch failed" aunque el servicio esté arriba y tu navegador lo cargue sin problema.',
         en: 'Enable this if the HTTPS service uses a self-signed, expired, or internal/corporate-CA certificate that your browser trusts but the Azkin container does not (typical case: accessing by IP instead of domain). Without this, the check fails with "fetch failed" even though the service is up and loads fine in your browser.',

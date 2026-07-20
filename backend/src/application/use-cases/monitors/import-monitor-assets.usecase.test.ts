@@ -129,6 +129,37 @@ test("ImportMonitorAssetsUseCase actualiza un monitor existente (mismo name+targ
   assert.equal(updated[0].data.interval, 30);
 });
 
+test("ImportMonitorAssetsUseCase acepta null en keyword/dnsResolver/group (default de Mongoose) en vez de rechazarlos como 'Expected string, received null'", async () => {
+  const { repo, created } = makeMonitorsRepo([]);
+  const useCase = new ImportMonitorAssetsUseCase(repo, scheduler);
+
+  // Reproduce exactamente lo que ExportMonitorAssetsUseCase produce para un monitor HTTP que
+  // nunca configuró keyword/dnsResolver/group: Mongoose los guarda como `null` literal (su
+  // `default`), no como ausentes, y el export los pasa tal cual sin transformarlos.
+  const result = await useCase.execute({
+    userId: "admin-1",
+    monitors: [
+      {
+        name: "FOSS",
+        type: "http",
+        target: "https://10.0.100.13:7000/",
+        interval: 60,
+        retries: 0,
+        retryInterval: 30,
+        group: null,
+        tags: ["Docker"],
+        keyword: null,
+        keywordMethod: null,
+        dnsResolver: null,
+      },
+    ],
+  });
+
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.createdCount, 1);
+  assert.equal(created[0].name, "FOSS");
+});
+
 test("ImportMonitorAssetsUseCase rechaza la importación completa si excede la cuota de 50 monitores", async () => {
   const existing = Array.from({ length: 49 }, (_, i) => makeMonitor({ id: `m-${i}`, name: `M${i}`, target: `https://m${i}.test` }));
   const { repo } = makeMonitorsRepo(existing);
