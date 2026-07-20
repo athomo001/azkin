@@ -2,8 +2,23 @@
 import tls from "tls";
 import { CheckResult, ICheckStrategy } from "../../application/ports/services/check-strategy";
 import { IMonitor } from "../../domain/entities/monitor";
-import { getErrorMessage } from "../../application/services/get-error-message";
 import { HOST_GATEWAY_HOSTNAME, shouldAttemptHostGatewayFallback } from "./same-host-fallback";
+
+/**
+ * `fetch()` (undici) siempre lanza un `TypeError` genérico con mensaje "fetch failed" — la causa
+ * real (DNS, TLS, conexión rechazada) queda en `.cause`. Sin desenvolver esto, un certificado
+ * autofirmado/vencido/de una CA interna no confiada por el contenedor se reporta con el mismo
+ * mensaje opaco que un timeout o un host inexistente, obligando a revisar logs del servidor para
+ * poder diagnosticar. Este helper expone el mensaje real de la causa cuando existe.
+ */
+export function extractFetchErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const cause = (error as { cause?: unknown }).cause;
+    if (cause instanceof Error && cause.message) return cause.message;
+    return error.message;
+  }
+  return "request failed";
+}
 
 /**
  * Consulta de manera nativa los días restantes para la caducidad del certificado SSL.
@@ -153,7 +168,7 @@ export class HttpChecker implements ICheckStrategy {
       const fallback = await this.tryHostGatewayFallback(monitor, error, headers, dispatcher, start);
       if (fallback) return { ...fallback, certExpiry, domainExpiry };
 
-      return { ok: false, ping: null, msg: getErrorMessage(error, "request failed"), certExpiry, domainExpiry };
+      return { ok: false, ping: null, msg: extractFetchErrorMessage(error), certExpiry, domainExpiry };
     } finally {
       clearTimeout(timer);
     }

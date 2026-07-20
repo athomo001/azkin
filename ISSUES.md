@@ -57,6 +57,7 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-032](#az-032-botones-de-solo-icono-sin-nombre-accesible-aria-label-title-en-varios-puntos-del-dashboard) | Botones de solo-icono sin nombre accesible (`aria-label`/`title`) en varios puntos | Frontend | Baja | [x] Resuelto |
 | [AZ-033](#az-033-benchmark-uxui-y-propuesta-de-identidad-visual-diferenciada-frente-a-uptime-robot-y-uptime-kuma) | Benchmark UX/UI y propuesta de identidad visual diferenciada frente a Uptime Robot y Uptime Kuma | Frontend | Media | [ ] Abierto |
 | [AZ-034](#az-034-limpieza-de-codigo-eliminar-referencias-a-numeros-de-ticket-o-issues) | Limpieza de código: eliminar referencias a números de ticket o issues | Backend/Frontend | Baja | [ ] Abierto |
+| [AZ-036](#az-036-keyword-keywordmethod-y-useragent-existen-en-el-modelo-de-monitor-http-pero-no-tienen-control-en-el-formulario) | `keyword`/`keywordMethod`/`userAgent` existen en el modelo de Monitor HTTP pero no tienen control en el formulario | Frontend | Media | [ ] Abierto |
 
 ---
 
@@ -1167,3 +1168,55 @@ Actualmente, los respaldos se guardan en la colección `backups` de la base de d
 - Estudiar `backend/src/application/use-cases/backup/import-backup.usecase.ts` y adaptarlo o crear un caso de uso hermano que reciba la lista de activos directamente.
 - Modificar el controlador de monitores `backend/src/infrastructure/http/controllers/monitor.controller.ts` para integrar los nuevos métodos de importación/exportación molecular de activos.
 - En el frontend, agregar los métodos en `backups-panel.ts` usando `FileDownloadService` para la descarga directa del JSON.
+
+---
+
+## AZ-036) `keyword`/`keywordMethod`/`userAgent` existen en el modelo de Monitor HTTP pero no tienen control en el formulario
+- Codigo: AZ-036
+- Estado: [ ] Abierto
+- Prioridad: Media
+- Reportado: 2026-07-20
+
+### Nota (2026-07-20)
+Encontrado al diagnosticar por qué un monitor HTTP con certificado autofirmado (`ignoreTls`)
+seguía marcando "caído" pese a que el servicio respondía bien en el navegador: `ignoreTls` estaba
+en el modelo de datos y viajaba al backend en cada guardado, pero no existía ningún
+`<input type="checkbox">` en `monitor-form.ts` que lo expusiera — imposible de activar sin editar
+la base de datos a mano. Ya se agregó el control para `ignoreTls` (ver `CHANGELOG.md`). Al revisar
+el mismo archivo se encontró que `keyword`, `keywordMethod` y `userAgent` tienen exactamente el
+mismo problema: están en `formModel`, se envían en el payload de guardado
+(`if (this.formModel.type === 'http') { Object.assign(payload, { keyword: ..., userAgent: ... }) }`),
+pero no hay ningún campo de formulario que permita al usuario escribirlos. Es decir, la validación
+de palabra clave en el body (AZ-004/spec original) y el User-Agent personalizado (útil para
+esquivar bloqueos de WAF más agresivos que el bypass automático de Cloudflare) son funcionalidad
+del backend completamente inalcanzable desde la UI actual.
+
+### Descripcion
+`frontend/src/app/features/dashboard/monitor-form.ts`, sección "Configuración del Checker" (tipo
+`http`), no renderiza ningún input para `keyword`, `keywordMethod` (radio/select
+presencia/ausencia) ni `userAgent`, pese a que ambos son parte del `formModel` desde su
+inicialización (`getEmptyForm`/`buildFormFromMonitor`) y se incluyen en el payload de creación y
+edición.
+
+### Comportamiento esperado
+1. El formulario de monitor HTTP incluye un campo de texto para `keyword`, un selector
+   presencia/ausencia para `keywordMethod` (solo visible si `keyword` no está vacío, como ya hace
+   el backend), y un campo de texto para `userAgent` (con placeholder mostrando el User-Agent por
+   defecto que se usa si se deja vacío).
+2. Editar un monitor HTTP que ya tiene `keyword`/`userAgent` configurados (por ejemplo, vía API
+   pública) permite ver y modificar esos valores en la UI, no solo crearlos a ciegas.
+
+### Criterios de aceptacion
+1. Crear un monitor HTTP con una palabra clave configurada desde la UI y verificar que el
+   monitor pasa a `DOWN` cuando la palabra clave no aparece en la respuesta (o aparece, según el
+   método elegido).
+2. Editar un monitor HTTP existente con `userAgent` seteado por API y confirmar que el formulario
+   lo muestra precargado, no vacío.
+
+### Pistas de investigacion
+- `frontend/src/app/features/dashboard/monitor-form.ts`: sección "Configuración del Checker",
+  junto a `interval`/`retries`/`retryInterval`, o una subsección propia como se hizo para
+  `ignoreTls`/`sameHostAsAzkin`.
+- El backend ya valida y persiste estos tres campos sin cambios necesarios
+  (`backend/src/infrastructure/http/schemas/monitor.schema.ts`,
+  `backend/src/infrastructure/checkers/http.checker.ts`).
