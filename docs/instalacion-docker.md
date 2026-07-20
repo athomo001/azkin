@@ -15,9 +15,10 @@ producción como para desarrollo con hot-reload, además de las tareas operativa
   docker --version
   docker compose version
   ```
-- Puertos libres en el host: `80` (frontend), `3000` (API backend), `27017` (MongoDB) y,
-  opcionalmente, `8443` (HTTPS nativo del backend, ver [§6](#6-https-nativo-opcional)). Todos son
-  configurables si están ocupados — ver [§3](#3-configurar-las-variables-de-entorno).
+- Puertos libres en el host: `80` (frontend) y `3000` (API backend), y opcionalmente `8443`
+  (HTTPS nativo del backend, ver [§6](#6-https-nativo-opcional)). Todos son configurables si están
+  ocupados — ver [§3](#3-configurar-las-variables-de-entorno). **MongoDB no necesita ningún puerto
+  libre en el host** — corre en la red interna `azkin-network` sin publicarse afuera (ver §4).
 - No se necesita clonar `spec/` para levantar el sistema: es documentación funcional local, no
   código.
 
@@ -46,12 +47,12 @@ para el listado completo y comentado):
 
 | Variable | Qué controla | Valor por defecto |
 |---|---|---|
-| `AZKIN_MONGO_USER` / `AZKIN_MONGO_PASSWORD` | Credenciales root de MongoDB. Deben coincidir con las embebidas en `AZKIN_MONGO_URI`. | credenciales de ejemplo — **cámbialas** |
+| `AZKIN_MONGO_USER` / `AZKIN_MONGO_PASSWORD` | Credenciales root de MongoDB. El compose construye `AZKIN_MONGO_URI` automáticamente a partir de estas dos — no se define a mano en `.env`. | credenciales de ejemplo — **cámbialas** |
 | `AZKIN_JWT_SECRET` | Firma los tokens de sesión. | placeholder — **obligatorio cambiar** |
 | `AZKIN_FIRST_ADMIN_NAME` / `_EMAIL` / `_PASSWORD` | Cuenta Admin creada automáticamente al primer arranque (seeder), si no existe ningún Admin aún. | credenciales de ejemplo — **cámbialas** |
 | `AZKIN_TLS_ENCRYPTION_KEY` | Cifra en reposo la clave privada TLS si activas HTTPS nativo desde la UI. Vacío = HTTPS nativo deshabilitado. | vacío |
 | `AZKIN_CORS_ORIGIN` | Orígenes permitidos para HTTP/Socket.io. `*` es válido en desarrollo, pero como decisión consciente. | `*` |
-| `AZKIN_PORT` / `AZKIN_FRONTEND_PORT` / `AZKIN_HTTPS_PORT` | Puertos publicados en el host. Cambia estos valores si ya usas `80`/`3000`/`8443`. | `3000` / `80` / `8443` |
+| `AZKIN_BACK_PORT` / `AZKIN_FRONTEND_PORT` / `AZKIN_HTTPS_PORT` | Puertos publicados en el host. Cambia estos valores si ya usas `3000`/`80`/`8443`. MongoDB no tiene variable equivalente — nunca se publica al host (ver §4). | `3000` / `80` / `8443` |
 | `AZKIN_PROMETHEUS_USER` / `_PASS` / `_API_KEY` | Credenciales para `/metrics`. Sin ninguna configurada, el endpoint queda **inaccesible** (fail-closed) — no hay credenciales por defecto. | vacío |
 
 > El primer Admin solo se crea si la colección de usuarios está vacía. Si ya existe al menos un
@@ -62,8 +63,10 @@ para el listado completo y comentado):
 
 ## 4. Producción
 
-Levanta el stack completo (frontend servido por Nginx en el puerto `80`, API en `3000`, MongoDB
-en `27017`):
+Levanta el stack completo (frontend servido por Nginx en el puerto `80`, API en `3000`). Los tres
+servicios comparten la red bridge dedicada `azkin-network`; MongoDB **no publica ningún puerto al
+host** — solo es alcanzable internamente en `azkin-db:27017`, para no chocar con otros proyectos
+en el mismo servidor ni quedar expuesta desde afuera:
 
 ```bash
 docker compose build --no-cache && docker compose up -d
@@ -99,7 +102,7 @@ con `AZKIN_FIRST_ADMIN_EMAIL` / `AZKIN_FIRST_ADMIN_PASSWORD`.
 **Logs:**
 
 ```bash
-docker compose logs -f backend    # o frontend / mongodb
+docker compose logs -f backend    # o frontend / azkin-db
 ```
 
 **Detener:**
@@ -119,11 +122,18 @@ automáticamente ante cambios (backend con `tsx watch`, frontend con `ng serve`)
 docker compose -f compose.dev.yaml build --no-cache && docker compose -f compose.dev.yaml up
 ```
 
-- Backend: `http://localhost:3000` (o `AZKIN_PORT`).
+- Backend: `http://localhost:3000` (o `AZKIN_BACK_PORT`).
 - Frontend: `http://localhost:4200` (o `AZKIN_FRONTEND_PORT`, que en este compose por defecto es
   `4200`, no `80` como en producción).
-- MongoDB: `localhost:27017`, con un volumen con nombre (`mongo-dev-data`), separado del bind
-  mount de producción — los datos de dev y prod nunca se mezclan.
+- MongoDB: igual que en producción, sin puerto publicado al host — solo alcanzable en
+  `azkin-db:27017` dentro de `azkin-network`. Usa un volumen con nombre (`mongo-dev-data`),
+  separado del bind mount de producción, así que los datos de dev y prod nunca se mezclan. Para
+  inspeccionarla desde el host, entra al contenedor en vez de conectar un cliente externo:
+
+  ```bash
+  docker compose -f compose.dev.yaml exec azkin-db mongosh -u "$AZKIN_MONGO_USER" -p
+  ```
+
 - En Windows/macOS el hot-reload usa *polling* de archivos (`CHOKIDAR_USEPOLLING=true`), ya
   activado en el compose — necesario porque los bind mounts de Docker Desktop no siempre
   propagan eventos `inotify` nativos.
@@ -177,10 +187,10 @@ git pull
 docker compose build --no-cache && docker compose up -d   # o -f compose.dev.yaml en desarrollo
 ```
 
-Actualiza también `AZKIN_VERSION` en `.env` si vas a fijar un tag específico (se propaga como
-`LABEL org.opencontainers.image.version` en las imágenes y aparece en `/health` y en el login).
-Revisa [`CHANGELOG.md`](../CHANGELOG.md) antes de saltar de versión — anota cambios que requieran
-acción manual (ninguno documentado hasta la fecha, pero es el lugar donde se anunciarían).
+La versión desplegada se toma de `backend/package.json` en tiempo de ejecución (expuesta en
+`/health` y en el login) — no hay ninguna variable de entorno que fijar al actualizar. Revisa
+[`CHANGELOG.md`](../CHANGELOG.md) antes de saltar de versión: ahí se anotan cambios que requieran
+una acción manual (por ejemplo, variables de `.env` renombradas o eliminadas).
 
 ---
 
@@ -203,8 +213,9 @@ Dos mecanismos, no confundir:
 
 | Síntoma | Causa probable | Solución |
 |---|---|---|
-| `port is already allocated` al hacer `up` | Otro proceso usa `80`/`3000`/`27017`/`8443` en el host | Cambia `AZKIN_FRONTEND_PORT`/`AZKIN_PORT`/`AZKIN_HTTPS_PORT` en `.env` (Mongo no es configurable por variable, cambia el mapeo en el compose si lo necesitas) |
-| El backend no conecta a Mongo (`MongoServerError: Authentication failed`) | `AZKIN_MONGO_URI` no coincide con `AZKIN_MONGO_USER`/`AZKIN_MONGO_PASSWORD`, o cambiaste las credenciales sin borrar el volumen/bind mount ya inicializado | MongoDB solo aplica `MONGO_INITDB_ROOT_*` la **primera vez** que se crea el volumen de datos; si cambias credenciales después, borra `./data/mongodb` (prod) o el volumen `mongo-dev-data` (dev) y vuelve a levantar — perderás los datos existentes |
+| `port is already allocated` al hacer `up` | Otro proceso usa `80`/`3000`/`8443` en el host | Cambia `AZKIN_FRONTEND_PORT`/`AZKIN_BACK_PORT`/`AZKIN_HTTPS_PORT` en `.env`. MongoDB nunca puede chocar así — no publica ningún puerto al host |
+| No puedo conectar MongoDB Compass / otro cliente externo a `localhost:27017` | Es el comportamiento esperado: `azkin-db` no publica el puerto al host, solo es alcanzable dentro de `azkin-network` | Usa `docker compose exec azkin-db mongosh -u "$AZKIN_MONGO_USER" -p` para inspeccionarla desde dentro del contenedor (ver §5), o expón el puerto temporalmente añadiendo `ports: ["27017:27017"]` al servicio `azkin-db` en tu copia local del compose |
+| El backend no conecta a Mongo (`MongoServerError: Authentication failed`) | Cambiaste `AZKIN_MONGO_USER`/`AZKIN_MONGO_PASSWORD` en `.env` después de que el volumen/bind mount de Mongo ya se había inicializado con las credenciales anteriores | MongoDB solo aplica `MONGO_INITDB_ROOT_*` la **primera vez** que se crea el volumen de datos; si cambias credenciales después, borra `./data/mongodb` (prod) o el volumen `mongo-dev-data` (dev) y vuelve a levantar — perderás los datos existentes |
 | No aparece ningún Admin para iniciar sesión | `AZKIN_FIRST_ADMIN_*` se definió después de que la colección de usuarios ya tenía datos (el seeder no se re-ejecuta) | Crea el primer Admin manualmente o restaura desde un respaldo; el auto-bootstrap solo corre una vez, con la base vacía |
 | `/metrics` responde 401/403 siempre | No configuraste ni Basic Auth (`AZKIN_PROMETHEUS_USER`+`_PASS`) ni `AZKIN_PROMETHEUS_API_KEY` | Es el comportamiento esperado (fail-closed, sin credenciales por defecto desde AZ-010) — define al menos uno de los dos esquemas |
 | CORS bloqueado en el navegador | `AZKIN_CORS_ORIGIN` no incluye el origen real del frontend | Debe ser un valor explícito (o `*` en desarrollo); reinicia el backend tras cambiarlo |

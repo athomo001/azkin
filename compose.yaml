@@ -3,17 +3,21 @@
 # Docker Compose carga .env automáticamente al ejecutar `docker compose up`.
 #
 # Uso:
-#   docker compose up --build
+#   docker compose build --no-cache && docker compose up -d
 #
 # Para desarrollo con hot-reload usa:
-#   docker compose -f compose.dev.yaml up --build
+#   docker compose -f compose.dev.yaml build --no-cache && docker compose -f compose.dev.yaml up
 services:
-  mongodb:
+  azkin-db:
     image: mongo:8
     container_name: azkin-db
     restart: unless-stopped
-    ports:
-      - "27017:27017"
+    networks:
+      - azkin-network
+    # Sin 'ports': la base de datos NO se expone al host, solo es alcanzable
+    # dentro de azkin-network. Evita colisiones de puerto con otros proyectos
+    # en el mismo servidor y reduce la superficie de ataque. El backend se
+    # conecta internamente vía AZKIN_MONGO_URI -> azkin-db:27017.
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${AZKIN_MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${AZKIN_MONGO_PASSWORD}
@@ -24,20 +28,31 @@ services:
   backend:
     build:
       context: ./backend
-      args:
-        APP_VERSION: ${AZKIN_VERSION:-1.2.0}
     container_name: azkin-back
     restart: unless-stopped
     depends_on:
-      - mongodb
+      - azkin-db
+    networks:
+      - azkin-network
     ports:
-      # Puerto del host configurable desde el .env (AZKIN_PORT)
-      - "${AZKIN_PORT:-3000}:3000"
-      # AZ-006: puerto HTTPS nativo, solo se usa si se aplica una configuración TLS desde la UI.
+      # Puerto del host configurable desde el .env (AZKIN_BACK_PORT). El puerto
+      # interno (3000) es fijo: coincide con el EXPOSE del Dockerfile y con
+      # AZKIN_PORT de abajo, que no se deriva del host para evitar desincronía.
+      - "${AZKIN_BACK_PORT:-3000}:3000"
+      # AZ-006: puerto HTTPS nativo, solo se usa si se aplica una configuración TLS
+      # desde la UI. Ambos lados deben usar la MISMA variable: el backend escucha
+      # internamente en el puerto que el admin eligió en /settings (no un valor
+      # fijo del Dockerfile), así que el mapeo host:contenedor debe coincidir con
+      # ese mismo número en ambos lados.
       - "${AZKIN_HTTPS_PORT:-8443}:${AZKIN_HTTPS_PORT:-8443}"
     environment:
+      # Puerto interno de escucha del proceso — constante arquitectónica, no un
+      # valor configurable por el operador (ver AZKIN_BACK_PORT arriba para exponerlo).
       AZKIN_PORT: 3000
-      AZKIN_MONGO_URI: ${AZKIN_MONGO_URI}
+      # Construida a partir de AZKIN_MONGO_USER/AZKIN_MONGO_PASSWORD y del nombre
+      # del servicio de Mongo (azkin-db) — evita mantener una URI duplicada y
+      # potencialmente desincronizada en el .env.
+      AZKIN_MONGO_URI: mongodb://${AZKIN_MONGO_USER}:${AZKIN_MONGO_PASSWORD}@azkin-db:27017/azkin?authSource=admin
       AZKIN_JWT_SECRET: ${AZKIN_JWT_SECRET}
       AZKIN_JWT_EXPIRES_IN: ${AZKIN_JWT_EXPIRES_IN}
       AZKIN_BCRYPT_COST: ${AZKIN_BCRYPT_COST:-10}
@@ -57,14 +72,18 @@ services:
   frontend:
     build:
       context: ./frontend
-      args:
-        APP_VERSION: ${AZKIN_VERSION:-1.2.0}
     container_name: azkin-front
     restart: unless-stopped
     depends_on:
       - backend
+    networks:
+      - azkin-network
     ports:
       # Puerto del host configurable desde el .env (AZKIN_FRONTEND_PORT)
       - "${AZKIN_FRONTEND_PORT:-80}:80"
+
+networks:
+  azkin-network:
+    driver: bridge
 
 # Nota: ya no se usa named volume para MongoDB. Los datos viven en ./data/mongodb

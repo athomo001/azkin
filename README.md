@@ -76,12 +76,12 @@ Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión d
 
 ## ⚡ Inicio Rápido (Docker)
 
-La plataforma está completamente containerizada. Los nombres de los contenedores Docker están estandarizados como `azkin-front`, `azkin-back` y `azkin-db`.
+La plataforma está completamente containerizada. Los nombres de los contenedores Docker están estandarizados como `azkin-front`, `azkin-back` y `azkin-db`, conectados entre sí por una red Docker dedicada (`azkin-network`); MongoDB no publica ningún puerto al host, solo es alcanzable internamente.
 
 ```bash
 cp .env.example .env        # ajusta credenciales antes de levantar el entorno
 
-# Producción: Web en :80, API en :3000, MongoDB en :27017
+# Producción: Web en :80, API en :3000 (MongoDB solo interno, sin puerto en el host)
 docker compose build --no-cache && docker compose up -d
 
 # Desarrollo con hot-reload (Web en :4200)

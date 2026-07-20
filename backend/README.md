@@ -46,7 +46,9 @@ en `backend/src` se aplican sin reconstruir la imagen:
 docker compose -f compose.dev.yaml build --no-cache && docker compose -f compose.dev.yaml up
 ```
 
-- Backend en `http://localhost:3000` · MongoDB en `localhost:27017`.
+- Backend en `http://localhost:3000`. MongoDB **no** se publica al host — vive en la red interna
+  `azkin-network` como `azkin-db:27017`; para inspeccionarla usa
+  `docker compose -f compose.dev.yaml exec azkin-db mongosh -u "$AZKIN_MONGO_USER" -p`.
 - Smoke test: `curl http://localhost:3000/health` → `{"status":"ok"}`.
 - Detener: `Ctrl+C` y `docker compose -f compose.dev.yaml down` (añade `-v` para
   borrar también los datos de Mongo).
@@ -57,7 +59,7 @@ docker compose -f compose.dev.yaml build --no-cache && docker compose -f compose
 Usa el `compose.yaml` por defecto (imagen multi-stage optimizada):
 
 ```bash
-docker compose build --no-cache && docker compose up -d   # levanta mongodb + backend
+docker compose build --no-cache && docker compose up -d   # levanta azkin-db + backend + frontend
 ```
 
 ### Prueba rápida de la API
