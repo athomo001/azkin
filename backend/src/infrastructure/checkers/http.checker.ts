@@ -1,5 +1,6 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import tls from "tls";
+import { Agent, fetch as undiciFetch } from "undici";
 import { CheckResult, ICheckStrategy } from "../../application/ports/services/check-strategy";
 import { IMonitor } from "../../domain/entities/monitor";
 import { HOST_GATEWAY_HOSTNAME, shouldAttemptHostGatewayFallback } from "./same-host-fallback";
@@ -84,20 +85,13 @@ export class HttpChecker implements ICheckStrategy {
       ...monitor.headers,
     };
 
-    // Configuración del despachador de undici para ignorar TLS si ignoreTls === true
-    let dispatcher: any = undefined;
-    if (monitor.ignoreTls) {
-      try {
-        const { Agent } = require("undici");
-        dispatcher = new Agent({
-          connect: {
-            rejectUnauthorized: false,
-          },
-        });
-      } catch (error) {
-        // En caso de que undici no se cargue, no abortar
-      }
-    }
+    // Despachador de undici para ignorar validación TLS si ignoreTls === true. `undici` es
+    // dependencia explícita del backend (antes se hacía `require("undici")` en runtime sin
+    // declararlo en package.json — el módulo no existía en node_modules, así que este bloque
+    // fallaba en silencio y `ignoreTls` nunca tuvo efecto real desde que existe la función).
+    const dispatcher = monitor.ignoreTls
+      ? new Agent({ connect: { rejectUnauthorized: false } })
+      : undefined;
 
     // Calcular días SSL y Dominio de forma segura en paralelo a la petición
     let certExpiry: number | null = null;
@@ -118,12 +112,12 @@ export class HttpChecker implements ICheckStrategy {
     domainExpiry = null;
 
     try {
-      const res = await fetch(monitor.target, {
+      const res = await undiciFetch(monitor.target, {
         signal: controller.signal,
         redirect: "follow",
         headers,
-        ...(dispatcher ? { dispatcher } : {}),
-      } as any);
+        dispatcher,
+      });
 
       const ping = Math.round(performance.now() - start);
       
@@ -189,7 +183,7 @@ export class HttpChecker implements ICheckStrategy {
     monitor: IMonitor,
     originalError: unknown,
     headers: Record<string, string>,
-    dispatcher: any,
+    dispatcher: Agent | undefined,
     start: number,
   ): Promise<CheckResult | null> {
     const code = (originalError as { cause?: { code?: string } })?.cause?.code;
@@ -206,12 +200,12 @@ export class HttpChecker implements ICheckStrategy {
     const fallbackController = new AbortController();
     const fallbackTimer = setTimeout(() => fallbackController.abort(), 5_000);
     try {
-      const res = await fetch(fallbackUrl.toString(), {
+      const res = await undiciFetch(fallbackUrl.toString(), {
         signal: fallbackController.signal,
         redirect: "follow",
         headers,
-        ...(dispatcher ? { dispatcher } : {}),
-      } as any);
+        dispatcher,
+      });
       if (res.status >= 400) return null;
       const ping = Math.round(performance.now() - start);
       const msg = `${res.status} ${res.statusText}`.trim() +
