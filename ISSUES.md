@@ -57,7 +57,7 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-032](#az-032-botones-de-solo-icono-sin-nombre-accesible-aria-label-title-en-varios-puntos-del-dashboard) | Botones de solo-icono sin nombre accesible (`aria-label`/`title`) en varios puntos | Frontend | Baja | [x] Resuelto |
 | [AZ-033](#az-033-benchmark-uxui-y-propuesta-de-identidad-visual-diferenciada-frente-a-uptime-robot-y-uptime-kuma) | Benchmark UX/UI y propuesta de identidad visual diferenciada frente a Uptime Robot y Uptime Kuma | Frontend | Media | [ ] Abierto |
 | [AZ-034](#az-034-limpieza-de-codigo-eliminar-referencias-a-numeros-de-ticket-o-issues) | Limpieza de código: eliminar referencias a números de ticket o issues | Backend/Frontend | Baja | [x] Resuelto |
-| [AZ-036](#az-036-keyword-keywordmethod-y-useragent-existen-en-el-modelo-de-monitor-http-pero-no-tienen-control-en-el-formulario) | `keyword`/`keywordMethod`/`userAgent` existen en el modelo de Monitor HTTP pero no tienen control en el formulario | Frontend | Media | [ ] Abierto |
+| [AZ-036](#az-036-keyword-keywordmethod-y-useragent-existen-en-el-modelo-de-monitor-http-pero-no-tienen-control-en-el-formulario) | `keyword`/`keywordMethod`/`userAgent` existen en el modelo de Monitor HTTP pero no tienen control en el formulario | Frontend | Media | [x] Resuelto |
 
 ---
 
@@ -1192,9 +1192,13 @@ Actualmente, los respaldos se guardan en la colección `backups` de la base de d
 
 ## AZ-036) `keyword`/`keywordMethod`/`userAgent` existen en el modelo de Monitor HTTP pero no tienen control en el formulario
 - Codigo: AZ-036
-- Estado: [ ] Abierto
+- Estado: [x] Resuelto
 - Prioridad: Media
 - Reportado: 2026-07-20
+- Resuelto: 2026-07-20
+
+### Resolucion
+Se agregaron los tres campos en `monitor-form.ts`, dentro del bloque `@if (formModel.type === 'http')`, junto al checkbox de `ignoreTls`: un input de texto para `keyword` con placeholder de ejemplo, un radio presencia/ausencia para `keywordMethod` que solo aparece si `keyword` no está vacío (igual que valida el backend), y un input de texto para `userAgent` con placeholder explicando el User-Agent por defecto. `buildFormFromMonitor()` ya precargaba estos valores desde antes (por eso editar un monitor con `keyword`/`userAgent` seteados por API ya los mostraba una vez agregado el input), y el payload de guardado ya los enviaba — solo faltaba el input mismo. Build del frontend verificado sin errores ni warnings.
 
 ### Nota (2026-07-20)
 Encontrado al diagnosticar por qué un monitor HTTP con certificado autofirmado (`ignoreTls`)

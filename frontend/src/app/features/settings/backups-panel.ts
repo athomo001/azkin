@@ -113,7 +113,7 @@ interface AssetImportResult {
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
               </svg>
               <span class="text-xs font-black text-white">Arrastra un CSV o haz clic para subir</span>
-              <span class="text-[10px] text-zinc-500 mt-1 font-medium">Columnas: name, type, target, port, interval, retries, retryInterval, group, tags</span>
+              <span class="text-[10px] text-zinc-500 mt-1 font-medium">Columnas: name, type, target, port, interval, retries, retryInterval, group, tags, ignoreTls</span>
               <span class="text-[10px] text-zinc-600 mt-1">Si un valor contiene comas, enciérralo entre comillas dobles (ej. "Produccion, Santiago")</span>
               <span class="text-[10px] text-zinc-700 mt-0.5">¿Tildes/ñ se ven como "Ã³"/"Ã±" en Excel? Abre el archivo con Datos → Desde texto/CSV y elige codificación UTF-8, en vez de doble clic.</span>
             </label>
@@ -252,20 +252,24 @@ export class BackupsPanelComponent {
       // Excel las corta en varias columnas) y en ASCII puro (sin tildes/ñ/¿/—): son texto plano
       // que debe leerse bien en cualquier Excel, sin depender de que respete un BOM UTF-8.
       '# Plantilla de importacion de monitores - Azkin',
-      '# Columnas: name | type | target | port | interval | retries | retryInterval | group | tags',
+      '# Columnas: name | type | target | port | interval | retries | retryInterval | group | tags | ignoreTls',
       '# Valores validos para type: http | ping | port | dns | snmp | push',
       '# http = HTTP / HTTPS | ping = Ping (ICMP) | port = Port TCP | dns = DNS Resolution',
       '# snmp = SNMP Agent | push = Push (Pasivo)',
       '# target es obligatorio salvo si type=push | port es obligatorio si type=port',
       '# dns y snmp solo traen los campos basicos por CSV: configura resolver/OID despues editando el monitor en la UI',
+      '# ignoreTls es opcional y solo aplica a type=http: true/false/1/0 (vacio o ausente = false,',
+      '# osea SI valida el certificado TLS, igual que crear un monitor a mano). Ponlo en true solo',
+      '# en las filas con certificado autofirmado/vencido/de una CA interna - ver ejemplo abajo',
       '# Si un valor necesita una coma (ej. un nombre o grupo descriptivo) encierralo entre comillas dobles - ver ejemplo abajo',
       '# Las tags se separan con ; dentro de la misma celda (ej. web;produccion)',
       '# Lineas que empiezan con # son comentarios y se ignoran al importar',
-      'name,type,target,port,interval,retries,retryInterval,group,tags',
-      'Sitio de ejemplo,http,https://ejemplo.com,,60,0,60,General,web;produccion',
+      'name,type,target,port,interval,retries,retryInterval,group,tags,ignoreTls',
+      'Sitio de ejemplo,http,https://ejemplo.com,,60,0,60,General,web;produccion,',
+      'Sitio con certificado interno,http,https://interno.corp,,60,0,60,General,web,true',
       // Si un valor necesita contener una coma (ej. un nombre o grupo descriptivo), enciérralo
       // entre comillas dobles — así no se interpreta como un separador de columna.
-      '"Otro sitio, con coma en el nombre",http,https://ejemplo2.com,,60,0,60,"Produccion, Santiago",web',
+      '"Otro sitio, con coma en el nombre",http,https://ejemplo2.com,,60,0,60,"Produccion, Santiago",web,',
     ].join('\n');
     // Prefijo BOM UTF-8 para que Excel muestre correctamente tildes/ñ al abrir el archivo directo.
     this.fileDownload.downloadText(String.fromCharCode(0xfeff) + csv, 'text/csv;charset=utf-8', 'azkin-monitores-plantilla.csv');

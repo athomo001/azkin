@@ -176,6 +176,43 @@ test("BulkImportMonitorsFromCsvUseCase importa la plantilla real (BOM + sep= + c
   assert.equal(monitors.created.find((m) => m.name.startsWith("Otro"))?.group, "Produccion, Santiago");
 });
 
+test("BulkImportMonitorsFromCsvUseCase interpreta la columna ignoreTls (true/false/vacío) sin el bug clásico de Boolean('false')", async () => {
+  const monitors = makeMonitorsRepo([]);
+  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+
+  const csv = [
+    "name,type,target,port,interval,retries,retryInterval,group,tags,ignoreTls",
+    "Con bypass TRUE,http,https://a.test,,60,0,60,General,,true",
+    "Con bypass uno,http,https://b.test,,60,0,60,General,,1",
+    "Sin bypass explicito,http,https://c.test,,60,0,60,General,,false",
+    "Celda vacia,http,https://d.test,,60,0,60,General,,",
+  ].join("\n");
+
+  const result = await useCase.execute({ userId: "admin-1", csv });
+
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.createdCount, 4);
+  assert.equal(monitors.created.find((m) => m.name === "Con bypass TRUE")?.ignoreTls, true);
+  assert.equal(monitors.created.find((m) => m.name === "Con bypass uno")?.ignoreTls, true);
+  assert.equal(monitors.created.find((m) => m.name === "Sin bypass explicito")?.ignoreTls, false);
+  assert.equal(monitors.created.find((m) => m.name === "Celda vacia")?.ignoreTls, false);
+});
+
+test("BulkImportMonitorsFromCsvUseCase asume ignoreTls=false si la columna no existe en el archivo (compatibilidad con plantillas viejas)", async () => {
+  const monitors = makeMonitorsRepo([]);
+  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+
+  const csv = [
+    "name,type,target,port,interval,retries,retryInterval,group,tags",
+    "Sitio viejo,http,https://viejo.test,,60,0,60,General,web",
+  ].join("\n");
+
+  const result = await useCase.execute({ userId: "admin-1", csv });
+
+  assert.equal(result.errors.length, 0);
+  assert.equal(monitors.created[0].ignoreTls, false);
+});
+
 test("BulkImportMonitorsFromCsvUseCase importa un archivo delimitado por ';' aunque un comentario quede citado (reabierto/regrabado por Excel en configuración regional con coma decimal)", async () => {
   const monitors = makeMonitorsRepo([]);
   const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
