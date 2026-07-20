@@ -1,59 +1,58 @@
-# Frontend
+# <p align="center"><img src="../assets/logo.png" alt="Azkin Logo" width="150"/></p>
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.19.
+# <p align="center">Azkin — Frontend</p>
 
-## Development server
+SPA en Angular 21 (Standalone Components, Signals) para el panel de monitoreo de Azkin.
+Consume la API REST y los WebSockets del [backend](../backend) y no tiene estado propio
+persistente: toda la fuente de verdad vive en MongoDB, servida vía `core/services`.
 
-To start a local development server, run:
+Implementa la spec [`spec/06-ui-ux.md`](../spec/06-ui-ux.md).
 
-```bash
-ng serve
+## Estructura
+
+```
+src/app/
+├── core/            Servicios inyectables (auth, monitores, notificaciones, tema, i18n,
+│                     confirm/toast), guards de ruta, interceptores HTTP, utilidades puras
+├── features/
+│   ├── auth/         Login, registro (deshabilitado tras el primer Admin), recuperación de clave
+│   ├── dashboard/     Vista principal: KPIs, árbol de monitores, gráficas ECharts, alta/edición
+│   ├── settings/       Panel Admin por pestañas: TLS, Auditoría, API Keys, Respaldos, Viewers, Alertas
+│   └── profile/        Gestión de la propia cuenta (cualquier rol autenticado)
+└── shared/components/  Componentes de presentación reutilizables (modales, toasts, badges, etc.)
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+`dashboard.ts` y `settings.ts` son orquestadores delgados que delegan a subcomponentes por
+dominio — ver [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §3 para el detalle de la
+descomposición (AZ-016) y qué queda intencionalmente fuera (gráficos ECharts + panel de detalle
+del dashboard).
 
-## Code scaffolding
+## Desarrollo
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
+Requiere el [backend](../backend) corriendo en paralelo (las llamadas HTTP usan la ruta relativa
+`/api/v1`, resuelta por el proxy de Nginx en producción o por el mismo origen en Docker; para
+`ng serve` local sin Docker, sirve el frontend detrás de un proxy propio hacia `localhost:3000` o
+ajusta `MonitorService`/`AuthService` para apuntar a la URL absoluta del backend).
 
 ```bash
-ng build
+pnpm install
+pnpm start          # ng serve, http://localhost:4200
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+## Verificación
 
 ```bash
-ng test
+pnpm run build       # ng build, compila a dist/
 ```
 
-## Running end-to-end tests
+> ⚠️ **No hay test runner configurado** (`ng test` falla con "Cannot determine project or target
+> for command" — no hay builder de test en `angular.json`, ni Karma ni Vitest instalados). Ver
+> [ISSUES.md](../ISSUES.md) AZ-019. Las funciones puras del proyecto (`normalizeMonitorStatus`,
+> `extractApiErrorMessage`, ambas en `core/utils`) ya están extraídas y listas para testear en
+> cuanto exista un runner.
 
-For end-to-end (e2e) testing, run:
+## Docker
 
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Ver [README raíz](../README.md#-inicio-rápido-docker): `docker compose -f compose.dev.yaml build --no-cache && docker compose -f compose.dev.yaml up`
+(hot-reload) o `docker compose build --no-cache && docker compose up -d` (producción, build multi-stage servido por Nginx —
+ver [`nginx.conf`](./nginx.conf) para el proxy de `/api/` y `/socket.io/` hacia el backend).
