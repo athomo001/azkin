@@ -15,10 +15,11 @@ producción como para desarrollo con hot-reload, además de las tareas operativa
   docker --version
   docker compose version
   ```
-- Puertos libres en el host: `80` (frontend) y `3000` (API backend), y opcionalmente `8443`
-  (HTTPS nativo del backend, ver [§6](#6-https-nativo-opcional)). Todos son configurables si están
-  ocupados — ver [§3](#3-configurar-las-variables-de-entorno). **MongoDB no necesita ningún puerto
-  libre en el host** — corre en la red interna `azkin-network` sin publicarse afuera (ver §4).
+- Puertos libres en el host: `80` (frontend), `3000` (API backend) y opcionalmente `8443`
+  (HTTPS nativo del backend, ver [§6](#6-https-nativo-opcional)). MongoDB también publica un
+  puerto (`27017` por defecto) pero solo en la interfaz `127.0.0.1` — no compite con otros
+  servicios accesibles desde la red, solo con otro Mongo local en el mismo puerto (ver §4). Todos
+  son configurables si están ocupados — ver [§3](#3-configurar-las-variables-de-entorno).
 - No se necesita clonar `spec/` para levantar el sistema: es documentación funcional local, no
   código.
 
@@ -52,7 +53,8 @@ para el listado completo y comentado):
 | `AZKIN_FIRST_ADMIN_NAME` / `_EMAIL` / `_PASSWORD` | Cuenta Admin creada automáticamente al primer arranque (seeder), si no existe ningún Admin aún. | credenciales de ejemplo — **cámbialas** |
 | `AZKIN_TLS_ENCRYPTION_KEY` | Cifra en reposo la clave privada TLS si activas HTTPS nativo desde la UI. Vacío = HTTPS nativo deshabilitado. | vacío |
 | `AZKIN_CORS_ORIGIN` | Orígenes permitidos para HTTP/Socket.io. `*` es válido en desarrollo, pero como decisión consciente. | `*` |
-| `AZKIN_BACK_PORT` / `AZKIN_FRONTEND_PORT` / `AZKIN_HTTPS_PORT` | Puertos publicados en el host. Cambia estos valores si ya usas `3000`/`80`/`8443`. MongoDB no tiene variable equivalente — nunca se publica al host (ver §4). | `3000` / `80` / `8443` |
+| `AZKIN_BACK_PORT` / `AZKIN_FRONTEND_PORT` / `AZKIN_HTTPS_PORT` | Puertos publicados en el host. Cambia estos valores si ya usas `3000`/`80`/`8443`. | `3000` / `80` / `8443` |
+| `AZKIN_MONGO_PORT` | Puerto de MongoDB en el host, solo para depuración/administración directa (Compass, mongosh, migraciones). Enlazado únicamente a `127.0.0.1` — no queda alcanzable desde la red externa (ver §4). El backend nunca usa esta variable, siempre se conecta internamente vía `azkin-db:27017`. | `27017` |
 | `AZKIN_PROMETHEUS_USER` / `_PASS` / `_API_KEY` | Credenciales para `/metrics`. Sin ninguna configurada, el endpoint queda **inaccesible** (fail-closed) — no hay credenciales por defecto. | vacío |
 
 > El primer Admin solo se crea si la colección de usuarios está vacía. Si ya existe al menos un
@@ -64,9 +66,12 @@ para el listado completo y comentado):
 ## 4. Producción
 
 Levanta el stack completo (frontend servido por Nginx en el puerto `80`, API en `3000`). Los tres
-servicios comparten la red bridge dedicada `azkin-network`; MongoDB **no publica ningún puerto al
-host** — solo es alcanzable internamente en `azkin-db:27017`, para no chocar con otros proyectos
-en el mismo servidor ni quedar expuesta desde afuera:
+servicios comparten la red bridge dedicada `azkin-network`; el backend siempre se conecta a
+MongoDB internamente vía `azkin-db:27017`, nunca a través de un puerto de host. MongoDB también
+publica un puerto en el host (`AZKIN_MONGO_PORT`, `27017` por defecto) solo para depuración
+directa, pero **enlazado exclusivamente a `127.0.0.1`** — no es alcanzable desde la red, solo
+desde el propio servidor, y su número es configurable para no chocar con otro Mongo local en el
+mismo puerto:
 
 ```bash
 docker compose build --no-cache && docker compose up -d
@@ -125,15 +130,16 @@ docker compose -f compose.dev.yaml build --no-cache && docker compose -f compose
 - Backend: `http://localhost:3000` (o `AZKIN_BACK_PORT`).
 - Frontend: `http://localhost:4200` (o `AZKIN_FRONTEND_PORT`, que en este compose por defecto es
   `4200`, no `80` como en producción).
-- MongoDB: igual que en producción, sin puerto publicado al host — solo alcanzable en
-  `azkin-db:27017` dentro de `azkin-network`. Usa un volumen con nombre (`mongo-dev-data`),
-  separado del bind mount de producción, así que los datos de dev y prod nunca se mezclan. Para
-  inspeccionarla desde el host, entra al contenedor en vez de conectar un cliente externo:
+- MongoDB: igual que en producción, publicada solo en `127.0.0.1:27017` (o `AZKIN_MONGO_PORT`) —
+  conéctate con Compass/`mongosh` apuntando a `localhost` desde el propio equipo, o entra al
+  contenedor directamente:
 
   ```bash
   docker compose -f compose.dev.yaml exec azkin-db mongosh -u "$AZKIN_MONGO_USER" -p
   ```
 
+  Usa un volumen con nombre (`mongo-dev-data`), separado del bind mount de producción, así que
+  los datos de dev y prod nunca se mezclan.
 - En Windows/macOS el hot-reload usa *polling* de archivos (`CHOKIDAR_USEPOLLING=true`), ya
   activado en el compose — necesario porque los bind mounts de Docker Desktop no siempre
   propagan eventos `inotify` nativos.
@@ -213,8 +219,8 @@ Dos mecanismos, no confundir:
 
 | Síntoma | Causa probable | Solución |
 |---|---|---|
-| `port is already allocated` al hacer `up` | Otro proceso usa `80`/`3000`/`8443` en el host | Cambia `AZKIN_FRONTEND_PORT`/`AZKIN_BACK_PORT`/`AZKIN_HTTPS_PORT` en `.env`. MongoDB nunca puede chocar así — no publica ningún puerto al host |
-| No puedo conectar MongoDB Compass / otro cliente externo a `localhost:27017` | Es el comportamiento esperado: `azkin-db` no publica el puerto al host, solo es alcanzable dentro de `azkin-network` | Usa `docker compose exec azkin-db mongosh -u "$AZKIN_MONGO_USER" -p` para inspeccionarla desde dentro del contenedor (ver §5), o expón el puerto temporalmente añadiendo `ports: ["27017:27017"]` al servicio `azkin-db` en tu copia local del compose |
+| `port is already allocated` al hacer `up` | Otro proceso usa `80`/`3000`/`8443`/`27017` en el host | Cambia `AZKIN_FRONTEND_PORT`/`AZKIN_BACK_PORT`/`AZKIN_HTTPS_PORT`/`AZKIN_MONGO_PORT` en `.env` — los cuatro son independientes, no hace falta liberar el puerto en uso |
+| No puedo conectar MongoDB Compass / otro cliente externo desde **otra máquina** de la red | Es el comportamiento esperado: el puerto de Mongo está enlazado a `127.0.0.1`, solo accesible desde el propio servidor, por diseño de seguridad | Conéctate por SSH tunnel (`ssh -L 27017:127.0.0.1:27017 usuario@servidor`) o ejecuta el cliente directamente en el servidor. Si de verdad necesitas exponerlo a la red, cambia `127.0.0.1:${AZKIN_MONGO_PORT:-27017}:27017` a `${AZKIN_MONGO_PORT:-27017}:27017` en tu copia local del compose, asumiendo el riesgo |
 | El backend no conecta a Mongo (`MongoServerError: Authentication failed`) | Cambiaste `AZKIN_MONGO_USER`/`AZKIN_MONGO_PASSWORD` en `.env` después de que el volumen/bind mount de Mongo ya se había inicializado con las credenciales anteriores | MongoDB solo aplica `MONGO_INITDB_ROOT_*` la **primera vez** que se crea el volumen de datos; si cambias credenciales después, borra `./data/mongodb` (prod) o el volumen `mongo-dev-data` (dev) y vuelve a levantar — perderás los datos existentes |
 | No aparece ningún Admin para iniciar sesión | `AZKIN_FIRST_ADMIN_*` se definió después de que la colección de usuarios ya tenía datos (el seeder no se re-ejecuta) | Crea el primer Admin manualmente o restaura desde un respaldo; el auto-bootstrap solo corre una vez, con la base vacía |
 | `/metrics` responde 401/403 siempre | No configuraste ni Basic Auth (`AZKIN_PROMETHEUS_USER`+`_PASS`) ni `AZKIN_PROMETHEUS_API_KEY` | Es el comportamiento esperado (fail-closed, sin credenciales por defecto desde AZ-010) — define al menos uno de los dos esquemas |

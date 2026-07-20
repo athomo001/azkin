@@ -12,9 +12,12 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 ### Changed
 - **Aislamiento de red Docker y limpieza de variables de entorno:** `azkin-db`, `azkin-back` y
   `azkin-front` ahora comparten una red bridge dedicada (`azkin-network`) en vez de la red
-  `default` de Compose. `azkin-db` dejó de publicar el puerto `27017` al host (`compose.yaml` y
-  `compose.dev.yaml`) — solo es alcanzable internamente vía `azkin-db:27017`, evitando choques de
-  puerto con otros proyectos en el mismo servidor. `AZKIN_MONGO_URI` ya no se define en `.env`: el
+  `default` de Compose. El backend siempre se conecta a Mongo internamente vía `azkin-db:27017`,
+  nunca por un puerto de host. `azkin-db` publica un puerto adicional en el host (`27017` por
+  defecto, `AZKIN_MONGO_PORT` para cambiarlo) solo para depuración directa (Compass, mongosh),
+  enlazado exclusivamente a `127.0.0.1` — no alcanzable desde la red, y con número configurable
+  para no chocar con otro Mongo local en el mismo servidor. `AZKIN_MONGO_URI` ya no se define en
+  `.env`: el
   compose la construye automáticamente a partir de `AZKIN_MONGO_USER`/`AZKIN_MONGO_PASSWORD`,
   eliminando una fuente de desincronización si se cambiaban las credenciales sin actualizar la URI
   a mano. Se eliminó `AZKIN_VERSION` (no se leía en tiempo de ejecución — `/health` toma la
