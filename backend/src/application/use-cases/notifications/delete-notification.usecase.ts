@@ -2,6 +2,7 @@
 import { INotificationRepository } from "../../ports/repositories/notification-repository";
 import { IMonitorRepository } from "../../ports/repositories/monitor-repository";
 import { IScheduler } from "../../ports/services/scheduler";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { NotFoundError } from "../../../domain/errors/domain-error";
 
 /**
@@ -13,9 +14,10 @@ export class DeleteNotificationUseCase {
     private readonly notifications: INotificationRepository,
     private readonly monitors: IMonitorRepository,
     private readonly scheduler: IScheduler,
+    private readonly auditLog: IAuditLogRepository,
   ) {}
 
-  async execute(id: string): Promise<void> {
+  async execute(actorId: string, id: string): Promise<void> {
     const exists = await this.notifications.findById(id);
     if (!exists) {
       throw new NotFoundError("Canal de notificación no encontrado");
@@ -42,5 +44,13 @@ export class DeleteNotificationUseCase {
         }
       }
     }
+
+    await this.auditLog.record({
+      actorId,
+      action: "NOTIFICATION_DELETE",
+      targetType: "notification",
+      targetIds: [id],
+      metadata: { name: exists.name },
+    });
   }
 }

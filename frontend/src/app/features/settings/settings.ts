@@ -56,7 +56,7 @@ import { MaintenancePanelComponent } from './maintenance-panel';
       <!-- Toast de feedback (componente compartido, ver ToastService) -->
       <app-toast />
 
-      <main class="flex-1 p-6 lg:p-10 max-w-5xl w-full mx-auto space-y-8">
+      <main class="flex-1 p-6 lg:p-10 max-w-7xl w-full mx-auto space-y-8">
         
         <!-- Cabecera de la sección de Configuración -->
         <div class="space-y-2">

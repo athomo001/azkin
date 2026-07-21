@@ -1,5 +1,7 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IMaintenanceRepository, UpdateMaintenanceWindowData } from "../../ports/repositories/maintenance-repository";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
+import { diffFields } from "../../services/diff-fields";
 import { IMaintenanceWindow } from "../../../domain/entities/maintenance-window";
 import { NotFoundError, ValidationError } from "../../../domain/errors/domain-error";
 
@@ -8,9 +10,12 @@ import { NotFoundError, ValidationError } from "../../../domain/errors/domain-er
  * Una ventana ya cerrada no puede editarse — crear una nueva en su lugar.
  */
 export class UpdateMaintenanceWindowUseCase {
-  constructor(private readonly maintenance: IMaintenanceRepository) {}
+  constructor(
+    private readonly maintenance: IMaintenanceRepository,
+    private readonly auditLog: IAuditLogRepository,
+  ) {}
 
-  async execute(id: string, data: UpdateMaintenanceWindowData): Promise<IMaintenanceWindow> {
+  async execute(actorId: string, id: string, data: UpdateMaintenanceWindowData): Promise<IMaintenanceWindow> {
     const existing = await this.maintenance.findById(id);
     if (!existing) {
       throw new NotFoundError("Ventana de mantenimiento no encontrada");
@@ -23,6 +28,15 @@ export class UpdateMaintenanceWindowUseCase {
     if (!updated) {
       throw new NotFoundError("Ventana de mantenimiento no encontrada");
     }
+
+    await this.auditLog.record({
+      actorId,
+      action: "MAINTENANCE_UPDATE",
+      targetType: "maintenance-window",
+      targetIds: [id],
+      metadata: { changes: diffFields(existing as unknown as Record<string, unknown>, data as unknown as Record<string, unknown>) },
+    });
+
     return updated;
   }
 }

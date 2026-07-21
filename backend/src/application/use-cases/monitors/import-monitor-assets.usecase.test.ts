@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { ImportMonitorAssetsUseCase } from "./import-monitor-assets.usecase";
 import { IMonitorRepository, CreateMonitorData, UpdateMonitorData } from "../../ports/repositories/monitor-repository";
 import { IScheduler } from "../../ports/services/scheduler";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { IMonitor } from "../../../domain/entities/monitor";
 import { QuotaExceededError } from "../../../domain/errors/domain-error";
 
@@ -58,9 +59,16 @@ const scheduler: IScheduler = {
   receivePushHeartbeat: async () => undefined,
 };
 
+const auditLog: IAuditLogRepository = {
+  record: async (data) => ({ id: "log-1", targetIds: data.targetIds ?? [], metadata: data.metadata ?? {}, createdAt: new Date(), ...data }),
+  listRecent: async () => [],
+  listAll: async () => [],
+  deleteAll: async () => 0,
+};
+
 test("ImportMonitorAssetsUseCase crea monitores válidos e ignora notificationIds/pushToken/id/userId del origen", async () => {
   const { repo, created } = makeMonitorsRepo([]);
-  const useCase = new ImportMonitorAssetsUseCase(repo, scheduler);
+  const useCase = new ImportMonitorAssetsUseCase(repo, scheduler, auditLog);
 
   const result = await useCase.execute({
     userId: "admin-nuevo",
@@ -94,7 +102,7 @@ test("ImportMonitorAssetsUseCase crea monitores válidos e ignora notificationId
 
 test("ImportMonitorAssetsUseCase acumula errores por activo inválido sin abortar el resto del lote", async () => {
   const { repo, created } = makeMonitorsRepo([]);
-  const useCase = new ImportMonitorAssetsUseCase(repo, scheduler);
+  const useCase = new ImportMonitorAssetsUseCase(repo, scheduler, auditLog);
 
   const result = await useCase.execute({
     userId: "admin-1",
@@ -116,7 +124,7 @@ test("ImportMonitorAssetsUseCase acumula errores por activo inválido sin aborta
 test("ImportMonitorAssetsUseCase actualiza un monitor existente (mismo name+target) en vez de duplicarlo", async () => {
   const existing = makeMonitor({ id: "m-existing", name: "Sitio", target: "https://sitio.test" });
   const { repo, updated } = makeMonitorsRepo([existing]);
-  const useCase = new ImportMonitorAssetsUseCase(repo, scheduler);
+  const useCase = new ImportMonitorAssetsUseCase(repo, scheduler, auditLog);
 
   const result = await useCase.execute({
     userId: "admin-1",
@@ -131,7 +139,7 @@ test("ImportMonitorAssetsUseCase actualiza un monitor existente (mismo name+targ
 
 test("ImportMonitorAssetsUseCase acepta null en keyword/dnsResolver/group (default de Mongoose) en vez de rechazarlos como 'Expected string, received null'", async () => {
   const { repo, created } = makeMonitorsRepo([]);
-  const useCase = new ImportMonitorAssetsUseCase(repo, scheduler);
+  const useCase = new ImportMonitorAssetsUseCase(repo, scheduler, auditLog);
 
   // Reproduce exactamente lo que ExportMonitorAssetsUseCase produce para un monitor HTTP que
   // nunca configuró keyword/dnsResolver/group: Mongoose los guarda como `null` literal (su
@@ -163,7 +171,7 @@ test("ImportMonitorAssetsUseCase acepta null en keyword/dnsResolver/group (defau
 test("ImportMonitorAssetsUseCase rechaza la importación completa si excede la cuota de 50 monitores", async () => {
   const existing = Array.from({ length: 49 }, (_, i) => makeMonitor({ id: `m-${i}`, name: `M${i}`, target: `https://m${i}.test` }));
   const { repo } = makeMonitorsRepo(existing);
-  const useCase = new ImportMonitorAssetsUseCase(repo, scheduler);
+  const useCase = new ImportMonitorAssetsUseCase(repo, scheduler, auditLog);
 
   await assert.rejects(
     () =>

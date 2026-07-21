@@ -1,6 +1,7 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IUserRepository } from "../../ports/repositories/user-repository";
 import { IPasswordHasher } from "../../ports/services/security";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { EmailTakenError } from "../../../domain/errors/domain-error";
 import { IUser } from "../../../domain/entities/user";
 
@@ -21,6 +22,7 @@ export class CreateViewerUseCase {
   constructor(
     private readonly users: IUserRepository,
     private readonly hasher: IPasswordHasher,
+    private readonly auditLog: IAuditLogRepository,
   ) {}
 
   async execute(input: CreateViewerInput): Promise<IUser> {
@@ -45,6 +47,14 @@ export class CreateViewerUseCase {
       adminId: input.adminId,
       permissions: input.permissions ?? [],
       isTvSessionEnabled: input.isTvSessionEnabled ?? false,
+    });
+
+    await this.auditLog.record({
+      actorId: input.adminId,
+      action: "VIEWER_CREATE",
+      targetType: "user",
+      targetIds: [viewer.id],
+      metadata: { username: viewer.username, email: viewer.email },
     });
 
     return viewer;

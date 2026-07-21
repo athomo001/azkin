@@ -9,6 +9,7 @@ export interface AuditLogEntry {
   action: string;
   targetType: string;
   targetIds?: string[];
+  metadata?: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -23,7 +24,7 @@ export interface AuditLogEntry {
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="max-w-3xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
+    <div class="max-w-4xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
       <div class="p-6 space-y-4">
         <div>
           <h3 class="text-sm font-bold text-white tracking-tight">Historial de Auditoría</h3>
@@ -49,6 +50,26 @@ export interface AuditLogEntry {
                     <span class="text-zinc-600"> ({{ e.targetIds.length }} elemento(s))</span>
                   }
                 </p>
+                @if (changesOf(e); as changes) {
+                  @if (changes.length > 0) {
+                    <div class="border-t border-zinc-900 pt-1.5 space-y-0.5">
+                      @for (c of changes; track c[0]) {
+                        <p class="text-zinc-500 font-mono text-[10px]">
+                          <span class="text-zinc-400">{{ c[0] }}</span>: {{ formatValue(c[1].from) }} → <span class="text-zinc-300">{{ formatValue(c[1].to) }}</span>
+                        </p>
+                      }
+                    </div>
+                  }
+                }
+                @if (otherMetadataOf(e); as extra) {
+                  @if (extra.length > 0) {
+                    <p class="text-zinc-600 text-[10px]">
+                      @for (m of extra; track m[0]; let last = $last) {
+                        <span>{{ m[0] }}: {{ formatValue(m[1]) }}</span>@if (!last) { <span> · </span> }
+                      }
+                    </p>
+                  }
+                }
               </div>
             }
           </div>
@@ -71,5 +92,25 @@ export class AuditLogPanelComponent {
       next: (data) => this.auditLogEntries.set(data),
       error: () => {}
     });
+  }
+
+  /** Extrae `metadata.changes` (campo -> {from, to}) como pares para renderizar "qué se modificó". */
+  changesOf(entry: AuditLogEntry): [string, { from: unknown; to: unknown }][] {
+    const changes = entry.metadata?.['changes'];
+    if (!changes || typeof changes !== 'object') return [];
+    return Object.entries(changes as Record<string, { from: unknown; to: unknown }>);
+  }
+
+  /** Resto de metadata (razón, conteos, etc.), excluyendo 'changes' que ya tiene su propio bloque. */
+  otherMetadataOf(entry: AuditLogEntry): [string, unknown][] {
+    if (!entry.metadata) return [];
+    return Object.entries(entry.metadata).filter(([key, value]) => key !== 'changes' && value !== undefined);
+  }
+
+  formatValue(value: unknown): string {
+    if (value === undefined || value === null || value === '') return '—';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return JSON.stringify(value);
   }
 }

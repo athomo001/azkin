@@ -3,6 +3,7 @@ import Papa from "papaparse";
 import { z } from "zod";
 import { IMonitorRepository, CreateMonitorData } from "../../ports/repositories/monitor-repository";
 import { IScheduler } from "../../ports/services/scheduler";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { QuotaExceededError } from "../../../domain/errors/domain-error";
 import crypto from "crypto";
 
@@ -70,6 +71,7 @@ export class BulkImportMonitorsFromCsvUseCase {
   constructor(
     private readonly monitors: IMonitorRepository,
     private readonly scheduler: IScheduler,
+    private readonly auditLog: IAuditLogRepository,
   ) {}
 
   async execute(input: BulkImportMonitorsFromCsvInput): Promise<BulkImportMonitorsFromCsvOutput> {
@@ -181,6 +183,13 @@ export class BulkImportMonitorsFromCsvUseCase {
         errors.push({ row: rowNumber, message: err instanceof Error ? err.message : "Error desconocido al procesar la fila" });
       }
     }
+
+    await this.auditLog.record({
+      actorId: input.userId,
+      action: "MONITORS_CSV_IMPORT",
+      targetType: "monitor",
+      metadata: { createdCount, updatedCount, errorCount: errors.length },
+    });
 
     return { createdCount, updatedCount, errors };
   }

@@ -41,7 +41,7 @@ export class BackupController {
 
   download = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
-    const backup = await this.getUseCase.execute(id);
+    const backup = await this.getUseCase.execute(req.adminId!, id);
     res.status(200).json(backup.payload);
   };
 

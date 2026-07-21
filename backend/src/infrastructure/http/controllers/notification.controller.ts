@@ -39,7 +39,7 @@ export class NotificationController {
   update = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
     // req.body.type puede venir informado solo para validación de plantillas (el tipo de canal es inmutable).
-    const notification = await this.updateUseCase.execute(id, {
+    const notification = await this.updateUseCase.execute(req.userId!, id, {
       name: req.body.name,
       config: req.body.config,
       isActive: req.body.isActive,
@@ -51,7 +51,7 @@ export class NotificationController {
 
   remove = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
-    await this.deleteUseCase.execute(id);
+    await this.deleteUseCase.execute(req.userId!, id);
     res.status(204).send();
   };
 

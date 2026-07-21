@@ -23,7 +23,7 @@ interface ApiKeyEntry {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="max-w-2xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
+    <div class="max-w-4xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
       <div class="p-6 space-y-4">
         <div>
           <h3 class="text-sm font-bold text-white tracking-tight">API Pública</h3>

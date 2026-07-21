@@ -1,6 +1,7 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IMonitorRepository } from "../../ports/repositories/monitor-repository";
 import { IScheduler } from "../../ports/services/scheduler";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { IMonitor } from "../../../domain/entities/monitor";
 import { MonitorType } from "../../../domain/value-objects/monitor-type";
 import { QuotaExceededError } from "../../../domain/errors/domain-error";
@@ -43,6 +44,7 @@ export class CreateMonitorUseCase {
   constructor(
     private readonly monitors: IMonitorRepository,
     private readonly scheduler: IScheduler,
+    private readonly auditLog: IAuditLogRepository,
   ) {}
 
   async execute(input: CreateMonitorInput): Promise<IMonitor> {
@@ -64,6 +66,14 @@ export class CreateMonitorUseCase {
     if (monitor.isActive) {
       this.scheduler.schedule(monitor);
     }
+
+    await this.auditLog.record({
+      actorId: input.userId,
+      action: "MONITOR_CREATE",
+      targetType: "monitor",
+      targetIds: [monitor.id],
+      metadata: { name: monitor.name, type: monitor.type, target: monitor.target },
+    });
 
     return monitor;
   }

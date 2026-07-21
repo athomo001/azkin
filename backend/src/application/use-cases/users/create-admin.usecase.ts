@@ -1,10 +1,12 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IUserRepository } from "../../ports/repositories/user-repository";
 import { IPasswordHasher } from "../../ports/services/security";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { EmailTakenError } from "../../../domain/errors/domain-error";
 import { IUser } from "../../../domain/entities/user";
 
 export interface CreateAdminInput {
+  actorId: string;
   email: string;
   password: string;
 }
@@ -18,6 +20,7 @@ export class CreateAdminUseCase {
   constructor(
     private readonly users: IUserRepository,
     private readonly hasher: IPasswordHasher,
+    private readonly auditLog: IAuditLogRepository,
   ) {}
 
   async execute(input: CreateAdminInput): Promise<IUser> {
@@ -27,6 +30,16 @@ export class CreateAdminUseCase {
     }
 
     const passwordHash = await this.hasher.hash(input.password);
-    return this.users.create({ email: input.email, passwordHash });
+    const admin = await this.users.create({ email: input.email, passwordHash });
+
+    await this.auditLog.record({
+      actorId: input.actorId,
+      action: "ADMIN_CREATE",
+      targetType: "user",
+      targetIds: [admin.id],
+      metadata: { email: admin.email },
+    });
+
+    return admin;
   }
 }
