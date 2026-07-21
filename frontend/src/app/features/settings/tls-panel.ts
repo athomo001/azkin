@@ -49,13 +49,24 @@ interface MonitoringEngineSettings {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="max-w-xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+    <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
       <div class="p-6 space-y-4">
         <div>
           <h3 class="text-sm font-bold text-white tracking-tight">Certificado SSL/TLS</h3>
           <p class="text-[11px] text-zinc-500 mt-0.5">
             Configura el listener HTTPS nativo del backend. La clave privada se cifra en reposo.
           </p>
+        </div>
+
+        <div class="bg-zinc-950/60 border border-zinc-900 rounded-lg p-3 flex items-center justify-between gap-3">
+          <p class="text-[10px] text-zinc-500">
+            El cifrado en reposo requiere <code class="font-mono text-zinc-400">AZKIN_TLS_ENCRYPTION_KEY</code> en el <code class="font-mono text-zinc-400">.env</code> del servidor (no se configura desde aquí).
+          </p>
+          <button (click)="generateTlsEncryptionKey()"
+            class="shrink-0 text-[10px] text-orange-500 hover:text-orange-400 font-bold px-2.5 py-1.5 rounded-lg border border-zinc-800 hover:border-orange-500/40 transition-colors uppercase tracking-wider">
+            Generar clave
+          </button>
         </div>
 
         @if (tlsStatus()?.configured) {
@@ -113,10 +124,11 @@ interface MonitoringEngineSettings {
       </div>
     </div>
 
+    <div class="space-y-6">
     <!-- Estado del SMTP de aplicación (recuperación de contraseña) — deliberadamente
          separado del SMTP por canal de alerta (pestaña "Canales de Alerta"): este es el único
          correo que el sistema puede enviar sin que exista ningún canal de alerta configurado. -->
-    <div class="max-w-xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg mt-6">
+    <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
       <div class="p-6 space-y-4">
         <div>
           <div class="flex items-center gap-2">
@@ -178,7 +190,7 @@ interface MonitoringEngineSettings {
 
     <!-- Motor de Monitoreo: umbral de latencia para DEGRADADO e intervalo acelerado
          (DOWN/DEGRADADO), configurables aquí sin editar .env ni reiniciar el contenedor. -->
-    <div class="max-w-xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg mt-6">
+    <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
       <div class="p-6 space-y-4">
         <div>
           <h3 class="text-sm font-bold text-white tracking-tight">Motor de Monitoreo</h3>
@@ -232,6 +244,30 @@ interface MonitoringEngineSettings {
         </button>
       </div>
     </div>
+    </div>
+    </div>
+
+    <!-- Clave generada para AZKIN_TLS_ENCRYPTION_KEY (AZ-041): se genera 100% en el navegador
+         (Web Crypto API) y nunca se envía al backend ni se guarda en ningún lado — el admin la
+         copia a mano a su .env, para que la clave siga viviendo fuera de la base de datos que
+         protege. -->
+    @if (generatedTlsKey(); as key) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" (click)="generatedTlsKey.set(null)"></div>
+        <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl max-w-md w-full shadow-2xl relative z-10 animate-fade-in space-y-4">
+          <h4 class="text-sm font-bold text-white font-black">Clave generada para AZKIN_TLS_ENCRYPTION_KEY</h4>
+          <p class="text-[11px] text-zinc-400">
+            Cópiala a la variable <code class="font-mono text-zinc-300">AZKIN_TLS_ENCRYPTION_KEY</code> en el <code class="font-mono text-zinc-300">.env</code> del servidor y reinicia el backend (<code class="font-mono text-zinc-300">docker compose up -d backend</code>) para aplicarla.
+          </p>
+          <div class="bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-orange-400 break-all select-all">{{ key }}</div>
+          <p class="text-[10px] text-zinc-600">
+            Azkin no la guarda en ningún lado — si cierras esta ventana sin copiarla, solo tienes que generar una nueva (no invalida nada, todavía no está en uso).
+          </p>
+          <button (click)="copyGeneratedTlsKey(key)" class="w-full py-2 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 rounded-xl text-xs font-bold transition-all text-zinc-300">Copiar al portapapeles</button>
+          <button (click)="generatedTlsKey.set(null)" class="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-bold transition-all shadow-md">Cerrar</button>
+        </div>
+      </div>
+    }
   `
 })
 export class TlsPanelComponent {
@@ -243,6 +279,8 @@ export class TlsPanelComponent {
   readonly tlsStatus = signal<TlsStatus | null>(null);
   readonly isApplyingTls = signal(false);
   tlsForm = { certPem: '', keyPem: '', chainPem: '', port: 443, httpRedirect: false };
+
+  readonly generatedTlsKey = signal<string | null>(null);
 
   readonly smtpStatus = signal<SmtpStatus | null>(null);
   readonly isSendingTestEmail = signal(false);
@@ -355,6 +393,23 @@ export class TlsPanelComponent {
         this.toast.show(extractApiErrorMessage(err, 'Error al enviar el correo de prueba.'));
       }
     });
+  }
+
+  /**
+   * Genera un valor válido de 64 caracteres hex para AZKIN_TLS_ENCRYPTION_KEY enteramente en el
+   * navegador (Web Crypto API) — nunca se envía al backend ni se persiste en ningún lado. El
+   * admin lo copia a mano a su `.env`, así la clave sigue viviendo fuera de la base de datos que
+   * protege (ver AZ-041).
+   */
+  generateTlsEncryptionKey(): void {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    this.generatedTlsKey.set(hex);
+  }
+
+  copyGeneratedTlsKey(key: string): void {
+    navigator.clipboard.writeText(key).then(() => this.toast.show('Copiada al portapapeles.'));
   }
 
   onTlsFileSelected(event: any, field: 'certPem' | 'keyPem' | 'chainPem'): void {

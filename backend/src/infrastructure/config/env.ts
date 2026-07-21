@@ -1,6 +1,7 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import dotenv from "dotenv";
 import { z } from "zod";
+import { resolveTlsEncryptionKey } from "./resolve-tls-encryption-key";
 
 dotenv.config();
 
@@ -38,13 +39,11 @@ const schema = z.object({
   AZKIN_FIRST_ADMIN_EMAIL: z.preprocess(emptyToUndefined, z.string().email().optional()),
   AZKIN_FIRST_ADMIN_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(8).optional()),
   // Clave de 32 bytes en hex (64 caracteres) para cifrar la clave privada TLS en reposo.
-  AZKIN_TLS_ENCRYPTION_KEY: z.preprocess(
-    emptyToUndefined,
-    z
-      .string()
-      .regex(/^[0-9a-fA-F]{64}$/, "AZKIN_TLS_ENCRYPTION_KEY debe ser hexadecimal de 64 caracteres (32 bytes)")
-      .optional(),
-  ),
+  // Sin restricción de formato aquí a propósito (AZ-041): es la única variable que alimenta una
+  // función opcional y secundaria (subir certificado desde /settings), así que un valor mal
+  // formado no debe poder tumbar el arranque completo del backend — se valida por separado más
+  // abajo, con una advertencia en vez de `process.exit(1)`.
+  AZKIN_TLS_ENCRYPTION_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   // SMTP a nivel de aplicación para correos transaccionales (recuperación de contraseña).
   AZKIN_SMTP_HOST: z.string().optional(),
   AZKIN_SMTP_PORT: z.coerce.number().int().positive().default(587),
@@ -64,6 +63,14 @@ if (!parsed.success) {
 }
 
 const raw = parsed.data;
+
+// AZ-041: validación no fatal de AZKIN_TLS_ENCRYPTION_KEY — ver resolve-tls-encryption-key.ts.
+const { value: tlsEncryptionKey, warning: tlsEncryptionKeyWarning } = resolveTlsEncryptionKey(
+  raw.AZKIN_TLS_ENCRYPTION_KEY,
+);
+if (tlsEncryptionKeyWarning) {
+  console.warn(tlsEncryptionKeyWarning);
+}
 
 export interface Env {
   port: number;
@@ -112,7 +119,7 @@ export const env: Env = {
   firstAdminName: raw.AZKIN_FIRST_ADMIN_NAME,
   firstAdminEmail: raw.AZKIN_FIRST_ADMIN_EMAIL,
   firstAdminPassword: raw.AZKIN_FIRST_ADMIN_PASSWORD,
-  tlsEncryptionKey: raw.AZKIN_TLS_ENCRYPTION_KEY,
+  tlsEncryptionKey,
   smtp: {
     host: raw.AZKIN_SMTP_HOST,
     port: raw.AZKIN_SMTP_PORT,

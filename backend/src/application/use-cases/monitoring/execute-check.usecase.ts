@@ -128,7 +128,7 @@ export class ExecuteCheckUseCase {
           // realidad ser un servidor vivo a nivel de red cuya app dejó de responder. No se
           // espera ni bloquea el aviso DOWN ya emitido arriba.
           if (status === MonitorStatus.DOWN && monitor.type === "http") {
-            void this.runDegradationHeuristic(monitor, beat).catch((err) =>
+            void this.runDegradationHeuristic(monitor).catch((err) =>
               logger.error(`Error en heurística de degradación para monitor ${monitor.name}: ${err}`),
             );
           }
@@ -151,7 +151,7 @@ export class ExecuteCheckUseCase {
    * `ctx.lastStatus`/`retryAttempts`/`nextDelaySeconds` — la aceleración de polling ya aplicó vía
    * la rama DOWN de `execute()`, independiente de esta heurística asíncrona.
    */
-  private async runDegradationHeuristic(monitor: IMonitor, downBeat: IHeartbeat): Promise<void> {
+  private async runDegradationHeuristic(monitor: IMonitor): Promise<void> {
     let hostname: string;
     let port: number;
     try {
@@ -167,16 +167,21 @@ export class ExecuteCheckUseCase {
       this.registry.resolve("port").check({ ...monitor, target: hostname, port }),
     ]);
 
-    const pingOk = pingResult.status === "fulfilled" && pingResult.value.ok;
-    const portOk = portResult.status === "fulfilled" && portResult.value.ok;
+    const pingCheck = pingResult.status === "fulfilled" ? pingResult.value : null;
+    const portCheck = portResult.status === "fulfilled" ? portResult.value : null;
+    const pingOk = pingCheck?.ok === true;
+    const portOk = portCheck?.ok === true;
     if (!pingOk && !portOk) return; // Caída real confirmada — el DOWN ya emitido queda como veredicto final.
 
     const layer = pingOk && portOk ? "ping y TCP" : pingOk ? "ping" : "TCP";
+    // Latencia real medida por el chequeo que respondió (ping ICMP o conexión TCP), no la del
+    // heartbeat DOWN original — ese venía de un chequeo HTTP fallido, con `ping: null` siempre.
+    const measuredPing = pingOk ? pingCheck!.ping : portOk ? portCheck!.ping : null;
     const beat: IHeartbeat = {
       monitorId: monitor.id,
       timestamp: new Date(),
       status: MonitorStatus.DEGRADED,
-      ping: downBeat.ping,
+      ping: measuredPing,
       msg: `Servidor responde a nivel de red (${layer}) pero la aplicación no — posible degradación/sobrecarga.`,
       isLocalNetworkDown: false,
     };
