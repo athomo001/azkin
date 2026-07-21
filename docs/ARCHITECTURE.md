@@ -29,7 +29,7 @@ El backend está estructurado en capas desacopladas para facilitar la testabilid
 ### Capa de Dominio (`src/domain`)
 * Contiene el núcleo del negocio libre de dependencias externas (sin frameworks ni ORMs).
 * **Entidades:** `User`, `Monitor`, `Heartbeat`.
-* **Value Objects:** `MonitorStatus` (UP, DOWN, PENDING) y `MonitorType` (http, ping, port, dns, push, snmp).
+* **Value Objects:** `MonitorStatus` (UP, DOWN, PENDING, MAINTENANCE, DEGRADED — ver §12 y §13) y `MonitorType` (http, ping, port, dns, push, snmp).
 * **Errores de Dominio:** Base común para manejar excepciones de negocio con traducción HTTP directa.
 
 ### Capa de Aplicación (`src/application`)
@@ -93,12 +93,13 @@ delega cada dominio a un subcomponente propio:
 
 | Subcomponente | Pestaña / dominio |
 |---|---|
-| `TlsPanelComponent` | Certificados TLS (texto o archivo) y puerto HTTPS |
-| `AuditLogPanelComponent` | Consulta del historial de auditoría (`GET /api/v1/audit-log`) |
+| `TlsPanelComponent` | Certificados TLS (texto o archivo), puerto HTTPS, SMTP de Aplicación y Motor de Monitoreo (umbrales DEGRADADO/polling adaptativo) |
+| `AuditLogPanelComponent` | Consulta del historial de auditoría (`GET /api/v1/audit-log`), incluyendo el diff de campos modificados |
 | `ApiKeysPanelComponent` | Generación, listado, revocación y borrado permanente de API Keys |
-| `BackupsPanelComponent` | Respaldos JSON, restauración e importación masiva de monitores vía CSV |
+| `BackupsPanelComponent` | Respaldos JSON, restauración, purga de instancia e importación masiva de monitores vía CSV |
 | `ViewersPanelComponent` | Gestión de cuentas Viewer y de otras cuentas Admin |
 | `AlertsPanelComponent` | Canales de notificación y plantillas por evento |
+| `MaintenancePanelComponent` | Ventanas de mantenimiento (silenciado de alertas), ver §12 |
 
 **`DashboardComponent` (1580 líneas, bajó desde 2291)** extrajo:
 
@@ -209,10 +210,35 @@ puede administrar las cuentas de **otros** Admins (editar email, resetear contra
 eliminar), con protección explícita contra auto-bloqueo/auto-eliminación accidental en el propio
 caso de uso (`actorId === targetId` → `ForbiddenError`).
 
-Las acciones administrativas sensibles (borrado masivo de monitores, cambio de configuración TLS,
-solicitud/cambio de contraseña) se registran en una colección de auditoría mínima
-(`IAuditLogRepository`) y son consultables desde `/settings` → pestaña **Auditoría** o
-`GET /api/v1/audit-log`, resolviendo el email del actor para cada entrada.
+Un amplio inventario de acciones administrativas (~39 tipos, ver tabla abajo) se registra en una
+colección de auditoría (`IAuditLogRepository`) y es consultable desde `/settings` → pestaña
+**Auditoría** o `GET /api/v1/audit-log`. No existe una lista central de tipos de acción (son
+strings sueltos, convención `RECURSO_VERBO`): cada caso de uso que necesita auditar algo recibe
+`IAuditLogRepository` por constructor y llama `.record({ actorId, action, targetType, targetIds?,
+metadata? })` justo antes de retornar.
+
+| Área | Acciones auditadas |
+|---|---|
+| Autenticación | `LOGIN_SUCCESS`, `LOGIN_FAILED` (contraseña incorrecta o identificador inexistente), `LOGIN_BLOCKED` |
+| Monitores | `MONITOR_CREATE`/`UPDATE`/`DELETE`, `MONITORS_BULK_DELETE`, `MONITORS_BULK_ASSIGN_NOTIFICATION`, `MONITORS_CSV_IMPORT`, `MONITORS_ASSETS_IMPORT` |
+| Notificaciones | `NOTIFICATION_CREATE`/`UPDATE`/`DELETE` |
+| Viewers/Admins | `VIEWER_CREATE`/`DELETE`, `VIEWER_PERMISSIONS_UPDATE`, `VIEWER_PASSWORD_RESET`, `ADMIN_CREATE`/`UPDATE`/`DELETE`, `ADMIN_BLOCKED_SET`, `ADMIN_PASSWORD_RESET`, `PASSWORD_RESET_REQUESTED`/`COMPLETED` |
+| API Keys | `API_KEY_CREATE`, `API_KEY_REVOKE`, `API_KEY_DELETE` |
+| Mantenimiento | `MAINTENANCE_CREATE`/`UPDATE`/`END`/`DELETE` |
+| Respaldos | `BACKUP_CREATE`, `BACKUP_REPLACE`, `BACKUP_DELETE`, `BACKUP_DOWNLOAD`, `BACKUP_IMPORT` (la purga de instancia queda deliberadamente sin auditar: borra todo el historial de auditoría, así que registrarla ahí sería contradictorio) |
+| Sistema | `TLS_CONFIG_UPDATE`, `APP_SMTP_CHANNEL_SET`, `MONITORING_ENGINE_SETTINGS_SET` |
+
+Para las ediciones (monitor, notificación, permisos de viewer, email de admin, ventana de
+mantenimiento), `metadata.changes` guarda el diff exacto de qué campos cambiaron (`{ from, to }`
+por campo), calculado con el helper puro `diffFields()` (`application/services/diff-fields.ts`) —
+no solo "se editó". En notificaciones, los valores sensibles del `config`
+(`webhookUrl`/`botToken`/`smtpPassword`) se enmascaran antes de guardarse en el diff (reutilizando
+`maskSecret()`), para que un secreto rotado nunca quede en texto plano en el historial.
+
+`ListAuditLogUseCase` resuelve el email del actor por `IUserRepository.findById` (cubre tanto
+Admin como Viewer — un login de Viewer también se audita). Si `actorId` es `null` (un
+`LOGIN_FAILED` con un identificador que no corresponde a ningún usuario existente — el único caso
+donde `actorId` puede ser nulo en `IAuditLog`), se usa `metadata.attemptedIdentifier` en su lugar.
 
 ## 9. Notificaciones: plantillas, enmascarado de secretos y prueba SMTP
 
@@ -267,3 +293,69 @@ compose`, o un proceso nativo) puede fallar por IP LAN no alcanzable desde dentr
 
 Ver [`docs/instalacion-docker.md`](./instalacion-docker.md) §10 para el detalle operativo y qué
 hacer si el fallback tampoco alcanza el servicio (firewall del host más restrictivo).
+
+## 12. Módulo de Mantenimiento (silenciado de alertas)
+
+Nueva entidad `IMaintenanceWindow` (`domain/entities/maintenance-window.ts`) + puerto
+`IMaintenanceRepository` + `MongooseMaintenanceRepository`, siguiendo el mismo patrón Clean
+Architecture que notificaciones/respaldos. El alcance (`IMaintenanceScope`) reutiliza el mismo
+shape `{ type: "all"|"group"|"monitor", value? }` que ya usan los permisos de Viewer
+(`maintenance-scope-policy.ts` es el equivalente de `monitor-access-policy.ts`).
+
+* **Silenciado real**, en `ExecuteCheckUseCase`: antes de ejecutar el checker, resuelve si hay una
+  ventana activa para el monitor; si la hay, **no ejecuta el checker real**, guarda un heartbeat
+  con `status: MonitorStatus.MAINTENANCE` (valor del enum que existía desde antes sin ningún
+  productor) y no llama al notificador — el silenciado es implícito porque MAINTENANCE nunca entra
+  al bloque de transición UP/DOWN que dispara alertas. `lastStatus`/`retryAttempts` se preservan
+  intactos para que la siguiente transición real (al terminar el mantenimiento) se compare contra
+  el último UP/DOWN confirmado, no contra MAINTENANCE.
+* **Uptime 24h:** los heartbeats en MAINTENANCE quedan excluidos del `$match` de la agregación de
+  `getSummaries()` — no cuentan ni en el numerador ni en el denominador (a diferencia de DEGRADADO,
+  ver §13, que sí suma como crédito parcial).
+* **Prioridad de grupo** (`combineStatus`): `DOWN > DEGRADED > PENDING > MAINTENANCE > UP`.
+* **"¿Está vigente ahora mismo?"** se resuelve al vuelo, sin cron/timer nuevo: `closedAt === null
+  && (mode === "immediate" || (startAt <= now && now <= endAt))`.
+* **API** bajo `requireRole("admin")`: `POST/GET/PUT /api/v1/maintenance`,
+  `POST /api/v1/maintenance/:id/end`, `DELETE /api/v1/maintenance/:id`.
+* **UI:** `MaintenancePanelComponent` en `/settings` → pestaña **Mantenimiento**, mismo selector de
+  alcance granular que ya usa el formulario de permisos de Viewer, y badge color **sky/azul**
+  distinto de UP/DOWN/PENDING/DEGRADADO en todo el dashboard.
+
+## 13. Estado DEGRADADO y monitoreo adaptativo
+
+Complementa el silenciado de §12: un sitio que no está muerto, sino "pegado" (responde pero tarda,
+o el host sigue vivo a nivel de red mientras la app dejó de responder) se distingue de una caída
+total en vez de marcarse DOWN puro. Exclusivo a monitores `type: "http"`, con dos caminos de
+entrada independientes en `ExecuteCheckUseCase`:
+
+1. **Latencia alta directa:** un HTTP que responde OK pero por sobre `AZKIN_DEGRADED_LATENCY_MS`
+   (default `5000`) pasa a `MonitorStatus.DEGRADED` de inmediato, sin esperar timeout ni pasar por
+   reintentos. El `msg` del heartbeat indica la latencia real y el umbral, no el `"200 OK"`
+   genérico del checker.
+2. **Heurística post-caída** (fire-and-forget, no bloquea el aviso DOWN): tras confirmar DOWN,
+   `runDegradationHeuristic()` prueba ping/TCP contra el mismo host, reutilizando
+   `PingChecker`/`PortChecker` ya registrados en `composition-root.ts` (sin nueva inyección de
+   dependencias, respetando sus timeouts y el `pLimit` global). Si cualquiera responde, guarda un
+   segundo heartbeat DEGRADED con el ping real medido en esa capa (nunca el `ping: null` del
+   heartbeat DOWN original) y notifica un segundo aviso. Si ambos fallan, el DOWN ya emitido queda
+   como veredicto final.
+
+**Polling adaptativo:** mientras un monitor está DOWN o DEGRADADO (por cualquiera de los dos
+caminos), su intervalo de chequeo baja a `AZKIN_ACCELERATED_INTERVAL_SECONDS` (default `15`) —
+nunca más rápido que el `retryInterval` propio del monitor
+(`Math.max(acceleratedIntervalSeconds, monitor.retryInterval)`, para no violar un límite de
+reintento explícitamente configurado más lento). Vuelve al intervalo normal apenas responde UP. Las
+alertas siguen gateadas por transición real (`lastStatus !== status`), nunca por cada chequeo — un
+monitor que permanece DOWN/DEGRADADO en chequeos consecutivos no repite el aviso pese al polling
+más frecuente.
+
+**Uptime 24h:** un heartbeat DEGRADADO suma **crédito parcial (0.5)** en `getSummaries()` — a
+diferencia de MAINTENANCE (§12), que se excluye del todo. Badge color **naranja** en todo el
+frontend (dashboard, quick-stats, heatmap).
+
+**Configuración editable desde la UI:** ambos umbrales no viven solo en `.env` — nueva entidad
+singleton `MonitoringEngineSettings` (mismo patrón que `AppSmtpSettings`/`TlsConfig`) con
+`ResolveMonitoringEngineConfig` (caché en memoria de 30s para no golpear Mongo en cada chequeo)
+resolviendo un override guardado en Mongo por encima del valor de `.env`. UI en `/settings` →
+**TLS/Sistema** → "Motor de Monitoreo", con botón "Restablecer" por campo que vuelve al valor de
+`.env` sin reiniciar el contenedor.

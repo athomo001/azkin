@@ -166,8 +166,10 @@ El backend puede servir HTTPS directamente (sin terminar TLS en un proxy externo
 desde la UI de administración (`/settings` → pestaña **TLS**), no por variables de entorno de
 certificado:
 
-1. Define `AZKIN_TLS_ENCRYPTION_KEY` en `.env` **antes** de configurar TLS desde la UI —
-   genera una con:
+1. Define `AZKIN_TLS_ENCRYPTION_KEY` en `.env` **antes** de configurar TLS desde la UI. La forma
+   más simple: botón "Generar clave" en `/settings` → **TLS/Sistema** — genera un valor de 64
+   caracteres hex enteramente en el navegador (no llama al backend ni lo persiste en Mongo) y lo
+   muestra en un modal con botón de copiar, listo para pegar en `.env`. Alternativa manual:
    ```bash
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```
@@ -180,9 +182,12 @@ certificado:
    diseño de esta función.
 4. El listener HTTPS se activa sin reiniciar el contenedor.
 
-Si `AZKIN_TLS_ENCRYPTION_KEY` queda vacío, la pestaña TLS sigue visible pero la configuración no
-puede cifrarse en reposo — el backend rechaza guardar certificados hasta que la variable esté
-definida.
+Si `AZKIN_TLS_ENCRYPTION_KEY` queda vacío o mal formado (no son 64 caracteres hex), la pestaña TLS
+sigue visible pero la configuración no puede cifrarse en reposo — el backend arranca con
+normalidad (imprime una advertencia clara en el log) y solo rechaza guardar certificados hasta que
+la variable tenga un valor válido. Un valor mal formado **no** tumba el resto del backend (antes sí
+lo hacía — un typo en esta variable secundaria bastaba para que login, monitoreo y todo lo demás
+dejaran de arrancar).
 
 ---
 

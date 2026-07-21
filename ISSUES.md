@@ -34,8 +34,14 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-028](#az-028-no-existe-importacion-masiva-de-monitores-solo-restauracion-completa-de-respaldo-json) | No existe importacion masiva de monitores (solo restauracion completa de respaldo JSON) | Media | [x] Resuelto |
 | [AZ-029](#az-029-no-existe-api-publica-para-integrar-sistemas-externos-sin-usar-sesion-de-usuario) | No existe API publica para integrar sistemas externos sin usar sesion de usuario | Media-Alta | [x] Resuelto |
 | [AZ-035](#az-035-respaldo-granular-de-activos-exportacionimportacion-molecular-de-monitores) | Respaldo granular de activos: exportacion/importacion molecular de monitores | Media | [x] Resuelto |
+| [AZ-037](#az-037-el-respaldo-completo-solo-respaldaba-monitores-falta-un-botón-para-purgar-toda-la-instancia-salvo-el-admin-del-env) | El "respaldo completo" solo respaldaba monitores; falta un botón para purgar toda la instancia salvo el admin del .env | Media-Alta | [x] Resuelto |
+| [AZ-038](#az-038-el-respaldo-completo-az-037-importaba-0-adminsviewers-en-silencio-y-no-había-forma-de-borrar-respaldos-guardados-antiguos) | El respaldo completo (AZ-037) importaba 0 admins/viewers en silencio, y no había forma de borrar respaldos guardados antiguos | Alta | [x] Resuelto |
+| [AZ-039](#az-039-smtp-de-aplicación-y-smtp-de-canal-de-alerta-email-obligaban-a-configurar-la-misma-información-dos-veces) | SMTP de aplicación y SMTP de canal de alerta Email obligaban a configurar la misma información dos veces | Media | [x] Resuelto |
 | [AZ-040](#az-040-modulo-de-mantenimiento-y-silenciado-de-alertas) | Módulo de Mantenimiento y Silenciado de Alertas | Media-Alta | [x] Resuelto |
 | [AZ-041](#az-041-una-azkin_tls_encryption_key-mal-formada-tumba-todo-el-backend-al-arrancar) | Una `AZKIN_TLS_ENCRYPTION_KEY` mal formada tumba todo el backend al arrancar | Alta | [x] Resuelto |
+| [AZ-042](#az-042-estado-degradado-y-monitoreo-adaptativo) | Estado DEGRADADO y monitoreo adaptativo | Alta | [x] Resuelto |
+| [AZ-043](#az-043-el-historial-de-auditoria-solo-cubria-12-acciones-administrativas-de-un-inventario-mucho-mayor) | El historial de auditoría solo cubría 12 acciones administrativas de un inventario mucho mayor | Media-Alta | [x] Resuelto |
+| [AZ-044](#az-044-la-pantalla-de-settings-se-desordeno-al-acumular-pestanas-y-secciones-nuevas) | La pantalla de Settings se desordenó al acumular pestañas y secciones nuevas | Baja | [x] Resuelto |
 
 ### Calidad de codigo / deuda tecnica (auditoria senior)
 
@@ -1519,3 +1525,198 @@ resto del sistema.
   donde ya existe un fallo controlado si la clave es inválida — ese es el patrón a imitar).
 - `frontend/src/app/features/settings/tls-panel.ts` (para el botón "Generar clave" opcional del
   punto 4).
+
+---
+
+## AZ-042) Estado DEGRADADO y monitoreo adaptativo
+- Codigo: AZ-042
+- Estado: [x] Resuelto
+- Prioridad: Alta
+- Reportado: 2026-07-21
+- Resuelto: 2026-07-21
+
+### Resolucion
+- Nuevo `MonitorStatus.DEGRADED = 4` (`domain/value-objects/monitor-status.ts`), con dos caminos de
+  entrada independientes, ambos exclusivos a monitores tipo `http`:
+  1. **Heurística post-caída** (fire-and-forget, no bloquea el aviso DOWN): tras confirmar DOWN,
+     `ExecuteCheckUseCase.runDegradationHeuristic()` prueba ping/TCP contra el mismo host
+     (reutilizando `PingChecker`/`PortChecker` ya registrados, sin nueva inyección de
+     dependencias); si cualquiera responde, corrige a DEGRADED con un segundo aviso indicando qué
+     capa respondió (ping y/o TCP) y el ping real medido en esa capa (no el heartbeat DOWN
+     original, que trae `ping: null`).
+  2. **Latencia alta directa**: un HTTP que responde OK pero por sobre `AZKIN_DEGRADED_LATENCY_MS`
+     (default `5000`) pasa a DEGRADED de inmediato, sin esperar timeout ni pasar por reintentos;
+     el `msg` del heartbeat indica la latencia real y el umbral configurado, no el `"200 OK"`
+     genérico del checker.
+- **Polling adaptativo**: mientras un monitor está DOWN o DEGRADADO (por cualquiera de los dos
+  caminos), su intervalo de chequeo baja a `AZKIN_ACCELERATED_INTERVAL_SECONDS` (default `15`) —
+  nunca más rápido que el `retryInterval` propio del monitor
+  (`Math.max(acceleratedIntervalSeconds, monitor.retryInterval)`), para no violar un límite de
+  reintento explícitamente configurado más lento. Vuelve al intervalo normal apenas responde UP.
+- Uptime 24h: un heartbeat DEGRADADO cuenta como **crédito parcial (0.5)** en `getSummaries()`
+  (`mongoose-heartbeat.repository.ts`) — a diferencia de MAINTENANCE (AZ-040), que se excluye del
+  todo del cálculo. Prioridad de grupo (`combineStatus`): `DOWN > DEGRADED > PENDING > MAINTENANCE
+  > UP`. Badge color **naranja** en todo el frontend (dashboard, quick-stats, heatmap).
+- Ambos umbrales (`AZKIN_DEGRADED_LATENCY_MS`/`AZKIN_ACCELERATED_INTERVAL_SECONDS`) son ahora
+  **editables desde la UI** (`/settings` → TLS/Sistema → "Motor de Monitoreo"), no solo por
+  variable de entorno: nueva entidad singleton `MonitoringEngineSettings` (mismo patrón que
+  `AppSmtpSettings`/`TlsConfig`) con `ResolveMonitoringEngineConfig` (caché en memoria de 30s para
+  no golpear Mongo en cada chequeo) resolviendo override-de-Mongo-por-encima-de-`.env`; botón
+  "Restablecer" por campo que vuelve al valor de `.env` sin tener que reiniciar el contenedor.
+- Verificado que el polling acelerado no genera lluvia de notificaciones: las alertas siguen
+  gateadas por transición real (`lastStatus !== status`), nunca por cada chequeo — un monitor que
+  permanece DOWN o DEGRADADO en chequeos consecutivos (aunque sean cada 15s) no repite el aviso.
+  Tests nuevos cubriendo latencia bajo/sobre umbral, aceleración tras DOWN, restauración del
+  intervalo normal al volver UP, el piso de `retryInterval`, y la no-repetición de alertas.
+
+### Descripcion
+Azkin solo distinguía UP/DOWN/PENDING/MAINTENANCE: un sitio que no está muerto, sino "pegado"
+(responde pero tarda 1-2 minutos, o el servidor sigue vivo a nivel de red mientras la app dejó de
+responder) se marcaba como DOWN puro, generando falsas alarmas de "sitio muerto" y sin distinguir
+la severidad real del problema frente a una caída total.
+
+### Comportamiento esperado
+1. Un HTTP con latencia sobre el umbral configurado pasa a DEGRADADO directo, sin pasar por
+   PENDING/reintentos.
+2. Un HTTP que cae por completo, pero cuyo host sigue respondiendo a nivel de red (ping/TCP), se
+   corrige de DOWN a DEGRADADO con un segundo aviso, sin perder el aviso original de DOWN.
+3. Mientras un monitor está DOWN o DEGRADADO, el chequeo se acelera; vuelve a su cadencia normal
+   apenas se recupera.
+4. Ninguno de los dos caminos aplica a monitores no-HTTP (ping/puerto/DNS/SNMP/push).
+
+### Criterios de aceptacion
+1. Monitor HTTP contra un endpoint con delay artificial > `AZKIN_DEGRADED_LATENCY_MS` → DEGRADADO
+   directo, con el ping real en el heartbeat y el correo de alerta.
+2. Cortar el HTTP de un servicio dejando el host vivo a nivel de red → DOWN inmediato + segundo
+   aviso a DEGRADADO vía heurística, con el ping real de la capa que respondió.
+3. Intervalo entre chequeos baja a `AZKIN_ACCELERATED_INTERVAL_SECONDS` mientras el monitor está
+   DOWN/DEGRADADO, nunca por debajo de su propio `retryInterval`, y vuelve al configurado al
+   recuperarse.
+4. Cambiar los umbrales desde `/settings` → TLS/Sistema sin reiniciar el contenedor tiene efecto
+   en el siguiente chequeo (dentro de la ventana de caché de 30s).
+
+### Pistas de investigacion
+- `backend/src/application/use-cases/monitoring/execute-check.usecase.ts` (los tres mecanismos y
+  `runDegradationHeuristic()`).
+- `backend/src/application/services/resolve-monitoring-engine-config.ts` (caché de 30s del
+  override de Mongo).
+- `backend/src/infrastructure/persistence/mongoose/repositories/mongoose-heartbeat.repository.ts`
+  (`getSummaries()`, crédito parcial 0.5).
+- `frontend/src/app/features/settings/tls-panel.ts` (sección "Motor de Monitoreo").
+
+---
+
+## AZ-043) El historial de auditoría solo cubría 12 acciones administrativas de un inventario mucho mayor
+- Codigo: AZ-043
+- Estado: [x] Resuelto
+- Prioridad: Media-Alta
+- Reportado: 2026-07-21
+- Resuelto: 2026-07-21
+
+### Resolucion
+- Ampliado de 12 a ~39 tipos de acción auditados. Nuevas áreas cubiertas: intentos de login
+  (`LOGIN_SUCCESS`/`LOGIN_FAILED`/`LOGIN_BLOCKED`), monitores individuales (crear/editar/borrar,
+  además de las acciones masivas que ya se auditaban), notificaciones (crear/editar/borrar),
+  viewers/admins (crear, cambio de permisos, crear/editar admin, bloquear/desbloquear, reset de
+  contraseña), API Keys (crear/revocar, además del borrado permanente que ya se auditaba),
+  ventanas de mantenimiento (crear/editar/cerrar/eliminar) y respaldos (creación en modo normal,
+  descarga, restauración — antes solo se auditaba la creación en modo "reemplazar").
+- **Registro de login** vive en el propio `LoginUseCase`: éxito, contraseña incorrecta (con
+  `actorId` del usuario), cuenta bloqueada, e identificador inexistente — este último caso no
+  tiene ningún usuario al cual asociar el intento, así que `actorId` en `IAuditLog` pasó a ser
+  **opcional** (`string | null`, antes obligatorio) y el identificador intentado queda en
+  `metadata.attemptedIdentifier`. No cambia ningún mensaje de error ni el comportamiento
+  anti-enumeración existente — el registro es un efecto colateral, nunca altera qué se responde
+  al cliente.
+- **Diff de "qué se modificó"**: un nuevo helper puro `diffFields()`
+  (`application/services/diff-fields.ts`) compara el estado anterior contra el patch aplicado y
+  guarda solo los campos que efectivamente cambiaron (`metadata.changes`), usado en la edición de
+  monitores, notificaciones, permisos de viewer, email de admin y ventanas de mantenimiento — en
+  vez de solo registrar "se editó" sin ningún detalle.
+- **Notificaciones**: el diff de `config` enmascara los valores de las claves sensibles
+  (`webhookUrl`/`botToken`/`smtpPassword`, vía `maskSecret()` ya existente en
+  `notification-secrets.ts`) antes de guardarlos — un secreto rotado nunca queda en texto plano en
+  el historial de auditoría, solo se ve que el campo cambió.
+- Corregida `ListAuditLogUseCase`: resolvía el email del actor consultando únicamente
+  `findAllAdmins()`, así que cualquier entrada generada por un Viewer (ej. su propio login) se
+  habría resuelto mal. Ahora usa `findById` por cada actor único de la página (cubre ambos roles),
+  y si `actorId` es nulo usa `metadata.attemptedIdentifier` en su lugar.
+- Frontend (`audit-log-panel.ts`): antes no renderizaba `metadata` en absoluto. Ahora muestra el
+  bloque de cambios (`campo: antes → ahora`) cuando existe, y el resto de metadata simple (motivo,
+  conteos, identificador intentado) como una línea secundaria.
+
+### Descripcion
+El módulo de auditoría existía (AZ-030) pero cubría una fracción mínima de las acciones
+administrativas reales del sistema: solo 12 puntos de registro en todo el backend (borrado masivo
+de monitores, asignación masiva de canal, borrado de admin/viewer, backup en modo "reemplazar",
+borrado de backup/API key, TLS, SMTP de aplicación, motor de monitoreo, y reseteo de contraseña
+por email). Crear/editar monitores uno a uno, gestionar notificaciones, crear cuentas, cambiar
+permisos, revocar API keys, gestionar mantenimiento y la mayoría de las operaciones de respaldo no
+dejaban ningún rastro — y no existía ninguna señal de intentos de inicio de sesión, la visibilidad
+de seguridad más básica (no había forma de ver un patrón de fuerza bruta).
+
+### Criterios de aceptacion
+1. Un login correcto, uno con contraseña incorrecta, uno con correo inexistente y uno con cuenta
+   bloqueada generan las 4 entradas correspondientes, con el actor/identificador correcto en cada
+   caso.
+2. Crear y luego editar un monitor (cambiando `interval`/`target`) genera `MONITOR_UPDATE` con el
+   diff exacto de esos 2 campos.
+3. Editar un canal de notificación tipo webhook no deja la URL en texto plano en el diff de
+   auditoría.
+4. Crear/bloquear/eliminar un viewer y un admin generan sus entradas correspondientes.
+5. Descargar un respaldo genera `BACKUP_DOWNLOAD` (el payload incluye password hashes de todas las
+   cuentas — es una lectura tan sensible como cualquier escritura).
+6. `purge-instance.usecase.ts` sigue sin auditar la purga en sí (decisión deliberada preexistente:
+   la purga borra todo el historial de auditoría, así que registrarla ahí sería contradictorio).
+
+### Pistas de investigacion
+- `backend/src/application/ports/repositories/audit-log-repository.ts` (`RecordAuditLogData`, el
+  DTO de facto de cada punto de registro).
+- `backend/src/application/services/diff-fields.ts` (helper de diff reutilizado).
+- `backend/src/application/use-cases/audit-log/list-audit-log.usecase.ts` (resolución de actor,
+  incluyendo el caso `actorId === null`).
+- `backend/src/application/use-cases/auth/login.usecase.ts` (los 4 casos de login).
+- `frontend/src/app/features/settings/audit-log-panel.ts` (render de `metadata.changes`).
+
+---
+
+## AZ-044) La pantalla de Settings se desordenó al acumular pestañas y secciones nuevas
+- Codigo: AZ-044
+- Estado: [x] Resuelto
+- Prioridad: Baja
+- Reportado: 2026-07-21
+- Resuelto: 2026-07-21
+
+### Resolucion
+- `settings.ts`: el `<main>` que envuelve todas las pestañas pasó de `max-w-5xl` (1024px) a
+  `max-w-7xl` (1280px) — antes limitaba en la práctica cualquier grid ancho de una pestaña interna,
+  volviéndolo un tope inútil.
+- `tls-panel.ts` (pestaña "TLS/Sistema"): de 3 secciones apiladas en una columna angosta
+  (`max-w-xl`) a un grid de 2 columnas (`max-w-6xl lg:grid-cols-2`) — columna izquierda
+  "Certificado SSL/TLS", columna derecha "SMTP de Aplicación" + "Motor de Monitoreo" apiladas.
+- `backups-panel.ts` (pestaña "Respaldos", la más larga): mismo patrón de grid de 2 columnas —
+  izquierda: respaldo completo + lista de respaldos guardados; derecha: importar CSV, exportar/
+  importar solo monitores (JSON), zona de peligro (con su borde rojo distintivo preservado). Sin
+  cambios de lógica, puramente reestructuración del template.
+- `api-keys-panel.ts`/`audit-log-panel.ts`: ensanchados de `max-w-2xl`/`max-w-3xl` a `max-w-4xl`
+  cada uno, sin forzar un grid de 2 columnas (su contenido — una lista simple o un log
+  cronológico — no lo necesita).
+
+### Descripcion
+Tras varias iteraciones agregando funciones nuevas (TLS, SMTP de Aplicación, Motor de Monitoreo,
+Mantenimiento, Auditoría ampliada, etc.), la pantalla `/settings` quedó con la mayoría de sus
+pestañas apiladas en una sola columna angosta centrada, desaprovechando el ancho disponible en un
+uso de escritorio típico (la app está pensada para computador, no para móvil) y con aspecto
+desordenado en pantallas anchas.
+
+### Criterios de aceptacion
+1. Pestañas "Respaldos" y "TLS/Sistema" muestran un grid de 2 columnas en pantallas `lg:` o más
+   anchas, sin solapamientos ni columnas descompensadas.
+2. Pestañas "API" y "Auditoría" se ven ensanchadas pero siguen en una columna (correcto para su
+   contenido).
+3. Ninguna pestaña queda con contenido cortado o desbordado tras el cambio de ancho del `<main>`.
+
+### Pistas de investigacion
+- `frontend/src/app/features/settings/settings.ts` (contenedor `<main>`, línea ~59).
+- `frontend/src/app/features/settings/backups-panel.ts` y `tls-panel.ts` (patrón de grid a
+  replicar en futuras pestañas que crezcan demasiado).
