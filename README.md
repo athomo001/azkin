@@ -55,6 +55,30 @@ Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión d
 
 ---
 
+## 💻 Requisitos del Sistema
+
+Calculados a partir de la arquitectura real del proyecto (3 contenedores: `azkin-db`, `azkin-back`, `azkin-front`), no son valores genéricos.
+
+| Recurso | Mínimo | Recomendado |
+| --- | --- | --- |
+| Sistema Operativo | Linux x86-64/ARM64 64 bits, o Windows/macOS con Docker Desktop | Linux 64 bits (Ubuntu 22.04+/Debian 12+), x86-64-v2 o ARM64 |
+| CPU | 2 vCPU | 4 vCPU |
+| RAM | 2 GB | 4-8 GB |
+| Almacenamiento | 5 GB libres | 20 GB+ en SSD |
+| Red | Salida a internet para HTTP/ICMP/TCP/DNS/SNMP y notificaciones | Ídem + baja latencia interna (ya cubierta por `azkin-network`) |
+| Software | Docker Engine 24+ y Docker Compose v2 | Docker Engine 24+ y Docker Compose v2 |
+| Escala soportada | ~20-30 monitores, intervalo ≥ 60 s, un Admin | Decenas-cientos de monitores, concurrencia por defecto (`AZKIN_CHECK_CONCURRENCY=50`) |
+
+**Notas técnicas** (medido directamente en este repo con `docker build` / `docker image inspect`):
+
+- Las 3 imágenes Docker (`azkin-back` ~83 MB + `azkin-front` ~27 MB + `mongo:8` ~341 MB) suman ~450 MB en disco.
+- MongoDB reserva ~50% de (RAM − 1 GB) para su caché WiredTiger: con 2 GB se autolimita a ~512 MB; con 8 GB sube a ~3.5 GB.
+- Cada monitor Ping lanza un subproceso `ping` nativo por chequeo, y el motor corre hasta 50 chequeos en paralelo por defecto — ahí está el grueso del consumo de CPU, no en el proceso Node en sí.
+- Los heartbeats viven en una colección Time-Series con TTL de 30 días (se autopurgan). Peor caso medido: ~650 MB/mes con 50 monitores al intervalo mínimo (20 s).
+- Solo hace falta Node.js `>= 24.13.0` / pnpm si se desarrolla fuera de Docker; para correr Azkin con `compose.yaml` no se instala nada más en el host.
+
+---
+
 ## 📂 Estructura del Repositorio
 
 - **[frontend](./frontend)**: Cliente SPA moderno en Angular 21 con panel de control en tiempo real, gráficas comparativas de latencia, heatmap de bloques de disponibilidad y administración premium de configuración.

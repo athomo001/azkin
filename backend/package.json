@@ -8,11 +8,6 @@
     "pnpm": ">= 11.2.0"
   },
   "main": "dist/main.js",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
-  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/main.js",
