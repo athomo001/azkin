@@ -3,6 +3,7 @@ import { IMonitorRepository } from "../../ports/repositories/monitor-repository"
 import { IHeartbeatRepository } from "../../ports/repositories/heartbeat-repository";
 import { NotFoundError } from "../../../domain/errors/domain-error";
 import { filterMonitorsByPermission } from "../../services/monitor-access-policy";
+import { toEventStatusLabel } from "../../../domain/value-objects/monitor-status";
 import { RecentEventOutput } from "./get-recent-events.usecase";
 
 /**
@@ -44,7 +45,7 @@ export class GetGroupEventsUseCase {
         monitorName: monitor ? monitor.name : "Monitor Eliminado",
         target: monitor ? (monitor.target ?? "") : "",
         timestamp: beat.timestamp.toISOString(),
-        status: beat.status === 1 ? "UP" : "DOWN",
+        status: toEventStatusLabel(beat.status),
         ping: beat.ping,
         msg: beat.msg,
       };

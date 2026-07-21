@@ -1,0 +1,201 @@
+// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { ExecuteCheckUseCase } from "./execute-check.usecase";
+import { ICheckerRegistry, ICheckStrategy, CheckResult } from "../../ports/services/check-strategy";
+import { IHeartbeatRepository, HeartbeatSummary } from "../../ports/repositories/heartbeat-repository";
+import { IRealtimePublisher } from "../../ports/services/realtime-publisher";
+import { INotifier, NotificationEvent } from "../../ports/services/notifier";
+import { IMaintenanceRepository } from "../../ports/repositories/maintenance-repository";
+import { IMaintenanceWindow } from "../../../domain/entities/maintenance-window";
+import { IMonitor } from "../../../domain/entities/monitor";
+import { IHeartbeat } from "../../../domain/entities/heartbeat";
+import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
+import { NetworkDiagnostics } from "../../../infrastructure/services/network-diagnostics";
+
+// `NetworkDiagnostics.checkIsLocalNetworkDown()` hace una resolución DNS real (ver
+// infrastructure/services/network-diagnostics.ts) — en un entorno de test sin egress de DNS
+// (sandbox/CI restringido) siempre reportaría "red local caída" y suprimiría las alertas que
+// estos tests verifican, sin relación alguna con la lógica bajo prueba. Se precarga su caché
+// interna (privada, de ahí el cast) para simular "red arriba" sin depender de conectividad real.
+(NetworkDiagnostics as unknown as { lastCheckTime: number; cachedIsLocalDown: boolean }).lastCheckTime = Date.now();
+(NetworkDiagnostics as unknown as { lastCheckTime: number; cachedIsLocalDown: boolean }).cachedIsLocalDown = false;
+
+function makeMonitor(overrides: Partial<IMonitor> = {}): IMonitor {
+  return {
+    id: "m1",
+    userId: "admin-1",
+    name: "Monitor de prueba",
+    type: "http",
+    target: "https://example.test",
+    interval: 60,
+    retries: 0,
+    retryInterval: 60,
+    group: null,
+    tags: [],
+    isActive: true,
+    notificationIds: ["n1"],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+function makeRegistry(result: CheckResult): ICheckerRegistry {
+  const strategy: ICheckStrategy = { type: "http", check: async () => result };
+  return { resolve: () => strategy };
+}
+
+function makeHeartbeats(): IHeartbeatRepository & { saved: IHeartbeat[] } {
+  const saved: IHeartbeat[] = [];
+  return {
+    saved,
+    save: async (beat) => {
+      saved.push(beat);
+    },
+    findLast24h: async () => [],
+    findHistory: async () => [],
+    findHistoryForMonitors: async () => [],
+    deleteByMonitor: async () => undefined,
+    getSummaries: async () => ({} as Record<string, HeartbeatSummary>),
+    findLastEventsForMonitors: async () => [],
+  };
+}
+
+function makeRealtime(): IRealtimePublisher & { published: IHeartbeat[] } {
+  const published: IHeartbeat[] = [];
+  return {
+    published,
+    publishHeartbeat: (_userId, beat) => {
+      published.push(beat);
+    },
+  };
+}
+
+function makeNotifier(): INotifier & { events: NotificationEvent[] } {
+  const events: NotificationEvent[] = [];
+  return {
+    events,
+    notify: async (event) => {
+      events.push(event);
+    },
+  };
+}
+
+function makeMaintenanceRepo(activeWindows: IMaintenanceWindow[] = []): IMaintenanceRepository {
+  return {
+    create: async () => { throw new Error("not implemented"); },
+    findAll: async () => [],
+    findActive: async () => activeWindows,
+    findById: async () => null,
+    update: async () => null,
+    close: async () => null,
+    delete: async () => false,
+  };
+}
+
+function makeWindow(overrides: Partial<IMaintenanceWindow> = {}): IMaintenanceWindow {
+  return {
+    id: "w1",
+    createdBy: "admin-1",
+    name: "Migración programada",
+    scope: [{ type: "all" }],
+    mode: "immediate",
+    startAt: null,
+    endAt: null,
+    closedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+test("sin mantenimiento activo: caída confirmada dispara notify DOWN normalmente", async () => {
+  const heartbeats = makeHeartbeats();
+  const realtime = makeRealtime();
+  const notifier = makeNotifier();
+  const useCase = new ExecuteCheckUseCase(
+    makeRegistry({ ok: false, ping: null, msg: "timeout" }),
+    heartbeats,
+    realtime,
+    notifier,
+    makeMaintenanceRepo([]),
+  );
+
+  const outcome = await useCase.execute(makeMonitor(), { lastStatus: MonitorStatus.UP, retryAttempts: 0 });
+
+  assert.equal(outcome.status, MonitorStatus.DOWN);
+  assert.equal(heartbeats.saved.length, 1);
+  assert.equal(heartbeats.saved[0].status, MonitorStatus.DOWN);
+  assert.equal(notifier.events.length, 1);
+  assert.equal(notifier.events[0].eventType, "DOWN");
+});
+
+test("con mantenimiento activo (alcance 'all'): no ejecuta el checker real ni notifica", async () => {
+  const heartbeats = makeHeartbeats();
+  const realtime = makeRealtime();
+  const notifier = makeNotifier();
+  let checkerCalled = false;
+  const registry: ICheckerRegistry = {
+    resolve: () => ({
+      type: "http",
+      check: async () => {
+        checkerCalled = true;
+        return { ok: false, ping: null, msg: "no debería llamarse" };
+      },
+    }),
+  };
+
+  const useCase = new ExecuteCheckUseCase(
+    registry,
+    heartbeats,
+    realtime,
+    notifier,
+    makeMaintenanceRepo([makeWindow()]),
+  );
+
+  const outcome = await useCase.execute(makeMonitor(), { lastStatus: MonitorStatus.UP, retryAttempts: 0 });
+
+  assert.equal(checkerCalled, false, "el checker real no debe ejecutarse durante mantenimiento");
+  assert.equal(outcome.status, MonitorStatus.MAINTENANCE);
+  assert.equal(heartbeats.saved.length, 1);
+  assert.equal(heartbeats.saved[0].status, MonitorStatus.MAINTENANCE);
+  assert.equal(realtime.published.length, 1);
+  assert.equal(notifier.events.length, 0, "no debe dispararse ninguna alerta durante mantenimiento");
+});
+
+test("mantenimiento activo preserva lastStatus/retryAttempts para la transición posterior", async () => {
+  const useCase = new ExecuteCheckUseCase(
+    makeRegistry({ ok: false, ping: null, msg: "no debería llamarse" }),
+    makeHeartbeats(),
+    makeRealtime(),
+    makeNotifier(),
+    makeMaintenanceRepo([makeWindow()]),
+  );
+
+  const outcome = await useCase.execute(makeMonitor(), { lastStatus: MonitorStatus.DOWN, retryAttempts: 2 });
+
+  assert.equal(outcome.lastStatus, MonitorStatus.DOWN);
+  assert.equal(outcome.retryAttempts, 2);
+  assert.equal(outcome.nextDelaySeconds, 60);
+});
+
+test("mantenimiento por alcance 'group' no afecta a un monitor de otro grupo", async () => {
+  const heartbeats = makeHeartbeats();
+  const notifier = makeNotifier();
+  const useCase = new ExecuteCheckUseCase(
+    makeRegistry({ ok: false, ping: null, msg: "timeout" }),
+    heartbeats,
+    makeRealtime(),
+    notifier,
+    makeMaintenanceRepo([makeWindow({ scope: [{ type: "group", value: "otro-grupo" }] })]),
+  );
+
+  const outcome = await useCase.execute(
+    makeMonitor({ group: "grupo-a" }),
+    { lastStatus: MonitorStatus.UP, retryAttempts: 0 },
+  );
+
+  assert.equal(outcome.status, MonitorStatus.DOWN);
+  assert.equal(notifier.events.length, 1);
+});
