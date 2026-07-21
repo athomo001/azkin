@@ -93,14 +93,23 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
 
       // 2. Obtener agregados de las últimas 24h para el cálculo del uptime porcentual.
       // Los heartbeats en MAINTENANCE quedan fuera del cálculo (ni suman ni restan, AZ-040):
-      // una caída planificada no debe ensuciar el uptime real del monitor.
+      // una caída planificada no debe ensuciar el uptime real del monitor. DEGRADED sí cuenta
+      // en el denominador, con crédito parcial (0.5) en vez de pleno (1) o nulo (0).
       const stats = await HeartbeatModel.aggregate([
         { $match: { monitorId: mId, timestamp: { $gte: since }, status: { $ne: MonitorStatus.MAINTENANCE } } },
         {
           $group: {
             _id: "$monitorId",
             total: { $sum: 1 },
-            ups: { $sum: { $cond: [{ $eq: ["$status", MonitorStatus.UP] }, 1, 0] } }
+            ups: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$status", MonitorStatus.UP] },
+                  1,
+                  { $cond: [{ $eq: ["$status", MonitorStatus.DEGRADED] }, 0.5, 0] },
+                ],
+              },
+            },
           }
         }
       ]);

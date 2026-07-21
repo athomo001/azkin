@@ -28,6 +28,17 @@ interface AppSmtpChannel {
   channelName: string | null;
 }
 
+interface MonitoringEngineDefaults {
+  degradedLatencyMs: number;
+  acceleratedIntervalSeconds: number;
+}
+
+interface MonitoringEngineSettings {
+  degradedLatencyMs: number | null;
+  acceleratedIntervalSeconds: number | null;
+  defaults: MonitoringEngineDefaults;
+}
+
 /**
  * Pestaña "TLS / Sistema": configuracion de certificado SSL/TLS + estado/prueba del
  * SMTP de aplicacion, deliberadamente separado del SMTP por canal de alerta.
@@ -164,6 +175,63 @@ interface AppSmtpChannel {
         </div>
       </div>
     </div>
+
+    <!-- Motor de Monitoreo: umbral de latencia para DEGRADADO e intervalo acelerado
+         (DOWN/DEGRADADO), configurables aquí sin editar .env ni reiniciar el contenedor. -->
+    <div class="max-w-xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg mt-6">
+      <div class="p-6 space-y-4">
+        <div>
+          <h3 class="text-sm font-bold text-white tracking-tight">Motor de Monitoreo</h3>
+          <p class="text-[11px] text-zinc-500 mt-0.5">
+            Por defecto se configuran vía variables de entorno del servidor (<code class="font-mono">AZKIN_DEGRADED_LATENCY_MS</code> / <code class="font-mono">AZKIN_ACCELERATED_INTERVAL_SECONDS</code>). Ajustarlos aquí aplica en caliente, sin reiniciar el contenedor.
+          </p>
+        </div>
+
+        <div>
+          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Umbral de latencia para DEGRADADO (ms)</label>
+          <div class="flex items-center gap-2">
+            <input type="number" [(ngModel)]="monitoringForm.degradedLatencyMs" [placeholder]="monitoringDefaults()?.degradedLatencyMs + ''"
+              class="flex-1 bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500">
+            <button (click)="resetMonitoringField('degradedLatencyMs')" title="Restablecer a valor por defecto"
+              class="text-[10px] text-zinc-500 hover:text-orange-400 font-bold px-2 py-2 rounded-lg border border-zinc-800 hover:border-orange-500/40 transition-colors">
+              Restablecer
+            </button>
+          </div>
+          <p class="text-[10px] text-zinc-600 mt-1">
+            @if (monitoringForm.degradedLatencyMs === null) {
+              Usando el valor por defecto: {{ monitoringDefaults()?.degradedLatencyMs }}ms.
+            } @else {
+              Un HTTP que responde OK pero tarda más de este umbral pasa a DEGRADADO en vez de UP.
+            }
+          </p>
+        </div>
+
+        <div>
+          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Intervalo acelerado mientras DOWN/DEGRADADO (segundos)</label>
+          <div class="flex items-center gap-2">
+            <input type="number" [(ngModel)]="monitoringForm.acceleratedIntervalSeconds" [placeholder]="monitoringDefaults()?.acceleratedIntervalSeconds + ''"
+              class="flex-1 bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500">
+            <button (click)="resetMonitoringField('acceleratedIntervalSeconds')" title="Restablecer a valor por defecto"
+              class="text-[10px] text-zinc-500 hover:text-orange-400 font-bold px-2 py-2 rounded-lg border border-zinc-800 hover:border-orange-500/40 transition-colors">
+              Restablecer
+            </button>
+          </div>
+          <p class="text-[10px] text-zinc-600 mt-1">
+            @if (monitoringForm.acceleratedIntervalSeconds === null) {
+              Usando el valor por defecto: {{ monitoringDefaults()?.acceleratedIntervalSeconds }}s.
+            } @else {
+              Nunca corre más rápido que el "Int. reintento" configurado en cada monitor individual.
+            }
+          </p>
+        </div>
+      </div>
+      <div class="bg-zinc-950/60 px-6 py-4 border-t border-zinc-850 flex items-center justify-end gap-3">
+        <button (click)="saveMonitoringSettings()" [disabled]="isSavingMonitoringSettings()"
+          class="px-4 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:bg-orange-800 text-xs font-bold transition-all shadow-md">
+          {{ isSavingMonitoringSettings() ? 'Guardando...' : 'Guardar' }}
+        </button>
+      </div>
+    </div>
   `
 })
 export class TlsPanelComponent {
@@ -184,11 +252,19 @@ export class TlsPanelComponent {
   readonly appSmtpChannelId = signal<string | null>(null);
   readonly isSavingAppSmtpChannel = signal(false);
 
+  readonly monitoringDefaults = signal<MonitoringEngineDefaults | null>(null);
+  readonly isSavingMonitoringSettings = signal(false);
+  monitoringForm: { degradedLatencyMs: number | null; acceleratedIntervalSeconds: number | null } = {
+    degradedLatencyMs: null,
+    acceleratedIntervalSeconds: null,
+  };
+
   constructor() {
     this.loadTlsStatus();
     this.loadSmtpStatus();
     this.notificationService.loadChannels().subscribe();
     this.loadAppSmtpChannel();
+    this.loadMonitoringSettings();
   }
 
   loadTlsStatus(): void {
@@ -225,6 +301,40 @@ export class TlsPanelComponent {
         this.isSavingAppSmtpChannel.set(false);
         this.toast.show(extractApiErrorMessage(err, 'Error al actualizar el SMTP de aplicación.'));
         this.loadAppSmtpChannel();
+      }
+    });
+  }
+
+  loadMonitoringSettings(): void {
+    this.http.get<MonitoringEngineSettings>('/api/v1/system/monitoring-settings').subscribe({
+      next: (res) => {
+        this.monitoringForm = {
+          degradedLatencyMs: res.degradedLatencyMs,
+          acceleratedIntervalSeconds: res.acceleratedIntervalSeconds,
+        };
+        this.monitoringDefaults.set(res.defaults);
+      },
+      error: () => {}
+    });
+  }
+
+  resetMonitoringField(field: 'degradedLatencyMs' | 'acceleratedIntervalSeconds'): void {
+    this.monitoringForm[field] = null;
+  }
+
+  saveMonitoringSettings(): void {
+    this.isSavingMonitoringSettings.set(true);
+    this.http.put<{ message: string }>('/api/v1/system/monitoring-settings', {
+      degradedLatencyMs: this.monitoringForm.degradedLatencyMs,
+      acceleratedIntervalSeconds: this.monitoringForm.acceleratedIntervalSeconds,
+    }).subscribe({
+      next: (res) => {
+        this.isSavingMonitoringSettings.set(false);
+        this.toast.show(res.message);
+      },
+      error: (err) => {
+        this.isSavingMonitoringSettings.set(false);
+        this.toast.show(extractApiErrorMessage(err, 'Error al guardar la configuración del motor de monitoreo.'));
       }
     });
   }

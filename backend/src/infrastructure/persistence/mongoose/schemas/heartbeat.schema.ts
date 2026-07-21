@@ -18,7 +18,7 @@ const heartbeatSchema = new Schema<HeartbeatDoc>(
   {
     timestamp: { type: Date, required: true },
     monitorId: { type: Schema.Types.ObjectId, ref: "Monitor", required: true },
-    status: { type: Number, enum: [0, 1, 2, 3], required: true },
+    status: { type: Number, enum: [0, 1, 2, 3, 4], required: true },
     ping: { type: Number, default: null },
     msg: { type: String, default: null },
     certExpiry: { type: Number, default: null },

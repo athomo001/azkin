@@ -86,6 +86,7 @@ type HistoryRangeOption = {
             <button (click)="statusFilter = 'UP'" [class.text-orange-500]="statusFilter === 'UP'">{{ lang.t('dashboard.active') }} ({{ activeCount() }})</button>
             <button (click)="statusFilter = 'DOWN'" [class.text-orange-500]="statusFilter === 'DOWN'">{{ lang.t('dashboard.down') }} ({{ downCount() }})</button>
             <button (click)="statusFilter = 'PENDING'" [class.text-orange-500]="statusFilter === 'PENDING'">{{ lang.t('dashboard.pending') }} ({{ pendingCount() }})</button>
+            <button (click)="statusFilter = 'DEGRADED'" [class.text-orange-500]="statusFilter === 'DEGRADED'">Degr. ({{ degradedCount() }})</button>
             <button (click)="statusFilter = 'MAINTENANCE'" [class.text-orange-500]="statusFilter === 'MAINTENANCE'">Mant. ({{ maintenanceCount() }})</button>
           </div>
 
@@ -141,7 +142,7 @@ type HistoryRangeOption = {
                         </svg>
                       </button>
                       <!-- Estado consolidado del grupo -->
-                      <span [class]="g.status === 'UP' ? 'bg-emerald-500' : (g.status === 'DOWN' ? 'bg-rose-500 animate-pulse' : (g.status === 'MAINTENANCE' ? 'bg-sky-500' : 'bg-amber-500'))"
+                      <span [class]="g.status === 'UP' ? 'bg-emerald-500' : (g.status === 'DOWN' ? 'bg-rose-500 animate-pulse' : (g.status === 'DEGRADED' ? 'bg-orange-500' : (g.status === 'MAINTENANCE' ? 'bg-sky-500' : 'bg-amber-500')))"
                         class="w-2 h-2 rounded-full flex-shrink-0 shadow"></span>
                       <span class="text-xs font-black text-zinc-300 tracking-tight truncate">{{ g.name }}</span>
                     </div>
@@ -178,6 +179,11 @@ type HistoryRangeOption = {
                               <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-rose-500/5 animate-pulse">
                                 <span class="w-1 h-1 rounded-full bg-rose-400"></span>
                                 DOWN
+                              </span>
+                            } @else if (m.status === 'DEGRADED') {
+                              <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-orange-400 bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-orange-500/5">
+                                <span class="w-1 h-1 rounded-full bg-orange-400"></span>
+                                DEGR
                               </span>
                             } @else if (m.status === 'MAINTENANCE') {
                               <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-sky-400 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-sky-500/5">
@@ -228,6 +234,11 @@ type HistoryRangeOption = {
                       <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-rose-500/5 animate-pulse">
                         <span class="w-1 h-1 rounded-full bg-rose-400"></span>
                         DOWN
+                      </span>
+                    } @else if (m.status === 'DEGRADED') {
+                      <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-orange-400 bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-orange-500/5">
+                        <span class="w-1 h-1 rounded-full bg-orange-400"></span>
+                        DEGR
                       </span>
                     } @else if (m.status === 'MAINTENANCE') {
                       <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-sky-400 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-sky-500/5">
@@ -426,9 +437,9 @@ type HistoryRangeOption = {
                         [title]="lang.t('monitor.detail.statusLocalDown')">
                       </div>
                     } @else {
-                      <div [class]="b.status === 'UP' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/20' : (b.status === 'DOWN' ? 'bg-rose-500 animate-pulse shadow-sm shadow-rose-500/20' : (b.status === 'MAINTENANCE' ? 'bg-sky-500 shadow-sm shadow-sky-500/20' : 'bg-zinc-800'))"
+                      <div [class]="b.status === 'UP' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/20' : (b.status === 'DOWN' ? 'bg-rose-500 animate-pulse shadow-sm shadow-rose-500/20' : (b.status === 'DEGRADED' ? 'bg-orange-500 shadow-sm shadow-orange-500/20' : (b.status === 'MAINTENANCE' ? 'bg-sky-500 shadow-sm shadow-sky-500/20' : 'bg-zinc-800')))"
                         class="h-9 flex-1 rounded-md transition-all hover:scale-105"
-                        [title]="b.status === 'UP' ? lang.t('monitor.detail.statusUp') : (b.status === 'DOWN' ? lang.t('monitor.detail.statusDown') : (b.status === 'MAINTENANCE' ? 'En mantenimiento' : lang.t('monitor.detail.noData')))">
+                        [title]="b.status === 'UP' ? lang.t('monitor.detail.statusUp') : (b.status === 'DOWN' ? lang.t('monitor.detail.statusDown') : (b.status === 'DEGRADED' ? 'Degradado' : (b.status === 'MAINTENANCE' ? 'En mantenimiento' : lang.t('monitor.detail.noData'))))">
                       </div>
                     }
                   }
@@ -593,6 +604,8 @@ type HistoryRangeOption = {
                         <span class="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black uppercase tracking-wider">UP</span>
                       } @else if (m.status === 'DOWN') {
                         <span class="text-[9px] bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded font-black uppercase tracking-wider animate-pulse">DOWN</span>
+                      } @else if (m.status === 'DEGRADED') {
+                        <span class="text-[9px] bg-orange-500/10 border border-orange-500/20 text-orange-400 px-2 py-0.5 rounded font-black uppercase tracking-wider">DEGR</span>
                       } @else if (m.status === 'MAINTENANCE') {
                         <span class="text-[9px] bg-sky-500/10 border border-sky-500/20 text-sky-400 px-2 py-0.5 rounded font-black uppercase tracking-wider">MANT</span>
                       } @else {
@@ -915,7 +928,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // Bloques de disponibilidad (Uptime Blocks Heatmap)
   readonly uptimeBlocks = computed(() => {
     const points = this.historyPoints();
-    const blocks: { status: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE'; isLocalNetworkDown?: boolean }[] = [];
+    const blocks: { status: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' | 'DEGRADED'; isLocalNetworkDown?: boolean }[] = [];
 
     if (points.length === 0) {
       const monitor = this.selectedMonitor();
@@ -929,7 +942,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
     for (const p of recent) {
       blocks.push({
-        status: p.status === 'UP' ? 'UP' : (p.status === 'MAINTENANCE' ? 'MAINTENANCE' : 'DOWN'),
+        status: p.status === 'UP' ? 'UP' : (p.status === 'MAINTENANCE' ? 'MAINTENANCE' : (p.status === 'DEGRADED' ? 'DEGRADED' : 'DOWN')),
         isLocalNetworkDown: (p as any).isLocalNetworkDown ?? false
       });
     }
@@ -956,6 +969,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly downCount = () => this.monitorService.monitors().filter(m => m.status === 'DOWN').length;
   readonly pendingCount = () => this.monitorService.monitors().filter(m => m.status === 'PENDING').length;
   readonly maintenanceCount = () => this.monitorService.monitors().filter(m => m.status === 'MAINTENANCE').length;
+  readonly degradedCount = () => this.monitorService.monitors().filter(m => m.status === 'DEGRADED').length;
 
   // Listado filtrado para el panel lateral
   readonly filteredMonitors = computed(() => {
@@ -1010,9 +1024,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
         const uptime = active.length === 0 ? 1.0 : active.reduce((sum, x) => sum + (x.uptime24h ?? 1), 0) / active.length;
 
         // Determinar peor estado consolidado (misma prioridad que combineStatus en el backend:
-        // DOWN > PENDING > MAINTENANCE > UP).
-        let status: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' = 'UP';
+        // DOWN > DEGRADED > PENDING > MAINTENANCE > UP).
+        let status: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' | 'DEGRADED' = 'UP';
         if (monitors.some(x => x.status === 'DOWN')) status = 'DOWN';
+        else if (monitors.some(x => x.status === 'DEGRADED')) status = 'DEGRADED';
         else if (monitors.some(x => x.status === 'PENDING')) status = 'PENDING';
         else if (monitors.some(x => x.status === 'MAINTENANCE')) status = 'MAINTENANCE';
 
@@ -1061,7 +1076,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         // Insertar el nuevo punto en el historial local para actualizar el gráfico en caliente
         const newPoint: IHeartbeat = {
           monitorId: hb.monitorId,
-          status: hb.status === 1 || hb.status === 'UP' ? 'UP' : (hb.status === 3 || hb.status === 'MAINTENANCE' ? 'MAINTENANCE' : 'DOWN'),
+          status: hb.status === 1 || hb.status === 'UP' ? 'UP' : (hb.status === 3 || hb.status === 'MAINTENANCE' ? 'MAINTENANCE' : (hb.status === 4 || hb.status === 'DEGRADED' ? 'DEGRADED' : 'DOWN')),
           latency: hb.latency ?? hb.ping ?? 0,
           timestamp: hb.timestamp,
           isLocalNetworkDown: hb.isLocalNetworkDown
@@ -1074,7 +1089,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
           monitorName: current.name,
           target: current.target ?? '',
           timestamp: hb.timestamp,
-          status: hb.status === 1 || hb.status === 'UP' ? 'UP' : (hb.status === 3 || hb.status === 'MAINTENANCE' ? 'MAINTENANCE' : 'DOWN'),
+          status: hb.status === 1 || hb.status === 'UP' ? 'UP' : (hb.status === 3 || hb.status === 'MAINTENANCE' ? 'MAINTENANCE' : (hb.status === 4 || hb.status === 'DEGRADED' ? 'DEGRADED' : 'DOWN')),
           ping: hb.latency ?? hb.ping ?? null,
           msg: hb.msg ?? null
         });
@@ -1103,8 +1118,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         const avgPing = upMonitors.length > 0 ? Math.round(upMonitors.reduce((sum: number, m: any) => sum + (m.lastPing ?? 0), 0) / upMonitors.length) : 0;
 
         // Determinar estado consolidado (misma prioridad que combineStatus en el backend)
-        let groupStatus: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' = 'UP';
+        let groupStatus: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' | 'DEGRADED' = 'UP';
         if (updatedMonitors.some((x: any) => x.status === 'DOWN')) groupStatus = 'DOWN';
+        else if (updatedMonitors.some((x: any) => x.status === 'DEGRADED')) groupStatus = 'DEGRADED';
         else if (updatedMonitors.some((x: any) => x.status === 'PENDING')) groupStatus = 'PENDING';
         else if (updatedMonitors.some((x: any) => x.status === 'MAINTENANCE')) groupStatus = 'MAINTENANCE';
 
@@ -1122,7 +1138,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
             monitorName: updatedMonitor.name,
             target: updatedMonitor.target ?? '',
             timestamp: hb.timestamp,
-            status: hb.status === 1 || hb.status === 'UP' ? 'UP' : (hb.status === 3 || hb.status === 'MAINTENANCE' ? 'MAINTENANCE' : 'DOWN'),
+            status: hb.status === 1 || hb.status === 'UP' ? 'UP' : (hb.status === 3 || hb.status === 'MAINTENANCE' ? 'MAINTENANCE' : (hb.status === 4 || hb.status === 'DEGRADED' ? 'DEGRADED' : 'DOWN')),
             ping: hb.latency ?? hb.ping ?? null,
             msg: hb.msg ?? null
           });
@@ -1214,7 +1230,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         if (res && res.points) {
           this.historyPoints.set(this.filterPointsBySelectedRange(res.points.map((p: any) => ({
             monitorId: monitor.id,
-            status: p.status === 1 || p.status === 'UP' ? 'UP' : (p.status === 3 || p.status === 'MAINTENANCE' ? 'MAINTENANCE' : 'DOWN'),
+            status: p.status === 1 || p.status === 'UP' ? 'UP' : (p.status === 3 || p.status === 'MAINTENANCE' ? 'MAINTENANCE' : (p.status === 4 || p.status === 'DEGRADED' ? 'DEGRADED' : 'DOWN')),
             latency: p.ping ?? p.latency ?? 0,
             timestamp: p.timestamp,
             isLocalNetworkDown: p.isLocalNetworkDown ?? false

@@ -52,7 +52,7 @@ export interface RecentEvent {
       }
 
       <!-- Grid de Stats Consolidados -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div class="bg-zinc-900/30 border border-zinc-900 p-5 rounded-2xl shadow-xl flex items-center justify-between">
           <div>
             <span class="text-[10px] text-zinc-500 font-black uppercase tracking-wider">{{ lang.t('dashboard.statUp') }}</span>
@@ -66,6 +66,13 @@ export interface RecentEvent {
             <span class="text-3xl font-black text-rose-500 mt-1 block">{{ downCount() }}</span>
           </div>
           <span class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-lg shadow-rose-500/50 animate-pulse"></span>
+        </div>
+        <div class="bg-zinc-900/30 border border-zinc-900 p-5 rounded-2xl shadow-xl flex items-center justify-between">
+          <div>
+            <span class="text-[10px] text-zinc-500 font-black uppercase tracking-wider">Degradados</span>
+            <span class="text-3xl font-black text-orange-500 mt-1 block">{{ degradedCount() }}</span>
+          </div>
+          <span class="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-lg shadow-orange-500/50"></span>
         </div>
         <div class="bg-zinc-900/30 border border-zinc-900 p-5 rounded-2xl shadow-xl flex items-center justify-between">
           <div>
@@ -148,6 +155,7 @@ export class QuickStatsPanelComponent {
   readonly totalMonitors = computed(() => this.monitorService.monitors().length);
   readonly activeCount = computed(() => this.monitorService.monitors().filter(m => m.isActive).length);
   readonly downCount = computed(() => this.monitorService.monitors().filter(m => m.status === 'DOWN').length);
+  readonly degradedCount = computed(() => this.monitorService.monitors().filter(m => m.status === 'DEGRADED').length);
   readonly pendingCount = computed(() => this.monitorService.monitors().filter(m => m.status === 'PENDING').length);
   readonly isAnyMonitorLocalNetworkDown = computed(() => this.monitorService.monitors().some(m => m.isLocalNetworkDown));
 }

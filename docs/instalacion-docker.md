@@ -48,7 +48,7 @@ para el listado completo y comentado):
 
 | Variable | Qué controla | Valor por defecto |
 |---|---|---|
-| `AZKIN_MONGO_USER` / `AZKIN_MONGO_PASSWORD` | Credenciales root de MongoDB. El compose construye `AZKIN_MONGO_URI` automáticamente a partir de estas dos — no se define a mano en `.env`. | credenciales de ejemplo — **cámbialas** |
+| `AZKIN_MONGO_USER` / `AZKIN_MONGO_PASSWORD` | Credenciales root de MongoDB. El compose construye `AZKIN_MONGO_URI` automáticamente a partir de estas dos — no se define a mano en `.env`. La URI se arma por interpolación directa de texto (sin URL-encoding), así que una contraseña con caracteres especiales (`@ : / % ? #`) rompe el parseo de forma silenciosa; genera una solo alfanumérica con `openssl rand -hex 24`. | credenciales de ejemplo — **cámbialas** |
 | `AZKIN_JWT_SECRET` | Firma los tokens de sesión. | placeholder — **obligatorio cambiar** |
 | `AZKIN_FIRST_ADMIN_NAME` / `_EMAIL` / `_PASSWORD` | Cuenta Admin creada automáticamente al primer arranque (seeder), si no existe ningún Admin aún. | credenciales de ejemplo — **cámbialas** |
 | `AZKIN_TLS_ENCRYPTION_KEY` | Cifra en reposo la clave privada TLS si activas HTTPS nativo desde la UI. Vacío = HTTPS nativo deshabilitado. | vacío |
@@ -227,6 +227,7 @@ Dos mecanismos, no confundir:
 | CORS bloqueado en el navegador | `AZKIN_CORS_ORIGIN` no incluye el origen real del frontend | Debe ser un valor explícito (o `*` en desarrollo); reinicia el backend tras cambiarlo |
 | El frontend en dev (`compose.dev.yaml`) no llega a la API | El dev-server de Angular no incluye el proxy de Nginx que sí existe en el build de producción | Ver [`frontend/README.md`](../frontend/README.md#desarrollo) |
 | Un monitor marca **caído** un servicio que corre en el mismo servidor que Azkin, aunque respondes bien con `curl` desde el host | El contenedor `azkin-back` no siempre puede alcanzar la IP LAN del servidor (depende del firewall/red del host) | Nada que hacer manualmente en el monitor — Azkin lo detecta y reintenta solo, ver [§10](#10-monitorear-servicios-en-el-mismo-servidor). Si sigue marcando caído, es el firewall del host, no Azkin (mismo §10) |
+| Un monitor con un **dominio interno corporativo** como target marca caído con mensaje `getaddrinfo ENOTFOUND <dominio>` / `queryA ENOTFOUND`, aunque el dominio carga bien en tu navegador | El servidor Docker (no el contenedor) no tiene ruta al DNS interno que resuelve ese dominio — ver [§11](#11-resolución-de-dominios-internos-dns-corporativo) | Configurar el DNS interno correcto en `compose.yaml` (§11) |
 
 ---
 
@@ -276,7 +277,88 @@ docker network inspect azkin_azkin-network --format '{{(index .IPAM.Config 0).Su
 
 ---
 
-## 11. Ver también
+## 11. Resolución de dominios internos (DNS corporativo)
+
+**Síntoma:** un monitor HTTP/Ping/Puerto cuyo target es un **dominio interno corporativo** (ej.
+`wiki.miempresa.corp`, `certvault.miempresa.corp`) marca **caído** en Azkin, pero el dominio carga
+perfectamente en tu navegador. El mensaje de la revisión (columna "Mensaje" en el detalle del
+monitor, o el heartbeat en el log) dice algo como:
+
+```text
+getaddrinfo ENOTFOUND wiki.miempresa.corp
+```
+
+o, si lo revisas directo en el contenedor:
+
+```text
+Error: queryA ENOTFOUND wiki.miempresa.corp
+```
+
+**Esto es un problema de DNS, no de red ni de firewall** — y es distinto del caso del [§10](#10-monitorear-servicios-en-el-mismo-servidor):
+el fallback automático a `host.docker.internal` (incluido el checkbox "Este objetivo vive en el
+mismo servidor que Azkin") **solo se activa ante errores de conexión** (`ECONNREFUSED`/`ETIMEDOUT`/
+`ENETUNREACH`/`EHOSTUNREACH`), nunca ante un fallo de resolución de nombre (`ENOTFOUND`). Marcar ese
+checkbox no soluciona este caso.
+
+**Causa típica:** tu PC/navegador resuelve `*.miempresa.corp` porque está en la red corporativa (o
+conectado por VPN) y usa el DNS interno de la empresa. El **servidor Linux donde corre Docker**
+puede tener una configuración de DNS distinta — a veces prefiere un DNS público (`8.8.8.8`) sobre
+el interno, o directamente no tiene el DNS interno configurado — y ese DNS público, lógicamente, no
+conoce dominios internos de tu empresa.
+
+### Diagnóstico
+
+1. **Lo más rápido** — revisa el mensaje de la última revisión del monitor en el propio dashboard
+   de Azkin (ver arriba): si dice `ENOTFOUND`, ya confirmaste que es DNS sin tocar la terminal.
+2. Confírmalo dentro del contenedor:
+   ```bash
+   docker exec -it azkin-back sh
+   nslookup wiki.miempresa.corp
+   ```
+   Si responde `NXDOMAIN`, el contenedor no puede resolver el dominio con el DNS que está usando.
+3. Confirma que **el host** (no el contenedor) tampoco lo resuelve con su DNS por defecto:
+   ```bash
+   resolvectl status          # systemd-resolved: qué servidores DNS usa cada interfaz de red
+   resolvectl query wiki.miempresa.corp
+   ```
+   `resolvectl status` lista, por interfaz de red, los servidores DNS configurados (ej. `Current
+   DNS Server: 8.8.8.8` / `DNS Servers: 192.168.50.10 8.8.8.8`). Si hay una IP privada en esa lista
+   que no es la que está "current", es la candidata a ser el DNS interno real.
+4. Prueba esa IP privada directamente:
+   ```bash
+   nslookup wiki.miempresa.corp 192.168.50.10
+   ```
+   Si ahí **sí** resuelve (te devuelve una IP interna, ej. `10.20.30.40`), encontraste el DNS
+   interno correcto y confirmaste la causa raíz.
+
+### Solución
+
+Configura ese DNS interno directamente en el servicio `backend` de `compose.yaml` (y
+`compose.dev.yaml` si usas ese flujo), con el DNS público como segunda opción para que los
+monitores con targets públicos sigan resolviendo normalmente:
+
+```yaml
+services:
+  backend:
+    # ...resto de la configuración existente...
+    dns:
+      - 192.168.50.10   # DNS interno corporativo (el que confirmaste en el paso 4)
+      - 8.8.8.8          # fallback público, para targets que no son internos
+```
+
+Aplica el cambio con:
+
+```bash
+docker compose up -d backend
+```
+
+Esto le dice al proxy DNS embebido de Docker (dentro del contenedor) que use directamente esos
+servidores, sin depender de cómo esté configurado el DNS del host — el contenedor vuelve a resolver
+dominios internos igual que tu navegador.
+
+---
+
+## 12. Ver también
 
 - [README raíz](../README.md) — resumen del proyecto y stack.
 - [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) — arquitectura, autenticación, API pública.

@@ -104,9 +104,12 @@ export class GetGroupOverviewUseCase {
       .filter((s): s is MonitorStatus => s !== null);
     if (statuses.length === 0) return MonitorStatus.PENDING;
     if (statuses.includes(MonitorStatus.DOWN)) return MonitorStatus.DOWN;
+    // Un monitor degradado (responde pero lento/sobrecargado) pesa más que uno simplemente
+    // "chequeando", pero menos que uno realmente caído.
+    if (statuses.includes(MonitorStatus.DEGRADED)) return MonitorStatus.DEGRADED;
     if (statuses.includes(MonitorStatus.PENDING)) return MonitorStatus.PENDING;
-    // Un mantenimiento vigente no debe opacar una caída/pendiente real de otro monitor del
-    // grupo (AZ-040), pero sí distinguirse de un grupo genuinamente "todo arriba".
+    // Un mantenimiento vigente no debe opacar una caída/pendiente/degradación real de otro
+    // monitor del grupo (AZ-040), pero sí distinguirse de un grupo genuinamente "todo arriba".
     if (statuses.includes(MonitorStatus.MAINTENANCE)) return MonitorStatus.MAINTENANCE;
     return MonitorStatus.UP;
   }
