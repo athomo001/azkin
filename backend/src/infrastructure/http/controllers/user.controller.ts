@@ -11,6 +11,7 @@ import { SetAdminBlockedUseCase } from "../../../application/use-cases/users/set
 import { DeleteAdminUseCase } from "../../../application/use-cases/users/delete-admin.usecase";
 import { IUserRepository } from "../../../application/ports/repositories/user-repository";
 import { IPasswordHasher } from "../../../application/ports/services/security";
+import { IAuditLogRepository } from "../../../application/ports/repositories/audit-log-repository";
 
 export class UserController {
   constructor(
@@ -25,6 +26,7 @@ export class UserController {
     private readonly deleteAdminUseCase: DeleteAdminUseCase,
     private readonly usersRepo: IUserRepository,
     private readonly hasher: IPasswordHasher,
+    private readonly auditLog: IAuditLogRepository,
   ) {}
 
   list = async (req: Request, res: Response): Promise<void> => {
@@ -95,6 +97,7 @@ export class UserController {
 
   createAdmin = async (req: Request, res: Response): Promise<void> => {
     const admin = await this.createAdminUseCase.execute({
+      actorId: req.userId!,
       email: req.body.email,
       password: req.body.password,
     });
@@ -118,7 +121,7 @@ export class UserController {
 
   updateAdmin = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
-    const admin = await this.updateAdminUseCase.execute({ id, email: req.body.email });
+    const admin = await this.updateAdminUseCase.execute({ actorId: req.userId!, id, email: req.body.email });
     res.status(200).json({
       id: admin.id,
       email: admin.email,
@@ -141,6 +144,12 @@ export class UserController {
       res.status(404).json({ error: "Administrador no encontrado" });
       return;
     }
+    await this.auditLog.record({
+      actorId: req.userId!,
+      action: "ADMIN_PASSWORD_RESET",
+      targetType: "user",
+      targetIds: [id],
+    });
     res.status(200).json({ message: "Contraseña actualizada exitosamente" });
   };
 
@@ -198,6 +207,12 @@ export class UserController {
 
     const passwordHash = await this.hasher.hash(newPassword);
     await this.usersRepo.changePassword(viewerId, passwordHash);
+    await this.auditLog.record({
+      actorId: adminId,
+      action: "VIEWER_PASSWORD_RESET",
+      targetType: "user",
+      targetIds: [viewerId],
+    });
     res.status(200).json({ message: "Contraseña del Viewer actualizada" });
   };
 

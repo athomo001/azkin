@@ -99,14 +99,15 @@ export class CreateBackupUseCase {
       },
     });
 
-    if (input.strategy === "replace") {
-      await this.auditLog.record({
-        actorId: input.userId,
-        action: "BACKUP_REPLACE",
-        targetType: "backup",
-        metadata: { deletedCount },
-      });
-    }
+    // Se mantiene el nombre histórico "BACKUP_REPLACE" para el modo "replace" (ya existía antes
+    // de auditar el modo "accumulate", que ahora también queda registrado como "BACKUP_CREATE").
+    await this.auditLog.record({
+      actorId: input.userId,
+      action: input.strategy === "replace" ? "BACKUP_REPLACE" : "BACKUP_CREATE",
+      targetType: "backup",
+      targetIds: [backup.id],
+      metadata: input.strategy === "replace" ? { deletedCount } : undefined,
+    });
 
     return { backup, deletedCount };
   }

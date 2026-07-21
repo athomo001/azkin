@@ -3,9 +3,23 @@ import {
   INotificationRepository,
   UpdateNotificationData,
 } from "../../ports/repositories/notification-repository";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { INotification } from "../../../domain/entities/notification";
 import { NotFoundError } from "../../../domain/errors/domain-error";
-import { SENSITIVE_NOTIFICATION_CONFIG_KEYS, SECRET_MASK_PREFIX } from "../../services/notification-secrets";
+import { SENSITIVE_NOTIFICATION_CONFIG_KEYS, SECRET_MASK_PREFIX, maskSecret } from "../../services/notification-secrets";
+import { diffFields } from "../../services/diff-fields";
+
+/** Enmascara los valores de las claves sensibles de `config` para que nunca queden en texto plano en el historial de auditoría. */
+function maskSensitiveConfig(config: Record<string, unknown>): Record<string, unknown> {
+  const masked = { ...config };
+  for (const key of SENSITIVE_NOTIFICATION_CONFIG_KEYS) {
+    const value = masked[key];
+    if (typeof value === "string" && value) {
+      masked[key] = maskSecret(value);
+    }
+  }
+  return masked;
+}
 
 /**
  * Caso de uso para actualizar la configuración de un canal de notificación.
@@ -14,9 +28,12 @@ import { SENSITIVE_NOTIFICATION_CONFIG_KEYS, SECRET_MASK_PREFIX } from "../../se
  * de máscara, se conserva el valor real ya persistido en vez de sobrescribirlo con el placeholder.
  */
 export class UpdateNotificationUseCase {
-  constructor(private readonly notifications: INotificationRepository) {}
+  constructor(
+    private readonly notifications: INotificationRepository,
+    private readonly auditLog: IAuditLogRepository,
+  ) {}
 
-  async execute(id: string, data: UpdateNotificationData): Promise<INotification> {
+  async execute(actorId: string, id: string, data: UpdateNotificationData): Promise<INotification> {
     const existing = await this.notifications.findById(id);
     if (!existing) {
       throw new NotFoundError("Canal de notificación no encontrado");
@@ -37,6 +54,20 @@ export class UpdateNotificationUseCase {
     if (!updated) {
       throw new NotFoundError("Canal de notificación no encontrado");
     }
+
+    const changes = diffFields(
+      { ...existing, config: maskSensitiveConfig(existing.config) },
+      { ...data, config: config ? maskSensitiveConfig(config) : undefined },
+    );
+
+    await this.auditLog.record({
+      actorId,
+      action: "NOTIFICATION_UPDATE",
+      targetType: "notification",
+      targetIds: [id],
+      metadata: { changes },
+    });
+
     return updated;
   }
 }

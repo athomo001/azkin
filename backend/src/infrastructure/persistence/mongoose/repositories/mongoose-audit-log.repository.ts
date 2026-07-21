@@ -8,7 +8,7 @@ import { toDomainId } from "../to-domain-id";
 export class MongooseAuditLogRepository implements IAuditLogRepository {
   async record(data: RecordAuditLogData): Promise<IAuditLog> {
     const doc = await AuditLogModel.create({
-      actorId: new Types.ObjectId(data.actorId),
+      actorId: data.actorId ? new Types.ObjectId(data.actorId) : null,
       action: data.action,
       targetType: data.targetType,
       targetIds: data.targetIds ?? [],
@@ -35,7 +35,7 @@ export class MongooseAuditLogRepository implements IAuditLogRepository {
   private toDomain(doc: HydratedDocument<AuditLogDoc>): IAuditLog {
     return {
       id: toDomainId(doc._id),
-      actorId: String(doc.actorId),
+      actorId: doc.actorId ? String(doc.actorId) : null,
       action: doc.action,
       targetType: doc.targetType,
       targetIds: doc.targetIds,

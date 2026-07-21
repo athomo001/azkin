@@ -2,7 +2,7 @@
 import { IAuditLog } from "../../../domain/entities/audit-log";
 
 export interface RecordAuditLogData {
-  actorId: string;
+  actorId: string | null;
   action: string;
   targetType: string;
   targetIds?: string[];

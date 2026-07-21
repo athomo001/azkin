@@ -240,18 +240,18 @@ export function buildContainer(env: Env): AppContainer {
 
   // Casos de uso
   const register = new RegisterUseCase(users, hasher, tokens);
-  const login = new LoginUseCase(users, hasher, tokens);
+  const login = new LoginUseCase(users, hasher, tokens, auditLog);
   const refresh = new RefreshUseCase(users, tokens);
   const requestPasswordReset = new RequestPasswordResetUseCase(users, mailer, auditLog);
   const resetPassword = new ResetPasswordUseCase(users, hasher, auditLog);
-  const createMonitor = new CreateMonitorUseCase(monitors, scheduler);
+  const createMonitor = new CreateMonitorUseCase(monitors, scheduler, auditLog);
   const listMonitors = new ListMonitorsUseCase(monitors, heartbeats);
-  const updateMonitor = new UpdateMonitorUseCase(monitors, scheduler);
-  const deleteMonitor = new DeleteMonitorUseCase(monitors, heartbeats, scheduler);
+  const updateMonitor = new UpdateMonitorUseCase(monitors, scheduler, auditLog);
+  const deleteMonitor = new DeleteMonitorUseCase(monitors, heartbeats, scheduler, auditLog);
   const bulkDeleteMonitors = new BulkDeleteMonitorsUseCase(monitors, heartbeats, scheduler, auditLog);
-  const bulkImportMonitorsFromCsv = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+  const bulkImportMonitorsFromCsv = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler, auditLog);
   const exportMonitorAssets = new ExportMonitorAssetsUseCase(monitors);
-  const importMonitorAssets = new ImportMonitorAssetsUseCase(monitors, scheduler);
+  const importMonitorAssets = new ImportMonitorAssetsUseCase(monitors, scheduler, auditLog);
   const bulkAssignNotification = new BulkAssignNotificationUseCase(monitors, scheduler, auditLog);
   const getHistory = new GetHistoryUseCase(monitors, heartbeats);
   const getGroups = new GetGroupsUseCase(monitors);
@@ -259,26 +259,26 @@ export function buildContainer(env: Env): AppContainer {
   const getRecentEvents = new GetRecentEventsUseCase(monitors, heartbeats);
   const getMonitorEvents = new GetMonitorEventsUseCase(monitors, heartbeats);
   const getGroupEvents = new GetGroupEventsUseCase(monitors, heartbeats);
-  const createMaintenanceWindow = new CreateMaintenanceWindowUseCase(maintenanceRepo);
+  const createMaintenanceWindow = new CreateMaintenanceWindowUseCase(maintenanceRepo, auditLog);
   const listMaintenanceWindows = new ListMaintenanceWindowsUseCase(maintenanceRepo);
-  const updateMaintenanceWindow = new UpdateMaintenanceWindowUseCase(maintenanceRepo);
-  const endMaintenanceWindow = new EndMaintenanceWindowUseCase(maintenanceRepo);
-  const deleteMaintenanceWindow = new DeleteMaintenanceWindowUseCase(maintenanceRepo);
+  const updateMaintenanceWindow = new UpdateMaintenanceWindowUseCase(maintenanceRepo, auditLog);
+  const endMaintenanceWindow = new EndMaintenanceWindowUseCase(maintenanceRepo, auditLog);
+  const deleteMaintenanceWindow = new DeleteMaintenanceWindowUseCase(maintenanceRepo, auditLog);
 
   // Instanciación de Use cases de Viewers y Backup
   const listViewers = new ListViewersUseCase(users);
-  const createViewer = new CreateViewerUseCase(users, hasher);
-  const createAdmin = new CreateAdminUseCase(users, hasher);
+  const createViewer = new CreateViewerUseCase(users, hasher, auditLog);
+  const createAdmin = new CreateAdminUseCase(users, hasher, auditLog);
   const listAdmins = new ListAdminsUseCase(users);
-  const updateAdmin = new UpdateAdminUseCase(users);
-  const setAdminBlocked = new SetAdminBlockedUseCase(users);
+  const updateAdmin = new UpdateAdminUseCase(users, auditLog);
+  const setAdminBlocked = new SetAdminBlockedUseCase(users, auditLog);
   const deleteAdmin = new DeleteAdminUseCase(users, auditLog);
-  const updateViewerPermissions = new UpdateViewerPermissionsUseCase(users);
+  const updateViewerPermissions = new UpdateViewerPermissionsUseCase(users, auditLog);
   const deleteViewer = new DeleteViewerUseCase(users, auditLog);
   const createBackup = new CreateBackupUseCase(monitors, backupsRepo, auditLog, notifications, users, tlsConfigs);
   const listBackups = new ListBackupsUseCase(backupsRepo);
-  const getBackup = new GetBackupUseCase(backupsRepo);
-  const importBackup = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs);
+  const getBackup = new GetBackupUseCase(backupsRepo, auditLog);
+  const importBackup = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs, auditLog);
   const purgeInstance = new PurgeInstanceUseCase(
     users,
     monitors,
@@ -294,9 +294,9 @@ export function buildContainer(env: Env): AppContainer {
 
   // Instanciación de Use cases de Notificaciones
   const listNotifications = new ListNotificationsUseCase(notifications);
-  const createNotification = new CreateNotificationUseCase(notifications);
-  const updateNotification = new UpdateNotificationUseCase(notifications);
-  const deleteNotification = new DeleteNotificationUseCase(notifications, monitors, scheduler);
+  const createNotification = new CreateNotificationUseCase(notifications, auditLog);
+  const updateNotification = new UpdateNotificationUseCase(notifications, auditLog);
+  const deleteNotification = new DeleteNotificationUseCase(notifications, monitors, scheduler, auditLog);
   const testNotification = new TestNotificationUseCase(notifications, notifier);
 
   // Instanciación de Use cases de Sistema (TLS/HTTPS)
@@ -317,9 +317,9 @@ export function buildContainer(env: Env): AppContainer {
   const setMonitoringEngineSettings = new SetMonitoringEngineSettingsUseCase(monitoringEngineSettingsRepo, auditLog);
 
   // Instanciación de Use cases de API Keys (API pública)
-  const createApiKey = new CreateApiKeyUseCase(apiKeysRepo);
+  const createApiKey = new CreateApiKeyUseCase(apiKeysRepo, auditLog);
   const listApiKeys = new ListApiKeysUseCase(apiKeysRepo);
-  const revokeApiKey = new RevokeApiKeyUseCase(apiKeysRepo);
+  const revokeApiKey = new RevokeApiKeyUseCase(apiKeysRepo, auditLog);
   const deleteApiKey = new DeleteApiKeyUseCase(apiKeysRepo, auditLog);
 
   // Controllers
@@ -348,6 +348,7 @@ export function buildContainer(env: Env): AppContainer {
     deleteAdmin,
     users,
     hasher,
+    auditLog,
   );
   const backupController = new BackupController(
     createBackup,

@@ -5,7 +5,9 @@
  */
 export interface IAuditLog {
   id: string;
-  actorId: string; // ID del admin que ejecutó la acción
+  // Null cuando el intento no corresponde a ningún usuario existente (ej. LOGIN_FAILED con un
+  // identificador desconocido) — no hay a quién referenciar.
+  actorId: string | null;
   action: string; // ej. "MONITORS_BULK_DELETE", "BACKUP_REPLACE", "TLS_CONFIG_UPDATE"
   targetType: string; // ej. "monitor", "backup", "tls-config"
   targetIds?: string[];

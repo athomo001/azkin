@@ -37,7 +37,7 @@ export class MaintenanceController {
 
   update = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
-    const window = await this.updateUseCase.execute(id, {
+    const window = await this.updateUseCase.execute(req.userId!, id, {
       name: req.body.name,
       description: req.body.description,
       scope: req.body.scope,
@@ -49,13 +49,13 @@ export class MaintenanceController {
 
   end = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
-    const window = await this.endUseCase.execute(id);
+    const window = await this.endUseCase.execute(req.userId!, id);
     res.status(200).json(toMaintenanceWindowResponse(window));
   };
 
   remove = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
-    await this.deleteUseCase.execute(id);
+    await this.deleteUseCase.execute(req.userId!, id);
     res.status(204).send();
   };
 }

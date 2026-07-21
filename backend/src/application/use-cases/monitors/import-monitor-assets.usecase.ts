@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { IMonitorRepository } from "../../ports/repositories/monitor-repository";
 import { IScheduler } from "../../ports/services/scheduler";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { QuotaExceededError } from "../../../domain/errors/domain-error";
 import crypto from "crypto";
 
@@ -95,6 +96,7 @@ export class ImportMonitorAssetsUseCase {
   constructor(
     private readonly monitors: IMonitorRepository,
     private readonly scheduler: IScheduler,
+    private readonly auditLog: IAuditLogRepository,
   ) {}
 
   async execute(input: ImportMonitorAssetsInput): Promise<ImportMonitorAssetsOutput> {
@@ -161,6 +163,13 @@ export class ImportMonitorAssetsUseCase {
         errors.push({ index, name: data.name, message: err instanceof Error ? err.message : "Error desconocido al procesar el activo" });
       }
     }
+
+    await this.auditLog.record({
+      actorId: input.userId,
+      action: "MONITORS_ASSETS_IMPORT",
+      targetType: "monitor",
+      metadata: { createdCount, updatedCount, errorCount: errors.length },
+    });
 
     return { createdCount, updatedCount, errors };
   }

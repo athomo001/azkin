@@ -7,6 +7,7 @@ import { INotificationRepository, CreateNotificationData } from "../../ports/rep
 import { IUserRepository, CreateUserData, CreateViewerData } from "../../ports/repositories/user-repository";
 import { ITlsConfigRepository, UpsertTlsConfigData } from "../../ports/repositories/tls-config-repository";
 import { IScheduler } from "../../ports/services/scheduler";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { IMonitor } from "../../../domain/entities/monitor";
 import { IUser } from "../../../domain/entities/user";
 
@@ -51,6 +52,13 @@ const scheduler: IScheduler = {
   unschedule: () => undefined,
   stopAll: () => undefined,
   receivePushHeartbeat: async () => undefined,
+};
+
+const auditLog: IAuditLogRepository = {
+  record: async (data) => ({ id: "log-1", targetIds: data.targetIds ?? [], metadata: data.metadata ?? {}, createdAt: new Date(), ...data }),
+  listRecent: async () => [],
+  listAll: async () => [],
+  deleteAll: async () => 0,
 };
 
 function makeUsersRepo(seedAdmins: IUser[] = [], seedViewers: IUser[] = []) {
@@ -192,7 +200,7 @@ test("ImportBackupUseCase restaura admins, viewers (resolviendo adminIdentifier)
   const { repo: tlsConfigs, upserts } = makeTlsConfigsRepo();
   const monitors = makeMonitorsRepo([]);
 
-  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs);
+  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs, auditLog);
 
   const result = await useCase.execute({
     userId: "importer-1",
@@ -233,7 +241,7 @@ test("ImportBackupUseCase acumula un error por viewer cuyo adminIdentifier no co
   const { repo: tlsConfigs } = makeTlsConfigsRepo();
   const monitors = makeMonitorsRepo([]);
 
-  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs);
+  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs, auditLog);
 
   const result = await useCase.execute({
     userId: "importer-1",
@@ -269,7 +277,7 @@ test("ImportBackupUseCase actualiza (no duplica) un admin existente con el mismo
   const { repo: tlsConfigs } = makeTlsConfigsRepo();
   const monitors = makeMonitorsRepo([]);
 
-  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs);
+  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs, auditLog);
 
   const result = await useCase.execute({
     userId: "importer-1",
@@ -289,7 +297,7 @@ test("ImportBackupUseCase acepta un respaldo v1.0 (solo monitors, sin las demás
   const { repo: tlsConfigs } = makeTlsConfigsRepo();
   const monitors = makeMonitorsRepo([]);
 
-  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs);
+  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs, auditLog);
 
   const result = await useCase.execute({
     userId: "importer-1",

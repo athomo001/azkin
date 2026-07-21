@@ -71,90 +71,96 @@ interface PurgeResult {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="max-w-xl mx-auto bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
-      <div class="p-6 space-y-6">
-        <div>
-          <h3 class="text-sm font-bold text-white tracking-tight">{{ lang.t('settings.backups.sectionTitle') }}</h3>
-          <p class="text-[11px] text-zinc-500 mt-0.5">{{ lang.t('settings.backups.sectionDesc') }}</p>
-          <p class="text-[10px] text-amber-500/90 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-            Respaldo atómico y completo: incluye monitores, canales de notificación, cuentas (admins/viewers, con su hash de contraseña) y la configuración TLS. El archivo descargado es un secreto — trátalo como una credencial, no lo compartas ni lo subas a un lugar público.
-          </p>
-        </div>
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+    <div class="space-y-6">
+      <!-- Tarjeta: Respaldo completo -->
+      <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
+        <div class="p-6 space-y-6">
+          <div>
+            <h3 class="text-sm font-bold text-white tracking-tight">{{ lang.t('settings.backups.sectionTitle') }}</h3>
+            <p class="text-[11px] text-zinc-500 mt-0.5">{{ lang.t('settings.backups.sectionDesc') }}</p>
+            <p class="text-[10px] text-amber-500/90 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+              Respaldo atómico y completo: incluye monitores, canales de notificación, cuentas (admins/viewers, con su hash de contraseña) y la configuración TLS. El archivo descargado es un secreto — trátalo como una credencial, no lo compartas ni lo subas a un lugar público.
+            </p>
+          </div>
 
-        <!-- Estrategia de respaldo -->
-        <div class="flex gap-4 text-xs">
-          <label class="flex items-center gap-1.5 cursor-pointer">
-            <input type="radio" name="backupStrategy" value="accumulate" [(ngModel)]="backupStrategy" class="text-orange-500 focus:ring-0">
-            Acumular respaldos
-          </label>
-          <label class="flex items-center gap-1.5 cursor-pointer">
-            <input type="radio" name="backupStrategy" value="replace" [(ngModel)]="backupStrategy" class="text-orange-500 focus:ring-0">
-            Reemplazar último respaldo
-          </label>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-          <button (click)="createBackup()"
-            class="flex flex-col items-center justify-center p-6 rounded-xl bg-zinc-950/40 hover:bg-zinc-950 border border-zinc-850 hover:border-zinc-700 text-center transition-all cursor-pointer group">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-zinc-500 group-hover:text-orange-500 transition-colors mb-3">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-            </svg>
-            <span class="text-xs font-black text-white">{{ lang.t('settings.backups.exportBtn') }}</span>
-            <span class="text-[10px] text-zinc-500 mt-1 font-medium">{{ lang.t('settings.backups.exportDesc') }}</span>
-          </button>
-
-          <div class="relative">
-            <input type="file" (change)="importBackup($event)" accept=".json" id="importFile" class="hidden">
-            <label for="importFile"
-              class="flex flex-col items-center justify-center p-6 rounded-xl bg-zinc-950/40 hover:bg-zinc-950 border border-zinc-850 hover:border-zinc-700 text-center transition-all cursor-pointer group h-full">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-zinc-500 group-hover:text-orange-500 transition-colors mb-3">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-              </svg>
-              <span class="text-xs font-black text-white">{{ lang.t('settings.backups.importBtn') }}</span>
-              <span class="text-[10px] text-zinc-500 mt-1 font-medium">{{ lang.t('settings.backups.importDesc') }}</span>
+          <!-- Estrategia de respaldo -->
+          <div class="flex gap-4 text-xs">
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" name="backupStrategy" value="accumulate" [(ngModel)]="backupStrategy" class="text-orange-500 focus:ring-0">
+              Acumular respaldos
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" name="backupStrategy" value="replace" [(ngModel)]="backupStrategy" class="text-orange-500 focus:ring-0">
+              Reemplazar último respaldo
             </label>
           </div>
-        </div>
 
-        @if (isImportingBackup()) {
-          <p class="text-[11px] text-zinc-500">Importando...</p>
-        }
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <button (click)="createBackup()"
+              class="flex flex-col items-center justify-center p-6 rounded-xl bg-zinc-950/40 hover:bg-zinc-950 border border-zinc-850 hover:border-zinc-700 text-center transition-all cursor-pointer group">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-zinc-500 group-hover:text-orange-500 transition-colors mb-3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              <span class="text-xs font-black text-white">{{ lang.t('settings.backups.exportBtn') }}</span>
+              <span class="text-[10px] text-zinc-500 mt-1 font-medium">{{ lang.t('settings.backups.exportDesc') }}</span>
+            </button>
 
-        @if (backupImportResult(); as result) {
-          <div class="bg-zinc-950/60 border border-zinc-900 rounded-lg p-3 text-[11px] space-y-1.5">
-            <p class="text-zinc-300">Monitores: <span class="font-bold text-emerald-500">{{ result.importedCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.updatedCount }}</span> actualizados</p>
-            <p class="text-zinc-300">
-              Admins: <span class="font-bold text-emerald-500">{{ result.admins.createdCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.admins.updatedCount }}</span> actualizados
-              @if (result.admins.errors.length > 0) { · <span class="font-bold text-rose-500">{{ result.admins.errors.length }} con error</span> }
-            </p>
-            <p class="text-zinc-300">
-              Viewers: <span class="font-bold text-emerald-500">{{ result.viewers.createdCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.viewers.updatedCount }}</span> actualizados
-              @if (result.viewers.errors.length > 0) { · <span class="font-bold text-rose-500">{{ result.viewers.errors.length }} con error</span> }
-            </p>
-            <p class="text-zinc-300">
-              Canales: <span class="font-bold text-emerald-500">{{ result.notifications.createdCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.notifications.updatedCount }}</span> actualizados
-              @if (result.notifications.errors.length > 0) { · <span class="font-bold text-rose-500">{{ result.notifications.errors.length }} con error</span> }
-            </p>
-            <p class="text-zinc-500">TLS: {{ result.tlsConfig.applied ? 'restaurado' : (result.tlsConfig.skippedReason || 'no aplicado') }}</p>
-
-            @if (result.admins.errors.length > 0 || result.viewers.errors.length > 0 || result.notifications.errors.length > 0) {
-              <div class="max-h-32 overflow-y-auto space-y-1 border-t border-zinc-900 pt-2">
-                @for (e of result.admins.errors; track $index) {
-                  <p class="text-rose-400 font-mono text-[10px]">Admin #{{ e.index + 1 }}: {{ e.message }}</p>
-                }
-                @for (e of result.viewers.errors; track $index) {
-                  <p class="text-rose-400 font-mono text-[10px]">Viewer #{{ e.index + 1 }}: {{ e.message }}</p>
-                }
-                @for (e of result.notifications.errors; track $index) {
-                  <p class="text-rose-400 font-mono text-[10px]">Canal #{{ e.index + 1 }}: {{ e.message }}</p>
-                }
-              </div>
-            }
+            <div class="relative">
+              <input type="file" (change)="importBackup($event)" accept=".json" id="importFile" class="hidden">
+              <label for="importFile"
+                class="flex flex-col items-center justify-center p-6 rounded-xl bg-zinc-950/40 hover:bg-zinc-950 border border-zinc-850 hover:border-zinc-700 text-center transition-all cursor-pointer group h-full">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-zinc-500 group-hover:text-orange-500 transition-colors mb-3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                </svg>
+                <span class="text-xs font-black text-white">{{ lang.t('settings.backups.importBtn') }}</span>
+                <span class="text-[10px] text-zinc-500 mt-1 font-medium">{{ lang.t('settings.backups.importDesc') }}</span>
+              </label>
+            </div>
           </div>
-        }
 
-        <!-- Respaldos persistidos -->
-        <div class="border-t border-zinc-850 pt-4 space-y-2">
+          @if (isImportingBackup()) {
+            <p class="text-[11px] text-zinc-500">Importando...</p>
+          }
+
+          @if (backupImportResult(); as result) {
+            <div class="bg-zinc-950/60 border border-zinc-900 rounded-lg p-3 text-[11px] space-y-1.5">
+              <p class="text-zinc-300">Monitores: <span class="font-bold text-emerald-500">{{ result.importedCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.updatedCount }}</span> actualizados</p>
+              <p class="text-zinc-300">
+                Admins: <span class="font-bold text-emerald-500">{{ result.admins.createdCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.admins.updatedCount }}</span> actualizados
+                @if (result.admins.errors.length > 0) { · <span class="font-bold text-rose-500">{{ result.admins.errors.length }} con error</span> }
+              </p>
+              <p class="text-zinc-300">
+                Viewers: <span class="font-bold text-emerald-500">{{ result.viewers.createdCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.viewers.updatedCount }}</span> actualizados
+                @if (result.viewers.errors.length > 0) { · <span class="font-bold text-rose-500">{{ result.viewers.errors.length }} con error</span> }
+              </p>
+              <p class="text-zinc-300">
+                Canales: <span class="font-bold text-emerald-500">{{ result.notifications.createdCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.notifications.updatedCount }}</span> actualizados
+                @if (result.notifications.errors.length > 0) { · <span class="font-bold text-rose-500">{{ result.notifications.errors.length }} con error</span> }
+              </p>
+              <p class="text-zinc-500">TLS: {{ result.tlsConfig.applied ? 'restaurado' : (result.tlsConfig.skippedReason || 'no aplicado') }}</p>
+
+              @if (result.admins.errors.length > 0 || result.viewers.errors.length > 0 || result.notifications.errors.length > 0) {
+                <div class="max-h-32 overflow-y-auto space-y-1 border-t border-zinc-900 pt-2">
+                  @for (e of result.admins.errors; track $index) {
+                    <p class="text-rose-400 font-mono text-[10px]">Admin #{{ e.index + 1 }}: {{ e.message }}</p>
+                  }
+                  @for (e of result.viewers.errors; track $index) {
+                    <p class="text-rose-400 font-mono text-[10px]">Viewer #{{ e.index + 1 }}: {{ e.message }}</p>
+                  }
+                  @for (e of result.notifications.errors; track $index) {
+                    <p class="text-rose-400 font-mono text-[10px]">Canal #{{ e.index + 1 }}: {{ e.message }}</p>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Tarjeta: Respaldos guardados -->
+      <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
+        <div class="p-6 space-y-2">
           <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Respaldos guardados</span>
           @if (savedBackups().length === 0) {
             <p class="text-[11px] text-zinc-600">Aún no hay respaldos guardados.</p>
@@ -173,9 +179,13 @@ interface PurgeResult {
             }
           }
         </div>
+      </div>
+    </div>
 
-        <!-- Importación masiva de monitores vía CSV -->
-        <div class="border-t border-zinc-850 pt-4 space-y-3">
+    <div class="space-y-6">
+      <!-- Tarjeta: Importación masiva de monitores vía CSV -->
+      <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
+        <div class="p-6 space-y-3">
           <div class="flex items-center justify-between">
             <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Importar monitores (CSV)</span>
             <button (click)="downloadCsvTemplate()" class="text-[10px] text-orange-500 hover:text-orange-400 font-bold">Descargar plantilla CSV</button>
@@ -206,7 +216,7 @@ interface PurgeResult {
               <p class="text-zinc-300">Creados: <span class="font-bold text-emerald-500">{{ result.createdCount }}</span> · Actualizados: <span class="font-bold text-orange-400">{{ result.updatedCount }}</span> · Errores: <span class="font-bold" [class.text-rose-500]="result.errors.length > 0">{{ result.errors.length }}</span></p>
               @if (result.errors.length > 0) {
                 <div class="max-h-32 overflow-y-auto space-y-1 border-t border-zinc-900 pt-2">
-    @for (e of result.errors; track e.row) {
+                  @for (e of result.errors; track e.row) {
                     <p class="text-rose-400 font-mono text-[10px]">Fila {{ e.row }}: {{ e.message }}</p>
                   }
                 </div>
@@ -214,9 +224,11 @@ interface PurgeResult {
             </div>
           }
         </div>
+      </div>
 
-        <!-- Exportar/importar solo los monitores (activos), sin el resto del respaldo -->
-        <div class="border-t border-zinc-850 pt-4 space-y-3">
+      <!-- Tarjeta: Exportar/importar solo los monitores (activos), sin el resto del respaldo -->
+      <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg">
+        <div class="p-6 space-y-3">
           <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Exportar/Importar solo monitores (JSON)</span>
           <p class="text-[10px] text-zinc-600 -mt-1">
             A diferencia del respaldo completo de arriba, esto exporta únicamente el arreglo de monitores (sin canales de notificación ni otra configuración) — pensado para migrar o compartir la lista de sitios monitoreados entre instancias distintas de Azkin.
@@ -264,9 +276,11 @@ interface PurgeResult {
             </div>
           }
         </div>
+      </div>
 
-        <!-- Zona de peligro: purgar toda la instancia -->
-        <div class="border-t border-rose-900/40 pt-4 space-y-3">
+      <!-- Tarjeta: Zona de peligro (purgar toda la instancia) -->
+      <div class="bg-zinc-900/20 border border-rose-900/40 rounded-xl overflow-hidden shadow-lg">
+        <div class="p-6 space-y-3">
           <span class="block text-[10px] font-bold text-rose-500 uppercase tracking-wider">Zona de peligro</span>
 
           @if (purgePreview(); as preview) {
@@ -299,6 +313,7 @@ interface PurgeResult {
           }
         </div>
       </div>
+    </div>
     </div>
   `
 })

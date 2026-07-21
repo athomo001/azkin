@@ -2,6 +2,7 @@
 import { IMonitorRepository } from "../../ports/repositories/monitor-repository";
 import { IHeartbeatRepository } from "../../ports/repositories/heartbeat-repository";
 import { IScheduler } from "../../ports/services/scheduler";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { NotFoundError } from "../../../domain/errors/domain-error";
 
 /**
@@ -13,9 +14,10 @@ export class DeleteMonitorUseCase {
     private readonly monitors: IMonitorRepository,
     private readonly heartbeats: IHeartbeatRepository,
     private readonly scheduler: IScheduler,
+    private readonly auditLog: IAuditLogRepository,
   ) {}
 
-  async execute(_userId: string, id: string): Promise<void> {
+  async execute(actorId: string, id: string): Promise<void> {
     const monitor = await this.monitors.findById(id);
     if (!monitor) {
       throw new NotFoundError("Monitor no encontrado");
@@ -24,5 +26,13 @@ export class DeleteMonitorUseCase {
     this.scheduler.unschedule(id);
     await this.monitors.delete(id);
     await this.heartbeats.deleteByMonitor(id); // Borrado en cascada de series de tiempo
+
+    await this.auditLog.record({
+      actorId,
+      action: "MONITOR_DELETE",
+      targetType: "monitor",
+      targetIds: [id],
+      metadata: { name: monitor.name },
+    });
   }
 }

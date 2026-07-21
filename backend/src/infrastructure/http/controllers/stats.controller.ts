@@ -21,7 +21,7 @@ export class StatsController {
   // historial del gráfico porque cada fila es un heartbeat individual, no un punto bucketeado.
   private static readonly EVENTS_DEFAULT_DURATION_MS = 30 * 60 * 1000;
   private static readonly EVENTS_MIN_DURATION_MS = 60 * 1000;
-  private static readonly EVENTS_MAX_DURATION_MS = 24 * 60 * 60 * 1000;
+  private static readonly EVENTS_MAX_DURATION_MS = 48 * 60 * 60 * 1000;
 
   constructor(
     private readonly historyUseCase: GetHistoryUseCase,
@@ -95,7 +95,7 @@ export class StatsController {
 
   /**
    * Eventos (heartbeats individuales) de UN monitor en una ventana de tiempo — tabla bajo el
-   * gráfico de detalle de monitor. `durationMs` acepta desde 1 minuto hasta 24h.
+   * gráfico de detalle de monitor. `durationMs` acepta desde 1 minuto hasta 48h.
    */
   monitorEvents = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;

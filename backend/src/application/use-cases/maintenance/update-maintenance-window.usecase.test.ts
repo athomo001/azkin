@@ -3,8 +3,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { UpdateMaintenanceWindowUseCase } from "./update-maintenance-window.usecase";
 import { IMaintenanceRepository } from "../../ports/repositories/maintenance-repository";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { IMaintenanceWindow } from "../../../domain/entities/maintenance-window";
 import { NotFoundError, ValidationError } from "../../../domain/errors/domain-error";
+
+const auditLog: IAuditLogRepository = {
+  record: async (data) => ({ id: "log-1", targetIds: data.targetIds ?? [], metadata: data.metadata ?? {}, createdAt: new Date(), ...data }),
+  listRecent: async () => [],
+  listAll: async () => [],
+  deleteAll: async () => 0,
+};
 
 function makeWindow(overrides: Partial<IMaintenanceWindow> = {}): IMaintenanceWindow {
   return {
@@ -43,20 +51,20 @@ test("UpdateMaintenanceWindowUseCase edita una ventana no cerrada", async () => 
     update: async () => updated,
   });
 
-  const useCase = new UpdateMaintenanceWindowUseCase(repo);
-  const result = await useCase.execute("w1", { name: "Ventana editada" });
+  const useCase = new UpdateMaintenanceWindowUseCase(repo, auditLog);
+  const result = await useCase.execute("admin-1", "w1", { name: "Ventana editada" });
 
   assert.equal(result.name, "Ventana editada");
 });
 
 test("UpdateMaintenanceWindowUseCase lanza NotFoundError si no existe", async () => {
   const repo = makeRepo({ findById: async () => null });
-  const useCase = new UpdateMaintenanceWindowUseCase(repo);
-  await assert.rejects(() => useCase.execute("no-existe", {}), NotFoundError);
+  const useCase = new UpdateMaintenanceWindowUseCase(repo, auditLog);
+  await assert.rejects(() => useCase.execute("admin-1", "no-existe", {}), NotFoundError);
 });
 
 test("UpdateMaintenanceWindowUseCase lanza ValidationError si la ventana ya está cerrada", async () => {
   const repo = makeRepo({ findById: async () => makeWindow({ closedAt: new Date() }) });
-  const useCase = new UpdateMaintenanceWindowUseCase(repo);
-  await assert.rejects(() => useCase.execute("w1", { name: "x" }), ValidationError);
+  const useCase = new UpdateMaintenanceWindowUseCase(repo, auditLog);
+  await assert.rejects(() => useCase.execute("admin-1", "w1", { name: "x" }), ValidationError);
 });

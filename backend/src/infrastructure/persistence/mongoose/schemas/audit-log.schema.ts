@@ -2,7 +2,7 @@
 import { Schema, Types, model } from "mongoose";
 
 export interface AuditLogDoc {
-  actorId: Types.ObjectId;
+  actorId: Types.ObjectId | null;
   action: string;
   targetType: string;
   targetIds: string[];
@@ -12,7 +12,8 @@ export interface AuditLogDoc {
 
 const auditLogSchema = new Schema<AuditLogDoc>(
   {
-    actorId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    // Opcional: un LOGIN_FAILED con un identificador que no existe no tiene usuario al cual referenciar.
+    actorId: { type: Schema.Types.ObjectId, ref: "User", required: false, default: null, index: true },
     action: { type: String, required: true, index: true },
     targetType: { type: String, required: true },
     targetIds: { type: [String], default: [] },

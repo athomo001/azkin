@@ -3,8 +3,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DeleteMaintenanceWindowUseCase } from "./delete-maintenance-window.usecase";
 import { IMaintenanceRepository } from "../../ports/repositories/maintenance-repository";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { IMaintenanceWindow } from "../../../domain/entities/maintenance-window";
 import { NotFoundError } from "../../../domain/errors/domain-error";
+
+const auditLog: IAuditLogRepository = {
+  record: async (data) => ({ id: "log-1", targetIds: data.targetIds ?? [], metadata: data.metadata ?? {}, createdAt: new Date(), ...data }),
+  listRecent: async () => [],
+  listAll: async () => [],
+  deleteAll: async () => 0,
+};
 
 function makeWindow(): IMaintenanceWindow {
   return {
@@ -44,14 +52,14 @@ test("DeleteMaintenanceWindowUseCase elimina una ventana existente", async () =>
     },
   });
 
-  const useCase = new DeleteMaintenanceWindowUseCase(repo);
-  await useCase.execute("w1");
+  const useCase = new DeleteMaintenanceWindowUseCase(repo, auditLog);
+  await useCase.execute("admin-1", "w1");
 
   assert.equal(deletedId, "w1");
 });
 
 test("DeleteMaintenanceWindowUseCase lanza NotFoundError si no existe", async () => {
   const repo = makeRepo({ findById: async () => null });
-  const useCase = new DeleteMaintenanceWindowUseCase(repo);
-  await assert.rejects(() => useCase.execute("no-existe"), NotFoundError);
+  const useCase = new DeleteMaintenanceWindowUseCase(repo, auditLog);
+  await assert.rejects(() => useCase.execute("admin-1", "no-existe"), NotFoundError);
 });

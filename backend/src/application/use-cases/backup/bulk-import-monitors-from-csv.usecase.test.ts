@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { BulkImportMonitorsFromCsvUseCase } from "./bulk-import-monitors-from-csv.usecase";
 import { IMonitorRepository, CreateMonitorData } from "../../ports/repositories/monitor-repository";
 import { IScheduler } from "../../ports/services/scheduler";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { IMonitor } from "../../../domain/entities/monitor";
 
 function makeMonitor(overrides: Partial<IMonitor> = {}): IMonitor {
@@ -53,9 +54,16 @@ const scheduler: IScheduler = {
   receivePushHeartbeat: async () => undefined,
 };
 
+const auditLog: IAuditLogRepository = {
+  record: async (data) => ({ id: "log-1", targetIds: data.targetIds ?? [], metadata: data.metadata ?? {}, createdAt: new Date(), ...data }),
+  listRecent: async () => [],
+  listAll: async () => [],
+  deleteAll: async () => 0,
+};
+
 test("BulkImportMonitorsFromCsvUseCase importa filas válidas y acumula errores de filas inválidas sin abortar el lote", async () => {
   const monitors = makeMonitorsRepo([]);
-  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler, auditLog);
 
   const csv = [
     "name,type,target,port,interval,retries,retryInterval,group,tags",
@@ -76,7 +84,7 @@ test("BulkImportMonitorsFromCsvUseCase importa filas válidas y acumula errores 
 
 test("BulkImportMonitorsFromCsvUseCase soporta valores con comas entre comillas sin romper columnas", async () => {
   const monitors = makeMonitorsRepo([]);
-  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler, auditLog);
 
   const csv = [
     "name,type,target,port,interval,retries,retryInterval,group,tags",
@@ -93,7 +101,7 @@ test("BulkImportMonitorsFromCsvUseCase soporta valores con comas entre comillas 
 
 test("BulkImportMonitorsFromCsvUseCase descarta la directiva 'sep=,' que agrega Excel al guardar", async () => {
   const monitors = makeMonitorsRepo([]);
-  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler, auditLog);
 
   const csv = [
     "sep=,",
@@ -110,7 +118,7 @@ test("BulkImportMonitorsFromCsvUseCase descarta la directiva 'sep=,' que agrega 
 
 test("BulkImportMonitorsFromCsvUseCase ignora un BOM UTF-8 pegado al encabezado", async () => {
   const monitors = makeMonitorsRepo([]);
-  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler, auditLog);
 
   const csv =
     String.fromCharCode(0xfeff) +
@@ -124,7 +132,7 @@ test("BulkImportMonitorsFromCsvUseCase ignora un BOM UTF-8 pegado al encabezado"
 
 test("BulkImportMonitorsFromCsvUseCase ignora líneas de comentario ('#') sin romper el resto del archivo", async () => {
   const monitors = makeMonitorsRepo([]);
-  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler, auditLog);
 
   const csv = [
     "# Plantilla de importación de monitores — Azkin",
@@ -144,7 +152,7 @@ test("BulkImportMonitorsFromCsvUseCase ignora líneas de comentario ('#') sin ro
 
 test("BulkImportMonitorsFromCsvUseCase importa la plantilla real (BOM + sep= + comentarios + comillas) sin errores", async () => {
   const monitors = makeMonitorsRepo([]);
-  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler, auditLog);
 
   const csv =
     String.fromCharCode(0xfeff) +
@@ -178,7 +186,7 @@ test("BulkImportMonitorsFromCsvUseCase importa la plantilla real (BOM + sep= + c
 
 test("BulkImportMonitorsFromCsvUseCase interpreta la columna ignoreTls (true/false/vacío) sin el bug clásico de Boolean('false')", async () => {
   const monitors = makeMonitorsRepo([]);
-  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler, auditLog);
 
   const csv = [
     "name,type,target,port,interval,retries,retryInterval,group,tags,ignoreTls",
@@ -200,7 +208,7 @@ test("BulkImportMonitorsFromCsvUseCase interpreta la columna ignoreTls (true/fal
 
 test("BulkImportMonitorsFromCsvUseCase asume ignoreTls=false si la columna no existe en el archivo (compatibilidad con plantillas viejas)", async () => {
   const monitors = makeMonitorsRepo([]);
-  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler, auditLog);
 
   const csv = [
     "name,type,target,port,interval,retries,retryInterval,group,tags",
@@ -215,7 +223,7 @@ test("BulkImportMonitorsFromCsvUseCase asume ignoreTls=false si la columna no ex
 
 test("BulkImportMonitorsFromCsvUseCase importa un archivo delimitado por ';' aunque un comentario quede citado (reabierto/regrabado por Excel en configuración regional con coma decimal)", async () => {
   const monitors = makeMonitorsRepo([]);
-  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler);
+  const useCase = new BulkImportMonitorsFromCsvUseCase(monitors, scheduler, auditLog);
 
   // Cuando Excel/Sheets reabre la plantilla (que usa ',') en una configuración regional donde la
   // coma es el separador decimal, reexporta el CSV con ';' como delimitador de columnas. Como la

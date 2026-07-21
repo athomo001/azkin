@@ -5,6 +5,7 @@ import { INotificationRepository } from "../../ports/repositories/notification-r
 import { IUserRepository } from "../../ports/repositories/user-repository";
 import { ITlsConfigRepository } from "../../ports/repositories/tls-config-repository";
 import { IScheduler } from "../../ports/services/scheduler";
+import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { QuotaExceededError } from "../../../domain/errors/domain-error";
 import { ALERT_EVENT_TYPES } from "../../../domain/value-objects/alert-event-type";
 import crypto from "crypto";
@@ -89,6 +90,7 @@ export class ImportBackupUseCase {
     private readonly notifications: INotificationRepository,
     private readonly users: IUserRepository,
     private readonly tlsConfigs: ITlsConfigRepository,
+    private readonly auditLog: IAuditLogRepository,
   ) {}
 
   async execute(input: ImportBackupInput): Promise<ImportBackupOutput> {
@@ -97,6 +99,19 @@ export class ImportBackupUseCase {
     const notificationsResult = await this.importNotifications(input.notifications ?? [], input.userId);
     const tlsConfig = await this.importTlsConfig(input.tlsConfig, input.userId);
     const { importedCount, updatedCount } = await this.importMonitors(input);
+
+    await this.auditLog.record({
+      actorId: input.userId,
+      action: "BACKUP_IMPORT",
+      targetType: "backup",
+      metadata: {
+        monitors: { importedCount, updatedCount },
+        admins: { createdCount: admins.result.createdCount, updatedCount: admins.result.updatedCount },
+        viewers: { createdCount: viewers.createdCount, updatedCount: viewers.updatedCount },
+        notifications: { createdCount: notificationsResult.createdCount, updatedCount: notificationsResult.updatedCount },
+        tlsConfigApplied: tlsConfig.applied,
+      },
+    });
 
     return {
       importedCount,
