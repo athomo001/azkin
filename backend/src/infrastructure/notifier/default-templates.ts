@@ -5,6 +5,7 @@ import { INotificationTemplate } from "../../domain/entities/notification";
 const TITLES: Record<AlertEventType, string> = {
   DOWN: "ALERTA DE CAÍDA (DOWN)",
   RECOVERED: "ALERTA RESTABLECIDA (UP)",
+  DEGRADED: "ALERTA DE DEGRADACIÓN (RESPUESTA LENTA/ANÓMALA)",
   LATENCY_HIGH: "ALERTA DE LATENCIA ALTA",
   DEFACEMENT: "ALERTA DE DEFACEMENT",
 };

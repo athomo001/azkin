@@ -7,6 +7,7 @@ import { IHeartbeatRepository, HeartbeatSummary } from "../../ports/repositories
 import { IRealtimePublisher } from "../../ports/services/realtime-publisher";
 import { INotifier, NotificationEvent } from "../../ports/services/notifier";
 import { IMaintenanceRepository } from "../../ports/repositories/maintenance-repository";
+import { IMonitoringEngineConfigResolver } from "../../ports/services/monitoring-engine-config-resolver";
 import { IMaintenanceWindow } from "../../../domain/entities/maintenance-window";
 import { IMonitor } from "../../../domain/entities/monitor";
 import { IHeartbeat } from "../../../domain/entities/heartbeat";
@@ -21,6 +22,18 @@ import { NetworkDiagnostics } from "../../../infrastructure/services/network-dia
 (NetworkDiagnostics as unknown as { lastCheckTime: number; cachedIsLocalDown: boolean }).lastCheckTime = Date.now();
 (NetworkDiagnostics as unknown as { lastCheckTime: number; cachedIsLocalDown: boolean }).cachedIsLocalDown = false;
 
+const DEGRADED_LATENCY_MS = 5000;
+const ACCELERATED_INTERVAL_SECONDS = 15;
+
+function makeConfigResolver(): IMonitoringEngineConfigResolver {
+  return {
+    resolve: async () => ({
+      degradedLatencyMs: DEGRADED_LATENCY_MS,
+      acceleratedIntervalSeconds: ACCELERATED_INTERVAL_SECONDS,
+    }),
+  };
+}
+
 function makeMonitor(overrides: Partial<IMonitor> = {}): IMonitor {
   return {
     id: "m1",
@@ -30,7 +43,9 @@ function makeMonitor(overrides: Partial<IMonitor> = {}): IMonitor {
     target: "https://example.test",
     interval: 60,
     retries: 0,
-    retryInterval: 60,
+    // Por debajo de ACCELERATED_INTERVAL_SECONDS (15) para que las pruebas de aceleración no
+    // queden enmascaradas por el piso de retryInterval (ver test dedicado al piso más abajo).
+    retryInterval: 10,
     group: null,
     tags: [],
     isActive: true,
@@ -120,6 +135,7 @@ test("sin mantenimiento activo: caída confirmada dispara notify DOWN normalment
     realtime,
     notifier,
     makeMaintenanceRepo([]),
+    makeConfigResolver(),
   );
 
   const outcome = await useCase.execute(makeMonitor(), { lastStatus: MonitorStatus.UP, retryAttempts: 0 });
@@ -129,6 +145,7 @@ test("sin mantenimiento activo: caída confirmada dispara notify DOWN normalment
   assert.equal(heartbeats.saved[0].status, MonitorStatus.DOWN);
   assert.equal(notifier.events.length, 1);
   assert.equal(notifier.events[0].eventType, "DOWN");
+  assert.equal(outcome.nextDelaySeconds, ACCELERATED_INTERVAL_SECONDS, "un DOWN confirmado acelera el polling");
 });
 
 test("con mantenimiento activo (alcance 'all'): no ejecuta el checker real ni notifica", async () => {
@@ -152,6 +169,7 @@ test("con mantenimiento activo (alcance 'all'): no ejecuta el checker real ni no
     realtime,
     notifier,
     makeMaintenanceRepo([makeWindow()]),
+    makeConfigResolver(),
   );
 
   const outcome = await useCase.execute(makeMonitor(), { lastStatus: MonitorStatus.UP, retryAttempts: 0 });
@@ -171,6 +189,7 @@ test("mantenimiento activo preserva lastStatus/retryAttempts para la transición
     makeRealtime(),
     makeNotifier(),
     makeMaintenanceRepo([makeWindow()]),
+    makeConfigResolver(),
   );
 
   const outcome = await useCase.execute(makeMonitor(), { lastStatus: MonitorStatus.DOWN, retryAttempts: 2 });
@@ -189,6 +208,7 @@ test("mantenimiento por alcance 'group' no afecta a un monitor de otro grupo", a
     makeRealtime(),
     notifier,
     makeMaintenanceRepo([makeWindow({ scope: [{ type: "group", value: "otro-grupo" }] })]),
+    makeConfigResolver(),
   );
 
   const outcome = await useCase.execute(
@@ -198,4 +218,138 @@ test("mantenimiento por alcance 'group' no afecta a un monitor de otro grupo", a
 
   assert.equal(outcome.status, MonitorStatus.DOWN);
   assert.equal(notifier.events.length, 1);
+});
+
+test("HTTP con latencia bajo el umbral: UP normal, intervalo estándar", async () => {
+  const heartbeats = makeHeartbeats();
+  const notifier = makeNotifier();
+  const useCase = new ExecuteCheckUseCase(
+    makeRegistry({ ok: true, ping: DEGRADED_LATENCY_MS - 1, msg: "200 OK" }),
+    heartbeats,
+    makeRealtime(),
+    notifier,
+    makeMaintenanceRepo([]),
+    makeConfigResolver(),
+  );
+
+  const outcome = await useCase.execute(makeMonitor(), { lastStatus: MonitorStatus.UP, retryAttempts: 0 });
+
+  assert.equal(outcome.status, MonitorStatus.UP);
+  assert.equal(outcome.nextDelaySeconds, 60, "bajo el umbral, usa el intervalo configurado del monitor");
+  assert.equal(heartbeats.saved[0].status, MonitorStatus.UP);
+  assert.equal(notifier.events.length, 0, "sin transición real (UP -> UP), no debe alertar");
+});
+
+test("HTTP con latencia sobre el umbral: DEGRADADO directo, sin pasar por PENDING", async () => {
+  const heartbeats = makeHeartbeats();
+  const notifier = makeNotifier();
+  const useCase = new ExecuteCheckUseCase(
+    makeRegistry({ ok: true, ping: DEGRADED_LATENCY_MS + 1, msg: "200 OK" }),
+    heartbeats,
+    makeRealtime(),
+    notifier,
+    makeMaintenanceRepo([]),
+    makeConfigResolver(),
+  );
+
+  const outcome = await useCase.execute(makeMonitor(), { lastStatus: MonitorStatus.UP, retryAttempts: 0 });
+
+  assert.equal(outcome.status, MonitorStatus.DEGRADED);
+  assert.equal(outcome.retryAttempts, 0, "no pasa por la máquina de reintentos, es una transición directa");
+  assert.equal(outcome.nextDelaySeconds, ACCELERATED_INTERVAL_SECONDS);
+  assert.equal(heartbeats.saved[0].status, MonitorStatus.DEGRADED);
+  assert.match(heartbeats.saved[0].msg ?? "", /Latencia alta/);
+  assert.equal(notifier.events.length, 1);
+  assert.equal(notifier.events[0].eventType, "DEGRADED");
+  assert.equal(notifier.events[0].to, MonitorStatus.DEGRADED);
+});
+
+test("UP tras DOWN/DEGRADADO restaura el intervalo normal configurado", async () => {
+  const useCase = new ExecuteCheckUseCase(
+    makeRegistry({ ok: true, ping: 20, msg: "200 OK" }),
+    makeHeartbeats(),
+    makeRealtime(),
+    makeNotifier(),
+    makeMaintenanceRepo([]),
+    makeConfigResolver(),
+  );
+
+  const outcome = await useCase.execute(
+    makeMonitor({ interval: 60 }),
+    { lastStatus: MonitorStatus.DEGRADED, retryAttempts: 0 },
+  );
+
+  assert.equal(outcome.status, MonitorStatus.UP);
+  assert.equal(outcome.nextDelaySeconds, 60, "al recuperarse, vuelve al intervalo normal del monitor");
+});
+
+test("un monitor que sigue DOWN en checks consecutivos (polling acelerado) no repite la alerta", async () => {
+  const heartbeats = makeHeartbeats();
+  const notifier = makeNotifier();
+  const useCase = new ExecuteCheckUseCase(
+    makeRegistry({ ok: false, ping: null, msg: "timeout" }),
+    heartbeats,
+    makeRealtime(),
+    notifier,
+    makeMaintenanceRepo([]),
+    makeConfigResolver(),
+  );
+
+  // Simula el scheduler: primer beat confirma el DOWN (dispara 1 alerta), y varios beats
+  // subsiguientes al intervalo acelerado (15s) mientras el monitor sigue caído — igual que
+  // in-memory-scheduler.ts encadena `outcome.lastStatus` de una llamada a la siguiente.
+  let ctx = { lastStatus: MonitorStatus.UP, retryAttempts: 0 };
+  const first = await useCase.execute(makeMonitor(), ctx);
+  ctx = { lastStatus: first.lastStatus!, retryAttempts: first.retryAttempts };
+
+  for (let i = 0; i < 5; i++) {
+    const outcome = await useCase.execute(makeMonitor(), ctx);
+    ctx = { lastStatus: outcome.lastStatus!, retryAttempts: outcome.retryAttempts };
+  }
+
+  assert.equal(heartbeats.saved.length, 6, "cada beat sigue guardando su heartbeat (para el historial)");
+  assert.equal(notifier.events.length, 1, "solo la primera transición a DOWN debe alertar, no cada beat");
+  assert.equal(notifier.events[0].eventType, "DOWN");
+});
+
+test("un monitor que sigue DEGRADADO (latencia alta) en checks consecutivos no repite la alerta", async () => {
+  const notifier = makeNotifier();
+  const useCase = new ExecuteCheckUseCase(
+    makeRegistry({ ok: true, ping: DEGRADED_LATENCY_MS + 1, msg: "200 OK" }),
+    makeHeartbeats(),
+    makeRealtime(),
+    notifier,
+    makeMaintenanceRepo([]),
+    makeConfigResolver(),
+  );
+
+  let ctx = { lastStatus: MonitorStatus.UP, retryAttempts: 0 };
+  for (let i = 0; i < 4; i++) {
+    const outcome = await useCase.execute(makeMonitor(), ctx);
+    ctx = { lastStatus: outcome.lastStatus!, retryAttempts: outcome.retryAttempts };
+  }
+
+  assert.equal(notifier.events.length, 1, "solo la primera transición a DEGRADADO debe alertar");
+  assert.equal(notifier.events[0].eventType, "DEGRADED");
+});
+
+test("el intervalo acelerado nunca es más rápido que el retryInterval del propio monitor", async () => {
+  // retryInterval (30s) > ACCELERATED_INTERVAL_SECONDS (15s): el piso debe ganar, para no
+  // revisar más seguido una vez confirmado DOWN que durante la fase de reintentos.
+  const useCase = new ExecuteCheckUseCase(
+    makeRegistry({ ok: false, ping: null, msg: "timeout" }),
+    makeHeartbeats(),
+    makeRealtime(),
+    makeNotifier(),
+    makeMaintenanceRepo([]),
+    makeConfigResolver(),
+  );
+
+  const outcome = await useCase.execute(
+    makeMonitor({ retryInterval: 30 }),
+    { lastStatus: MonitorStatus.UP, retryAttempts: 0 },
+  );
+
+  assert.equal(outcome.status, MonitorStatus.DOWN);
+  assert.equal(outcome.nextDelaySeconds, 30, "el retryInterval (30s) del monitor gana sobre el acelerado global (15s)");
 });

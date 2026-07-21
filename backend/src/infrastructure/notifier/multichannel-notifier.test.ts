@@ -113,3 +113,73 @@ test("MultichannelNotifier envía cuando el evento está en la lista suscrita", 
     global.fetch = originalFetch;
   }
 });
+
+test("MultichannelNotifier no envía un DEGRADED si el canal no está suscrito a ese evento", async () => {
+  const channel = makeChannel({ events: ["DOWN"] });
+  const repo: INotificationRepository = {
+    create: async () => channel,
+    findAll: async () => [channel],
+    findById: async () => channel,
+    update: async () => channel,
+    delete: async () => true,
+  };
+
+  let fetchCalled = false;
+  const originalFetch = global.fetch;
+  global.fetch = (async () => {
+    fetchCalled = true;
+    return new Response(null, { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const notifier = new MultichannelNotifier(repo);
+    await notifier.notify(makeEvent({
+      eventType: "DEGRADED",
+      from: MonitorStatus.DOWN,
+      to: MonitorStatus.DEGRADED,
+    }));
+    assert.equal(fetchCalled, false, "no debería llamar al webhook: el canal solo está suscrito a DOWN");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("MultichannelNotifier envía y renderiza la plantilla cuando el canal está suscrito a DEGRADED", async () => {
+  const channel = makeChannel({ events: ["DEGRADED"] });
+  const repo: INotificationRepository = {
+    create: async () => channel,
+    findAll: async () => [channel],
+    findById: async () => channel,
+    update: async () => channel,
+    delete: async () => true,
+  };
+
+  let capturedBody: string | undefined;
+  const originalFetch = global.fetch;
+  global.fetch = (async (_url: string, init?: RequestInit) => {
+    capturedBody = init?.body as string;
+    return new Response(null, { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const notifier = new MultichannelNotifier(repo);
+    await notifier.notify(makeEvent({
+      eventType: "DEGRADED",
+      from: MonitorStatus.DOWN,
+      to: MonitorStatus.DEGRADED,
+      beat: {
+        monitorId: "monitor-1",
+        timestamp: new Date(),
+        status: MonitorStatus.DEGRADED,
+        ping: 30,
+        msg: "Servidor responde a nivel de red (ping) pero la aplicación no — posible degradación/sobrecarga.",
+      },
+    }));
+    assert.ok(capturedBody, "debería haber enviado el webhook para DEGRADED");
+    const parsed = JSON.parse(capturedBody!);
+    assert.equal(parsed.monitor.name, "Sitio de prueba");
+    assert.equal(parsed.transition.to, "DEGRADED");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

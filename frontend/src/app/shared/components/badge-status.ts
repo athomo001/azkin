@@ -2,7 +2,7 @@
 import { Component, input, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
-type MonitorStatus = 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE';
+type MonitorStatus = 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' | 'DEGRADED';
 
 @Component({
   selector: 'app-badge-status',
@@ -29,6 +29,7 @@ export class BadgeStatusComponent {
       case 'DOWN':        return 'CAÍDO';
       case 'PENDING':     return 'VERIFICANDO';
       case 'MAINTENANCE': return 'EN MANTENIMIENTO';
+      case 'DEGRADED':    return 'DEGRADADO';
     }
   });
 
@@ -39,6 +40,7 @@ export class BadgeStatusComponent {
       case 'DOWN':        return 'bg-rose-500/10 border-rose-500/30 text-rose-400';
       case 'PENDING':     return 'bg-amber-500/10 border-amber-500/30 text-amber-400';
       case 'MAINTENANCE': return 'bg-sky-500/10 border-sky-500/30 text-sky-400';
+      case 'DEGRADED':    return 'bg-orange-500/10 border-orange-500/30 text-orange-400';
     }
   });
 
@@ -49,6 +51,7 @@ export class BadgeStatusComponent {
       case 'DOWN':        return 'bg-rose-500';
       case 'PENDING':     return 'bg-amber-400';
       case 'MAINTENANCE': return 'bg-sky-400';
+      case 'DEGRADED':    return 'bg-orange-500';
     }
   });
 }

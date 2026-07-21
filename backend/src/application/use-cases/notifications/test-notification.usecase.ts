@@ -11,6 +11,7 @@ import { getErrorMessage } from "../../services/get-error-message";
 const EVENT_TO_TRANSITION: Record<AlertEventType, { from: MonitorStatus; to: MonitorStatus }> = {
   DOWN: { from: MonitorStatus.UP, to: MonitorStatus.DOWN },
   RECOVERED: { from: MonitorStatus.DOWN, to: MonitorStatus.UP },
+  DEGRADED: { from: MonitorStatus.DOWN, to: MonitorStatus.DEGRADED },
   LATENCY_HIGH: { from: MonitorStatus.UP, to: MonitorStatus.UP },
   DEFACEMENT: { from: MonitorStatus.UP, to: MonitorStatus.UP },
 };

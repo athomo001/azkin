@@ -6,6 +6,8 @@ import { GetSmtpStatusUseCase } from "../../../application/use-cases/system/get-
 import { SendTestEmailUseCase } from "../../../application/use-cases/system/send-test-email.usecase";
 import { GetAppSmtpChannelUseCase } from "../../../application/use-cases/system/get-app-smtp-channel.usecase";
 import { SetAppSmtpChannelUseCase } from "../../../application/use-cases/system/set-app-smtp-channel.usecase";
+import { GetMonitoringEngineSettingsUseCase } from "../../../application/use-cases/system/get-monitoring-engine-settings.usecase";
+import { SetMonitoringEngineSettingsUseCase } from "../../../application/use-cases/system/set-monitoring-engine-settings.usecase";
 import { ISmtpConfigResolver } from "../../../application/ports/services/smtp-config-resolver";
 import { ValidationError } from "../../../domain/errors/domain-error";
 
@@ -18,6 +20,8 @@ export class SystemController {
     private readonly smtpConfigResolver: ISmtpConfigResolver,
     private readonly getAppSmtpChannelUseCase: GetAppSmtpChannelUseCase,
     private readonly setAppSmtpChannelUseCase: SetAppSmtpChannelUseCase,
+    private readonly getMonitoringEngineSettingsUseCase: GetMonitoringEngineSettingsUseCase,
+    private readonly setMonitoringEngineSettingsUseCase: SetMonitoringEngineSettingsUseCase,
   ) {}
 
   getTlsConfig = async (_req: Request, res: Response): Promise<void> => {
@@ -80,5 +84,27 @@ export class SystemController {
     const notificationChannelId = req.body.notificationChannelId ?? null;
     await this.setAppSmtpChannelUseCase.execute(actorId, notificationChannelId);
     res.status(200).json({ message: "SMTP de aplicación actualizado." });
+  };
+
+  /**
+   * Devuelve los overrides vigentes de latencia de degradación / intervalo acelerado, junto con
+   * los valores de `.env` que aplican si no hay override (para mostrarlos en la UI).
+   */
+  getMonitoringEngineSettings = async (_req: Request, res: Response): Promise<void> => {
+    const result = await this.getMonitoringEngineSettingsUseCase.execute();
+    res.status(200).json(result);
+  };
+
+  /**
+   * Fija (o restablece, con `null`) los overrides de latencia de degradación / intervalo
+   * acelerado del motor de monitoreo.
+   */
+  setMonitoringEngineSettings = async (req: Request, res: Response): Promise<void> => {
+    const actorId = req.adminId!;
+    await this.setMonitoringEngineSettingsUseCase.execute(actorId, {
+      degradedLatencyMs: req.body.degradedLatencyMs,
+      acceleratedIntervalSeconds: req.body.acceleratedIntervalSeconds,
+    });
+    res.status(200).json({ message: "Configuración del motor de monitoreo actualizada." });
   };
 }

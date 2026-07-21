@@ -3,9 +3,9 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 
-export type AlertEventType = 'DOWN' | 'RECOVERED' | 'LATENCY_HIGH' | 'DEFACEMENT';
+export type AlertEventType = 'DOWN' | 'RECOVERED' | 'DEGRADED' | 'LATENCY_HIGH' | 'DEFACEMENT';
 
-export const ALERT_EVENT_TYPES: AlertEventType[] = ['DOWN', 'RECOVERED', 'LATENCY_HIGH', 'DEFACEMENT'];
+export const ALERT_EVENT_TYPES: AlertEventType[] = ['DOWN', 'RECOVERED', 'DEGRADED', 'LATENCY_HIGH', 'DEFACEMENT'];
 
 export interface INotificationTemplate {
   subject?: string;

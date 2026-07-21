@@ -17,6 +17,12 @@ const schema = z.object({
   AZKIN_JWT_EXPIRES_IN: z.coerce.number().int().positive().default(7200),
   AZKIN_CHECK_CONCURRENCY: z.coerce.number().int().positive().default(50),
   AZKIN_FIRST_CHECK_DELAY_MS: z.coerce.number().int().nonnegative().default(1000),
+  // Umbral de latencia (ms) sobre el cual un monitor HTTP que responde OK pasa a DEGRADED
+  // en vez de UP, sin esperar a que falle por timeout.
+  AZKIN_DEGRADED_LATENCY_MS: z.coerce.number().int().positive().default(5000),
+  // Intervalo de chequeo (segundos) mientras un monitor está DOWN o DEGRADED — permite
+  // registrar la curva de recuperación sin esperar el intervalo normal configurado.
+  AZKIN_ACCELERATED_INTERVAL_SECONDS: z.coerce.number().int().positive().default(15),
   // Sin default permisivo — se exige configuración explícita (puede ser "*" a propósito
   // en desarrollo, pero debe ser una decisión consciente, no un fallback silencioso del código).
   AZKIN_CORS_ORIGIN: z.string().min(1, "AZKIN_CORS_ORIGIN es requerido (usa '*' solo si es intencional)"),
@@ -66,6 +72,8 @@ export interface Env {
   jwtExpiresInSeconds: number;
   checkConcurrency: number;
   firstCheckDelayMs: number;
+  degradedLatencyMs: number;
+  acceleratedIntervalSeconds: number;
   corsOrigin: string;
   bcryptCost: number;
   prometheusUser?: string;
@@ -94,6 +102,8 @@ export const env: Env = {
   jwtExpiresInSeconds: raw.AZKIN_JWT_EXPIRES_IN,
   checkConcurrency: raw.AZKIN_CHECK_CONCURRENCY,
   firstCheckDelayMs: raw.AZKIN_FIRST_CHECK_DELAY_MS,
+  degradedLatencyMs: raw.AZKIN_DEGRADED_LATENCY_MS,
+  acceleratedIntervalSeconds: raw.AZKIN_ACCELERATED_INTERVAL_SECONDS,
   corsOrigin: raw.AZKIN_CORS_ORIGIN,
   bcryptCost: raw.AZKIN_BCRYPT_COST,
   prometheusUser: raw.AZKIN_PROMETHEUS_USER,
