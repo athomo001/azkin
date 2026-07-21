@@ -8,3 +8,17 @@ export enum MonitorStatus {
   PENDING = 2,
   MAINTENANCE = 3,
 }
+
+export type EventStatusLabel = "UP" | "DOWN" | "MAINTENANCE";
+
+/**
+ * Reduce un status numérico a la etiqueta que consumen las tablas de "eventos recientes"
+ * (get-recent-events/get-monitor-events/get-group-events). PENDING se mantiene fuera del
+ * alcance de este mapeo (se reduce a "DOWN", igual que antes de AZ-040) — solo se resolvió
+ * el caso de MAINTENANCE para que no se muestre como una caída real.
+ */
+export function toEventStatusLabel(status: MonitorStatus): EventStatusLabel {
+  if (status === MonitorStatus.UP) return "UP";
+  if (status === MonitorStatus.MAINTENANCE) return "MAINTENANCE";
+  return "DOWN";
+}

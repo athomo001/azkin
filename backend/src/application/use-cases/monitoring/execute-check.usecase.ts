@@ -3,6 +3,8 @@ import { ICheckerRegistry } from "../../ports/services/check-strategy";
 import { IHeartbeatRepository } from "../../ports/repositories/heartbeat-repository";
 import { IRealtimePublisher } from "../../ports/services/realtime-publisher";
 import { INotifier } from "../../ports/services/notifier";
+import { IMaintenanceRepository } from "../../ports/repositories/maintenance-repository";
+import { findActiveMaintenanceForMonitor } from "../../services/maintenance-scope-policy";
 import { IMonitor } from "../../../domain/entities/monitor";
 import { IHeartbeat } from "../../../domain/entities/heartbeat";
 import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
@@ -32,9 +34,15 @@ export class ExecuteCheckUseCase {
     private readonly heartbeats: IHeartbeatRepository,
     private readonly realtime: IRealtimePublisher,
     private readonly notifier: INotifier,
+    private readonly maintenance: IMaintenanceRepository,
   ) {}
 
   async execute(monitor: IMonitor, ctx: CheckContext): Promise<CheckOutcome> {
+    const activeMaintenance = findActiveMaintenanceForMonitor(monitor, await this.maintenance.findActive());
+    if (activeMaintenance) {
+      return this.recordMaintenanceBeat(monitor, ctx, activeMaintenance.name);
+    }
+
     const result = await this.registry.resolve(monitor.type).check(monitor);
 
     let status: MonitorStatus;
@@ -103,5 +111,37 @@ export class ExecuteCheckUseCase {
     }
 
     return { status, lastStatus, retryAttempts, nextDelaySeconds };
+  }
+
+  /**
+   * Registra un beat de mantenimiento sin ejecutar el checker real ni alertar (AZ-040): el
+   * silenciado es implícito porque MAINTENANCE nunca entra al bloque de transición UP/DOWN de
+   * arriba. `ctx.lastStatus`/`retryAttempts` se preservan intactos para que, al terminar la
+   * ventana, la próxima transición real se compare contra el último estado UP/DOWN confirmado
+   * (no contra MAINTENANCE).
+   */
+  private async recordMaintenanceBeat(
+    monitor: IMonitor,
+    ctx: CheckContext,
+    windowName: string,
+  ): Promise<CheckOutcome> {
+    const beat: IHeartbeat = {
+      monitorId: monitor.id,
+      timestamp: new Date(),
+      status: MonitorStatus.MAINTENANCE,
+      ping: null,
+      msg: `En mantenimiento: ${windowName}`,
+      isLocalNetworkDown: false,
+    };
+
+    await this.heartbeats.save(beat);
+    this.realtime.publishHeartbeat(monitor.userId, beat);
+
+    return {
+      status: MonitorStatus.MAINTENANCE,
+      lastStatus: ctx.lastStatus,
+      retryAttempts: ctx.retryAttempts,
+      nextDelaySeconds: monitor.interval,
+    };
   }
 }

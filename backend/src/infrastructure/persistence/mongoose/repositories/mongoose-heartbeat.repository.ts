@@ -91,9 +91,11 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
       // 1. Obtener el último heartbeat absoluto de toda la historia
       const lastBeat = await HeartbeatModel.findOne({ monitorId: mId }).sort({ timestamp: -1 });
 
-      // 2. Obtener agregados de las últimas 24h para el cálculo del uptime porcentual
+      // 2. Obtener agregados de las últimas 24h para el cálculo del uptime porcentual.
+      // Los heartbeats en MAINTENANCE quedan fuera del cálculo (ni suman ni restan, AZ-040):
+      // una caída planificada no debe ensuciar el uptime real del monitor.
       const stats = await HeartbeatModel.aggregate([
-        { $match: { monitorId: mId, timestamp: { $gte: since } } },
+        { $match: { monitorId: mId, timestamp: { $gte: since }, status: { $ne: MonitorStatus.MAINTENANCE } } },
         {
           $group: {
             _id: "$monitorId",

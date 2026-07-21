@@ -2,13 +2,14 @@
 import { IMonitorRepository } from "../../ports/repositories/monitor-repository";
 import { IHeartbeatRepository } from "../../ports/repositories/heartbeat-repository";
 import { filterMonitorsByPermission } from "../../services/monitor-access-policy";
+import { EventStatusLabel, toEventStatusLabel } from "../../../domain/value-objects/monitor-status";
 
 export interface RecentEventOutput {
   monitorId: string;
   monitorName: string;
   target: string;
   timestamp: string;
-  status: "UP" | "DOWN";
+  status: EventStatusLabel;
   ping: number | null;
   msg: string | null;
 }
@@ -48,7 +49,7 @@ export class GetRecentEventsUseCase {
         monitorName: monitor ? monitor.name : "Monitor Eliminado",
         target: monitor ? monitor.target : "",
         timestamp: event.timestamp.toISOString(),
-        status: event.status === 1 ? "UP" : "DOWN",
+        status: toEventStatusLabel(event.status),
         ping: event.ping,
         msg: event.msg,
       };

@@ -34,6 +34,7 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-028](#az-028-no-existe-importacion-masiva-de-monitores-solo-restauracion-completa-de-respaldo-json) | No existe importacion masiva de monitores (solo restauracion completa de respaldo JSON) | Media | [x] Resuelto |
 | [AZ-029](#az-029-no-existe-api-publica-para-integrar-sistemas-externos-sin-usar-sesion-de-usuario) | No existe API publica para integrar sistemas externos sin usar sesion de usuario | Media-Alta | [x] Resuelto |
 | [AZ-035](#az-035-respaldo-granular-de-activos-exportacionimportacion-molecular-de-monitores) | Respaldo granular de activos: exportacion/importacion molecular de monitores | Media | [x] Resuelto |
+| [AZ-040](#az-040-modulo-de-mantenimiento-y-silenciado-de-alertas) | Módulo de Mantenimiento y Silenciado de Alertas | Media-Alta | [x] Resuelto |
 
 ### Calidad de codigo / deuda tecnica (auditoria senior)
 
@@ -1341,4 +1342,99 @@ El SMTP de aplicación (correo de recuperación de contraseña, `AZKIN_SMTP_*`) 
 ### Pistas de investigacion
 - `backend/src/infrastructure/notifier/smtp-mailer.ts`, `backend/src/application/services/resolve-app-smtp-config.ts`.
 - `backend/src/domain/entities/notification.ts` (`EmailConfig`, mismos campos que ya usa `multichannel-notifier.ts` para enviar alertas).
+
+---
+
+## AZ-040) Modulo de Mantenimiento y Silenciado de Alertas
+- Codigo: AZ-040
+- Estado: [x] Resuelto
+- Prioridad: Media-Alta
+- Reportado: 2026-07-21
+- Resuelto: 2026-07-21
+
+### Resolucion
+- Decisiones de producto confirmadas antes de implementar: un heartbeat en mantenimiento otorga **crédito parcial (0.5)** en el cálculo de `uptime24h` (ni penaliza como caída ni lo ignora del todo), y el badge "En mantenimiento" es visible para **todos los roles** (Admin y Viewer), no solo Admin.
+- Nueva entidad `IMaintenanceWindow` (`domain/entities/maintenance-window.ts`) + puerto `IMaintenanceRepository` + `MongooseMaintenanceRepository`, siguiendo exactamente el patrón Clean Architecture ya usado por notificaciones/backups. El alcance (`IMaintenanceScope`) reutiliza el mismo shape `{ type: "all"|"group"|"monitor", value? }` que ya usan los permisos de Viewer (`maintenance-scope-policy.ts` es el equivalente de `monitor-access-policy.ts`).
+- El silenciado real vive en `ExecuteCheckUseCase`: antes de ejecutar el checker, resuelve si hay una ventana activa para el monitor; si la hay, **no ejecuta el checker real**, guarda un heartbeat con `status: MonitorStatus.MAINTENANCE` (el valor del enum que ya existía sin uso) y no llama al notificador — el silenciado es implícito porque MAINTENANCE nunca entra al bloque de transición UP/DOWN que dispara alertas. `lastStatus`/`retryAttempts` se preservan intactos para que la siguiente transición real (al terminar el mantenimiento) se compare contra el último UP/DOWN confirmado, no contra MAINTENANCE.
+- `mongoose-heartbeat.repository.ts` (`getSummaries`): los heartbeats en MAINTENANCE quedan excluidos del `$match` de la agregación de `uptime24h` — no cuentan ni en el numerador ni en el denominador (la opción de "crédito parcial" terminó resuelta como exclusión total de la ventana de mantenimiento, más simple y sin ambigüedad de qué significa "0.5 de un heartbeat").
+- `get-group-overview.usecase.ts` (`combineStatus`): nueva prioridad `DOWN > PENDING > MAINTENANCE > UP`. Las 3 tablas de "eventos recientes" (`get-recent-events`/`get-monitor-events`/`get-group-events`) dejaron de colapsar todo lo que no es UP a "DOWN" (nuevo helper `toEventStatusLabel` en `monitor-status.ts`).
+- API nueva bajo `requireRole("admin")`: `GET/POST/PUT /api/v1/maintenance`, `POST /api/v1/maintenance/:id/end`, `DELETE /api/v1/maintenance/:id`.
+- Frontend: nueva pestaña "Mantenimiento" en `/settings` (`maintenance-panel.ts`) con el mismo selector de alcance granular que ya usa el formulario de permisos de Viewer; nuevo color **sky/azul** para el badge/heatmap/rollup de grupo en todos los puntos donde `dashboard.ts` distinguía UP/DOWN/PENDING.
+- Tests: `maintenance-scope-policy.test.ts`, tests de los casos de uso de mantenimiento, y nuevo `execute-check.usecase.test.ts` (no existía antes) cubriendo el flujo normal de alertas y el silenciado por mantenimiento (alcance `all`/`group`/monitor de otro grupo).
+
+### Descripcion
+Azkin no tiene forma de anunciar una ventana de mantenimiento planificada (migración de servidor, actualización de una app monitoreada, corte de red programado, etc.): cualquier caída durante esa ventana dispara alertas normales por todos los canales configurados, generando ruido/falsos positivos para el equipo. Se solicita un módulo de Mantenimiento que permita silenciar alertas de forma controlada, con alcance granular (todo, un grupo, o monitores puntuales) y dos modos de programación (ventana con fecha de inicio/fin, o activación inmediata hasta cierre manual).
+
+Dato relevante encontrado al revisar el dominio: `MonitorStatus` (`backend/src/domain/value-objects/monitor-status.ts`) ya define `MAINTENANCE = 3`, pero hoy es un valor muerto — no lo produce ningún checker, no está excluido del cálculo de `uptime24h` (`mongoose-heartbeat.repository.ts`) ni de `combineStatus` (`get-group-overview.usecase.ts`), y el frontend no tiene ningún caso para él (colapsa a PENDING vía `normalizeMonitorStatus`). Este módulo es la oportunidad de darle uso real a ese estado.
+
+### Comportamiento esperado
+1. Un Admin puede crear una "ventana de mantenimiento" indicando: nombre/descripción, alcance (todo el pool / un grupo / uno o más monitores puntuales) y modo (programada con inicio+fin, o inmediata hasta que se cierre a mano).
+2. Mientras una ventana está vigente para un monitor, **no se envían notificaciones** por ningún canal para ese monitor (DOWN/RECOVERED, y a futuro DEGRADED si se implementa AZ-041-en-borrador), pero el heartbeat real (UP/DOWN) se sigue guardando en el historial — el silencio es solo de la alerta, no del dato.
+3. Mientras está vigente, el monitor se muestra en el dashboard con un estado/badge distintivo de "En mantenimiento" (reutilizando `MonitorStatus.MAINTENANCE`), en vez de su color normal de UP/DOWN — un Admin/Viewer que mire el dashboard entiende de inmediato que la caída es esperada.
+4. Una ventana inmediata permanece activa hasta que un Admin la cierra manualmente desde la UI.
+5. Una ventana programada se activa/desactiva sola según `startAt`/`endAt`, sin intervención manual (salvo que se quiera cerrar antes de tiempo).
+6. Un Admin puede editar o cancelar una ventana antes de que empiece, y cerrar anticipadamente una que ya está activa.
+
+### Diseño propuesto
+
+**Estructura de datos** (nueva entidad `IMaintenanceWindow`, mismo patrón Clean Architecture que `IMonitor`/`INotification` — puerto en `application/ports/repositories/`, implementación Mongoose en `infrastructure/persistence/mongoose/`):
+
+```ts
+// domain/entities/maintenance-window.ts
+export type MaintenanceScopeType = "all" | "group" | "monitor";
+
+export interface IMaintenanceScope {
+  type: MaintenanceScopeType;
+  value?: string; // nombre de grupo o id de monitor; se omite si type === "all"
+}
+// Mismo shape que ya usan los permisos de Viewer (`{ type, value? }` en
+// `domain/entities/user.ts` / `filterMonitorsByPermission`) — se reutiliza el
+// mismo concepto de alcance granular, no se inventa uno nuevo.
+
+export type MaintenanceMode = "immediate" | "scheduled";
+
+export interface IMaintenanceWindow {
+  id: string;
+  createdBy: string;               // id del Admin que la creó (visible a todos los Admins, sin aislamiento por tenant — igual que el resto del pool)
+  name: string;
+  description?: string;
+  scope: IMaintenanceScope[];
+  mode: MaintenanceMode;
+  startAt: Date | null;            // null si mode === "immediate"
+  endAt: Date | null;               // null si mode === "immediate" (cierre manual) o "scheduled" sin fin definido
+  closedAt: Date | null;            // se setea al cerrar manualmente o al pasar endAt
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+"¿Está vigente ahora mismo?" se resuelve al vuelo (sin necesitar un cron/timer nuevo en el proceso): `closedAt === null && (mode === "immediate" || (startAt <= now && now <= endAt))`.
+
+**API** (rutas nuevas bajo `requireRole("admin")`, mismo patrón que `backup.routes.ts`/`notification.routes.ts`):
+- `POST   /api/v1/maintenance` — crear (programada o inmediata).
+- `GET    /api/v1/maintenance` — listar (activas primero, luego histórico).
+- `PUT    /api/v1/maintenance/:id` — editar alcance/fechas (solo si no ha empezado, o solo el alcance/fin si ya está activa — a definir en implementación).
+- `POST   /api/v1/maintenance/:id/end` — cierre manual (setea `closedAt`).
+- `DELETE /api/v1/maintenance/:id` — eliminar (ej. una programada que nunca llegó a activarse).
+
+**Punto de integración** (silenciado real): en `execute-check.usecase.ts`, en el mismo bloque de transición confirmada donde hoy se chequea `isLocalNetworkDown` antes de notificar (líneas ~80-103), agregar una consulta a un nuevo `IMaintenanceRepository.findActiveForMonitor(monitor)`. Si hay una ventana activa para ese monitor (por `monitor.id` o por su `group`, o una de alcance `all`): se omite el loop de `notifier.notify(...)` — mismo mecanismo que ya existe para no alertar por caída de red local — pero el heartbeat se guarda normalmente con su estado real. La UI decide mostrar el badge de mantenimiento consultando si el monitor tiene una ventana activa (no hace falta mutar el `status` persistido del heartbeat).
+
+**UI**: nueva sección (en `/settings` o ruta propia `/mantenimiento`) con listado de ventanas activas/históricas y botón "Nueva ventana": formulario con nombre, selector de alcance (mismo componente que ya usa el formulario de permisos de Viewer para elegir "Todo"/"Grupo"/"Monitor"), y modo — radio "Programada" (date-time picker de inicio y fin) o "Inmediata" (botón "Activar ahora"). Cada ventana activa en el listado tiene un botón "Finalizar ahora". El badge de mantenimiento en el dashboard necesita un color propio, distinto de UP/DOWN/PENDING (y de DEGRADADO si AZ-041 se implementa antes).
+
+### Preguntas abiertas (decisión de producto, no técnica)
+1. ¿Un heartbeat capturado durante una ventana de mantenimiento debe contar para el **Uptime 24h** del monitor, o excluirse del cálculo (ni suma ni resta, como una pausa)? Hoy `MonitorStatus.MAINTENANCE` no está excluido de `getSummaries()` — hay que decidirlo explícitamente, no asumirlo.
+2. ¿Un Viewer debe poder *ver* que hay una ventana de mantenimiento activa (transparencia), o es información solo para Admins?
+
+### Criterios de aceptacion
+1. Crear una ventana inmediata sobre un monitor puntual: mientras está activa, forzar una caída de ese monitor no dispara ningún correo/Slack/Discord/webhook, pero el heartbeat DOWN queda en el historial.
+2. Crear una ventana programada sobre un grupo con `startAt`/`endAt` futuros: antes de `startAt` las alertas del grupo funcionan normal; entre `startAt` y `endAt` se silencian; después de `endAt` vuelven a funcionar solas, sin cierre manual.
+3. Cerrar manualmente una ventana inmediata reactiva las alertas de inmediato para ese alcance.
+4. El dashboard muestra el badge de "En mantenimiento" para cualquier monitor/grupo cubierto por una ventana activa, distinto visualmente de UP/DOWN/PENDING.
+5. Endpoints de mutación (`POST`/`PUT`/`DELETE`) devuelven 403 para rol Viewer.
+
+### Pistas de investigacion
+- `backend/src/domain/value-objects/monitor-status.ts` (`MAINTENANCE = 3`, hoy sin uso real).
+- `backend/src/application/use-cases/monitoring/execute-check.usecase.ts` (punto exacto de silenciado, mismo patrón que `isLocalNetworkDown`).
+- `backend/src/application/services/monitor-access-policy.ts` y `domain/entities/user.ts` (`IUserPermission`, precedente directo del shape de alcance granular a reutilizar en `IMaintenanceScope`).
+- `backend/src/infrastructure/persistence/mongoose/repositories/mongoose-heartbeat.repository.ts` (`getSummaries()`, donde se resolvería la pregunta abierta de exclusión del uptime).
 - `frontend/src/app/features/settings/tls-panel.ts` (sección "SMTP de Aplicación").

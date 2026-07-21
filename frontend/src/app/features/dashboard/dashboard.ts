@@ -86,6 +86,7 @@ type HistoryRangeOption = {
             <button (click)="statusFilter = 'UP'" [class.text-orange-500]="statusFilter === 'UP'">{{ lang.t('dashboard.active') }} ({{ activeCount() }})</button>
             <button (click)="statusFilter = 'DOWN'" [class.text-orange-500]="statusFilter === 'DOWN'">{{ lang.t('dashboard.down') }} ({{ downCount() }})</button>
             <button (click)="statusFilter = 'PENDING'" [class.text-orange-500]="statusFilter === 'PENDING'">{{ lang.t('dashboard.pending') }} ({{ pendingCount() }})</button>
+            <button (click)="statusFilter = 'MAINTENANCE'" [class.text-orange-500]="statusFilter === 'MAINTENANCE'">Mant. ({{ maintenanceCount() }})</button>
           </div>
 
           @if (authService.isAdmin()) {
@@ -140,7 +141,7 @@ type HistoryRangeOption = {
                         </svg>
                       </button>
                       <!-- Estado consolidado del grupo -->
-                      <span [class]="g.status === 'UP' ? 'bg-emerald-500' : (g.status === 'DOWN' ? 'bg-rose-500 animate-pulse' : 'bg-amber-500')"
+                      <span [class]="g.status === 'UP' ? 'bg-emerald-500' : (g.status === 'DOWN' ? 'bg-rose-500 animate-pulse' : (g.status === 'MAINTENANCE' ? 'bg-sky-500' : 'bg-amber-500'))"
                         class="w-2 h-2 rounded-full flex-shrink-0 shadow"></span>
                       <span class="text-xs font-black text-zinc-300 tracking-tight truncate">{{ g.name }}</span>
                     </div>
@@ -177,6 +178,11 @@ type HistoryRangeOption = {
                               <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-rose-500/5 animate-pulse">
                                 <span class="w-1 h-1 rounded-full bg-rose-400"></span>
                                 DOWN
+                              </span>
+                            } @else if (m.status === 'MAINTENANCE') {
+                              <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-sky-400 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-sky-500/5">
+                                <span class="w-1 h-1 rounded-full bg-sky-400"></span>
+                                MANT
                               </span>
                             } @else {
                               <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
@@ -222,6 +228,11 @@ type HistoryRangeOption = {
                       <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-rose-500/5 animate-pulse">
                         <span class="w-1 h-1 rounded-full bg-rose-400"></span>
                         DOWN
+                      </span>
+                    } @else if (m.status === 'MAINTENANCE') {
+                      <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-sky-400 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded shadow-sm shadow-sky-500/5">
+                        <span class="w-1 h-1 rounded-full bg-sky-400"></span>
+                        MANT
                       </span>
                     } @else {
                       <span class="inline-flex items-center gap-0.5 text-[8px] font-black tracking-wider uppercase text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
@@ -415,9 +426,9 @@ type HistoryRangeOption = {
                         [title]="lang.t('monitor.detail.statusLocalDown')">
                       </div>
                     } @else {
-                      <div [class]="b.status === 'UP' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/20' : (b.status === 'DOWN' ? 'bg-rose-500 animate-pulse shadow-sm shadow-rose-500/20' : 'bg-zinc-800')"
+                      <div [class]="b.status === 'UP' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/20' : (b.status === 'DOWN' ? 'bg-rose-500 animate-pulse shadow-sm shadow-rose-500/20' : (b.status === 'MAINTENANCE' ? 'bg-sky-500 shadow-sm shadow-sky-500/20' : 'bg-zinc-800'))"
                         class="h-9 flex-1 rounded-md transition-all hover:scale-105"
-                        [title]="b.status === 'UP' ? lang.t('monitor.detail.statusUp') : (b.status === 'DOWN' ? lang.t('monitor.detail.statusDown') : lang.t('monitor.detail.noData'))">
+                        [title]="b.status === 'UP' ? lang.t('monitor.detail.statusUp') : (b.status === 'DOWN' ? lang.t('monitor.detail.statusDown') : (b.status === 'MAINTENANCE' ? 'En mantenimiento' : lang.t('monitor.detail.noData')))">
                       </div>
                     }
                   }
@@ -450,13 +461,25 @@ type HistoryRangeOption = {
               <div class="bg-zinc-900/20 border border-zinc-900/80 rounded-2xl overflow-hidden shadow-2xl">
                 <div class="p-4 bg-zinc-900/40 border-b border-zinc-900 flex flex-wrap justify-between items-center gap-2">
                   <span class="text-xs font-black text-zinc-300 uppercase tracking-wider">Revisiones recientes (últimos 30 min)</span>
-                  <button (click)="exportEventsTable()" [disabled]="isExportingEvents()"
-                    class="text-[10px] text-orange-500 hover:text-orange-400 font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:text-zinc-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                    </svg>
-                    {{ isExportingEvents() ? 'Exportando...' : 'Exportar 6h (CSV)' }}
-                  </button>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex flex-wrap gap-1">
+                      @for (opt of eventsExportRangeOptions; track opt.durationMs) {
+                        <button
+                          (click)="setExportRange(opt.durationMs)"
+                          class="px-2 py-1 rounded-md border text-[10px] font-black tracking-wide transition-colors"
+                          [class]="selectedExportRangeMs() === opt.durationMs ? 'border-orange-500/50 bg-orange-500/15 text-orange-300' : 'border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-zinc-300'">
+                          {{ opt.label }}
+                        </button>
+                      }
+                    </div>
+                    <button (click)="exportEventsTable()" [disabled]="isExportingEvents()"
+                      class="text-[10px] text-orange-500 hover:text-orange-400 font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:text-zinc-500">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                      </svg>
+                      {{ isExportingEvents() ? 'Exportando...' : 'Exportar ' + selectedExportRangeLabel() + ' (CSV)' }}
+                    </button>
+                  </div>
                 </div>
                 <div class="overflow-x-auto max-h-80 overflow-y-auto">
                   <table class="w-full text-left text-xs border-collapse">
@@ -570,6 +593,8 @@ type HistoryRangeOption = {
                         <span class="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black uppercase tracking-wider">UP</span>
                       } @else if (m.status === 'DOWN') {
                         <span class="text-[9px] bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded font-black uppercase tracking-wider animate-pulse">DOWN</span>
+                      } @else if (m.status === 'MAINTENANCE') {
+                        <span class="text-[9px] bg-sky-500/10 border border-sky-500/20 text-sky-400 px-2 py-0.5 rounded font-black uppercase tracking-wider">MANT</span>
                       } @else {
                         <span class="text-[9px] bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-black uppercase tracking-wider">PEND</span>
                       }
@@ -583,13 +608,25 @@ type HistoryRangeOption = {
               <div class="bg-zinc-900/20 border border-zinc-900/80 rounded-2xl overflow-hidden shadow-2xl">
                 <div class="p-4 bg-zinc-900/40 border-b border-zinc-900 flex flex-wrap justify-between items-center gap-2">
                   <span class="text-xs font-black text-zinc-300 uppercase tracking-wider">Revisiones recientes (últimos 30 min)</span>
-                  <button (click)="exportEventsTable()" [disabled]="isExportingEvents()"
-                    class="text-[10px] text-orange-500 hover:text-orange-400 font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:text-zinc-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                    </svg>
-                    {{ isExportingEvents() ? 'Exportando...' : 'Exportar 6h (CSV)' }}
-                  </button>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex flex-wrap gap-1">
+                      @for (opt of eventsExportRangeOptions; track opt.durationMs) {
+                        <button
+                          (click)="setExportRange(opt.durationMs)"
+                          class="px-2 py-1 rounded-md border text-[10px] font-black tracking-wide transition-colors"
+                          [class]="selectedExportRangeMs() === opt.durationMs ? 'border-orange-500/50 bg-orange-500/15 text-orange-300' : 'border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-zinc-300'">
+                          {{ opt.label }}
+                        </button>
+                      }
+                    </div>
+                    <button (click)="exportEventsTable()" [disabled]="isExportingEvents()"
+                      class="text-[10px] text-orange-500 hover:text-orange-400 font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:text-zinc-500">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                      </svg>
+                      {{ isExportingEvents() ? 'Exportando...' : 'Exportar ' + selectedExportRangeLabel() + ' (CSV)' }}
+                    </button>
+                  </div>
                 </div>
                 <div class="overflow-x-auto max-h-80 overflow-y-auto">
                   <table class="w-full text-left text-xs border-collapse">
@@ -763,7 +800,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // Tabla de eventos (revisiones individuales) del monitor/grupo seleccionado — ventana fija de
   // 30 min, independiente de la ventana del gráfico de latencia de arriba.
   private static readonly EVENTS_TABLE_WINDOW_MS = 30 * 60 * 1000;
-  private static readonly EVENTS_EXPORT_WINDOW_MS = 6 * 60 * 60 * 1000;
+  readonly eventsExportRangeOptions: HistoryRangeOption[] = [
+    { label: '6h', durationMs: 6 * 60 * 60 * 1000 },
+    { label: '12h', durationMs: 12 * 60 * 60 * 1000 },
+    { label: '24h', durationMs: 24 * 60 * 60 * 1000 },
+    { label: '48h', durationMs: 48 * 60 * 60 * 1000 },
+  ];
+  readonly selectedExportRangeMs = signal(this.eventsExportRangeOptions[0].durationMs);
   readonly eventsTableRows = signal<MonitorEvent[]>([]);
   readonly isLoadingEvents = signal(false);
   readonly isExportingEvents = signal(false);
@@ -872,7 +915,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // Bloques de disponibilidad (Uptime Blocks Heatmap)
   readonly uptimeBlocks = computed(() => {
     const points = this.historyPoints();
-    const blocks: { status: 'UP' | 'DOWN' | 'PENDING'; isLocalNetworkDown?: boolean }[] = [];
+    const blocks: { status: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE'; isLocalNetworkDown?: boolean }[] = [];
 
     if (points.length === 0) {
       const monitor = this.selectedMonitor();
@@ -886,7 +929,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
     for (const p of recent) {
       blocks.push({
-        status: p.status === 'UP' ? 'UP' : 'DOWN',
+        status: p.status === 'UP' ? 'UP' : (p.status === 'MAINTENANCE' ? 'MAINTENANCE' : 'DOWN'),
         isLocalNetworkDown: (p as any).isLocalNetworkDown ?? false
       });
     }
@@ -912,6 +955,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly activeCount = () => this.monitorService.monitors().filter(m => m.isActive).length;
   readonly downCount = () => this.monitorService.monitors().filter(m => m.status === 'DOWN').length;
   readonly pendingCount = () => this.monitorService.monitors().filter(m => m.status === 'PENDING').length;
+  readonly maintenanceCount = () => this.monitorService.monitors().filter(m => m.status === 'MAINTENANCE').length;
 
   // Listado filtrado para el panel lateral
   readonly filteredMonitors = computed(() => {
@@ -965,10 +1009,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
         const active = monitors.filter(x => x.uptime24h !== null && x.uptime24h !== undefined);
         const uptime = active.length === 0 ? 1.0 : active.reduce((sum, x) => sum + (x.uptime24h ?? 1), 0) / active.length;
 
-        // Determinar peor estado consolidado
-        let status: 'UP' | 'DOWN' | 'PENDING' = 'UP';
+        // Determinar peor estado consolidado (misma prioridad que combineStatus en el backend:
+        // DOWN > PENDING > MAINTENANCE > UP).
+        let status: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' = 'UP';
         if (monitors.some(x => x.status === 'DOWN')) status = 'DOWN';
         else if (monitors.some(x => x.status === 'PENDING')) status = 'PENDING';
+        else if (monitors.some(x => x.status === 'MAINTENANCE')) status = 'MAINTENANCE';
 
         const isCollapsed = !!this.collapsedGroups()[name];
 
@@ -1015,7 +1061,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         // Insertar el nuevo punto en el historial local para actualizar el gráfico en caliente
         const newPoint: IHeartbeat = {
           monitorId: hb.monitorId,
-          status: hb.status === 1 || hb.status === 'UP' ? 'UP' : 'DOWN',
+          status: hb.status === 1 || hb.status === 'UP' ? 'UP' : (hb.status === 3 || hb.status === 'MAINTENANCE' ? 'MAINTENANCE' : 'DOWN'),
           latency: hb.latency ?? hb.ping ?? 0,
           timestamp: hb.timestamp,
           isLocalNetworkDown: hb.isLocalNetworkDown
@@ -1028,7 +1074,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
           monitorName: current.name,
           target: current.target ?? '',
           timestamp: hb.timestamp,
-          status: hb.status === 1 || hb.status === 'UP' ? 'UP' : 'DOWN',
+          status: hb.status === 1 || hb.status === 'UP' ? 'UP' : (hb.status === 3 || hb.status === 'MAINTENANCE' ? 'MAINTENANCE' : 'DOWN'),
           ping: hb.latency ?? hb.ping ?? null,
           msg: hb.msg ?? null
         });
@@ -1056,10 +1102,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
         const upMonitors = updatedMonitors.filter((m: any) => m.lastPing !== undefined && m.lastPing !== null);
         const avgPing = upMonitors.length > 0 ? Math.round(upMonitors.reduce((sum: number, m: any) => sum + (m.lastPing ?? 0), 0) / upMonitors.length) : 0;
 
-        // Determinar estado consolidado
-        let groupStatus: 'UP' | 'DOWN' | 'PENDING' = 'UP';
+        // Determinar estado consolidado (misma prioridad que combineStatus en el backend)
+        let groupStatus: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' = 'UP';
         if (updatedMonitors.some((x: any) => x.status === 'DOWN')) groupStatus = 'DOWN';
         else if (updatedMonitors.some((x: any) => x.status === 'PENDING')) groupStatus = 'PENDING';
+        else if (updatedMonitors.some((x: any) => x.status === 'MAINTENANCE')) groupStatus = 'MAINTENANCE';
 
         this.selectedGroup.set({
           ...currentGroup,
@@ -1075,7 +1122,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
             monitorName: updatedMonitor.name,
             target: updatedMonitor.target ?? '',
             timestamp: hb.timestamp,
-            status: hb.status === 1 || hb.status === 'UP' ? 'UP' : 'DOWN',
+            status: hb.status === 1 || hb.status === 'UP' ? 'UP' : (hb.status === 3 || hb.status === 'MAINTENANCE' ? 'MAINTENANCE' : 'DOWN'),
             ping: hb.latency ?? hb.ping ?? null,
             msg: hb.msg ?? null
           });
@@ -1167,7 +1214,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         if (res && res.points) {
           this.historyPoints.set(this.filterPointsBySelectedRange(res.points.map((p: any) => ({
             monitorId: monitor.id,
-            status: p.status === 1 || p.status === 'UP' ? 'UP' : 'DOWN',
+            status: p.status === 1 || p.status === 'UP' ? 'UP' : (p.status === 3 || p.status === 'MAINTENANCE' ? 'MAINTENANCE' : 'DOWN'),
             latency: p.ping ?? p.latency ?? 0,
             timestamp: p.timestamp,
             isLocalNetworkDown: p.isLocalNetworkDown ?? false
@@ -1178,6 +1225,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
 
     this.loadEventsTableForMonitor(monitor.id);
+  }
+
+  setExportRange(durationMs: number): void {
+    if (!this.eventsExportRangeOptions.some((o) => o.durationMs === durationMs)) return;
+    this.selectedExportRangeMs.set(durationMs);
+  }
+
+  selectedExportRangeLabel(): string {
+    return this.eventsExportRangeOptions.find((o) => o.durationMs === this.selectedExportRangeMs())?.label ?? '';
   }
 
   setHistoryRange(durationMs: number): void {
@@ -1295,18 +1351,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Exporta a CSV las revisiones de las últimas 6h (ventana distinta a la tabla en pantalla, que
-   * solo muestra 30 min) del monitor o grupo actualmente seleccionado.
+   * Exporta a CSV las revisiones de la ventana elegida en `selectedExportRangeMs` (ventana
+   * distinta a la tabla en pantalla, que solo muestra 30 min) del monitor o grupo seleccionado.
    */
   exportEventsTable(): void {
     const monitor = this.selectedMonitor();
     const group = this.selectedGroup();
     if (!monitor && !group) return;
 
+    const rangeMs = this.selectedExportRangeMs();
     this.isExportingEvents.set(true);
     const request = monitor
-      ? this.monitorService.getMonitorEvents(monitor.id, DashboardComponent.EVENTS_EXPORT_WINDOW_MS)
-      : this.monitorService.getGroupEvents(group!.group, DashboardComponent.EVENTS_EXPORT_WINDOW_MS);
+      ? this.monitorService.getMonitorEvents(monitor.id, rangeMs)
+      : this.monitorService.getGroupEvents(group!.group, rangeMs);
 
     request.subscribe({
       next: (rows) => {
@@ -1334,8 +1391,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     ].join(','));
     const csv = [header.join(','), ...lines].join('\n');
     const safeLabel = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'monitor';
+    const rangeLabel = this.selectedExportRangeLabel() || '6h';
     // Prefijo BOM UTF-8 para que Excel muestre correctamente tildes/ñ al abrir el archivo directo.
-    this.fileDownload.downloadText(String.fromCharCode(0xfeff) + csv, 'text/csv;charset=utf-8', `azkin-revisiones-${safeLabel}-6h.csv`);
+    this.fileDownload.downloadText(String.fromCharCode(0xfeff) + csv, 'text/csv;charset=utf-8', `azkin-revisiones-${safeLabel}-${rangeLabel}.csv`);
   }
 
   /**

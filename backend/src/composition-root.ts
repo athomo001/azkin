@@ -21,6 +21,7 @@ import { MongooseAuditLogRepository } from "./infrastructure/persistence/mongoos
 import { MongooseTlsConfigRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-tls-config.repository";
 import { MongooseApiKeyRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-api-key.repository";
 import { MongooseAppSmtpSettingsRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-app-smtp-settings.repository";
+import { MongooseMaintenanceRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-maintenance.repository";
 
 // Services
 import { JwtTokenService } from "./infrastructure/security/jwt-token-service";
@@ -57,6 +58,11 @@ import { GetGroupOverviewUseCase } from "./application/use-cases/stats/get-group
 import { GetRecentEventsUseCase } from "./application/use-cases/stats/get-recent-events.usecase";
 import { GetMonitorEventsUseCase } from "./application/use-cases/stats/get-monitor-events.usecase";
 import { GetGroupEventsUseCase } from "./application/use-cases/stats/get-group-events.usecase";
+import { CreateMaintenanceWindowUseCase } from "./application/use-cases/maintenance/create-maintenance-window.usecase";
+import { ListMaintenanceWindowsUseCase } from "./application/use-cases/maintenance/list-maintenance-windows.usecase";
+import { UpdateMaintenanceWindowUseCase } from "./application/use-cases/maintenance/update-maintenance-window.usecase";
+import { EndMaintenanceWindowUseCase } from "./application/use-cases/maintenance/end-maintenance-window.usecase";
+import { DeleteMaintenanceWindowUseCase } from "./application/use-cases/maintenance/delete-maintenance-window.usecase";
 
 // Use cases de Viewers y Backup
 import { ListViewersUseCase } from "./application/use-cases/users/list-viewers.usecase";
@@ -112,6 +118,7 @@ import { NotificationController } from "./infrastructure/http/controllers/notifi
 import { SystemController } from "./infrastructure/http/controllers/system.controller";
 import { ApiKeyController } from "./infrastructure/http/controllers/api-key.controller";
 import { AuditLogController } from "./infrastructure/http/controllers/audit-log.controller";
+import { MaintenanceController } from "./infrastructure/http/controllers/maintenance.controller";
 
 import { authRoutes } from "./infrastructure/http/routes/auth.routes";
 import { monitorRoutes } from "./infrastructure/http/routes/monitor.routes";
@@ -122,6 +129,7 @@ import { notificationRoutes } from "./infrastructure/http/routes/notification.ro
 import { systemRoutes } from "./infrastructure/http/routes/system.routes";
 import { apiKeyRoutes } from "./infrastructure/http/routes/api-key.routes";
 import { auditLogRoutes } from "./infrastructure/http/routes/audit-log.routes";
+import { maintenanceRoutes } from "./infrastructure/http/routes/maintenance.routes";
 
 import { makeAuthGuard } from "./infrastructure/http/middlewares/auth-guard";
 import { makeApiKeyAuth } from "./infrastructure/http/middlewares/api-key-auth";
@@ -188,6 +196,7 @@ export function buildContainer(env: Env): AppContainer {
   const apiKeysRepo = new MongooseApiKeyRepository();
   const tlsConfigs = new MongooseTlsConfigRepository();
   const appSmtpSettingsRepo = new MongooseAppSmtpSettingsRepository();
+  const maintenanceRepo = new MongooseMaintenanceRepository();
 
   // SMTP de aplicación: por defecto AZKIN_SMTP_* del .env, o el de un canal de notificación
   // "email" reutilizado si el admin eligió uno (ver ResolveAppSmtpConfig).
@@ -206,7 +215,7 @@ export function buildContainer(env: Env): AppContainer {
   );
 
   // Motor de monitoreo
-  const executeCheck = new ExecuteCheckUseCase(registry, heartbeats, publisher, notifier);
+  const executeCheck = new ExecuteCheckUseCase(registry, heartbeats, publisher, notifier, maintenanceRepo);
   const scheduler = new InMemoryScheduler(monitors, executeCheck, heartbeats, publisher, notifier, env.firstCheckDelayMs);
 
   // Casos de uso
@@ -230,6 +239,11 @@ export function buildContainer(env: Env): AppContainer {
   const getRecentEvents = new GetRecentEventsUseCase(monitors, heartbeats);
   const getMonitorEvents = new GetMonitorEventsUseCase(monitors, heartbeats);
   const getGroupEvents = new GetGroupEventsUseCase(monitors, heartbeats);
+  const createMaintenanceWindow = new CreateMaintenanceWindowUseCase(maintenanceRepo);
+  const listMaintenanceWindows = new ListMaintenanceWindowsUseCase(maintenanceRepo);
+  const updateMaintenanceWindow = new UpdateMaintenanceWindowUseCase(maintenanceRepo);
+  const endMaintenanceWindow = new EndMaintenanceWindowUseCase(maintenanceRepo);
+  const deleteMaintenanceWindow = new DeleteMaintenanceWindowUseCase(maintenanceRepo);
 
   // Instanciación de Use cases de Viewers y Backup
   const listViewers = new ListViewersUseCase(users);
@@ -342,6 +356,13 @@ export function buildContainer(env: Env): AppContainer {
   const apiKeyController = new ApiKeyController(createApiKey, listApiKeys, revokeApiKey, deleteApiKey);
   const listAuditLog = new ListAuditLogUseCase(auditLog, users);
   const auditLogController = new AuditLogController(listAuditLog);
+  const maintenanceController = new MaintenanceController(
+    createMaintenanceWindow,
+    listMaintenanceWindows,
+    updateMaintenanceWindow,
+    endMaintenanceWindow,
+    deleteMaintenanceWindow,
+  );
   const getMetrics = new GetMetricsUseCase(monitors, heartbeats);
   const metricsController = new MetricsController(getMetrics);
 
@@ -364,6 +385,7 @@ export function buildContainer(env: Env): AppContainer {
   app.use("/api/v1/system", authGuard, systemRoutes(systemController));
   app.use("/api/v1/api-keys", authGuard, apiKeyRoutes(apiKeyController));
   app.use("/api/v1/audit-log", authGuard, auditLogRoutes(auditLogController));
+  app.use("/api/v1/maintenance", authGuard, maintenanceRoutes(maintenanceController));
   // API pública autenticada por API Key en vez de sesión JWT — reutiliza el mismo
   // MonitorController/monitorRoutes, sin duplicar lógica de negocio.
   app.use("/api/public/v1/monitors", apiKeyAuth, monitorRoutes(monitorController));

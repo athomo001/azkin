@@ -15,7 +15,7 @@ export interface IMonitor {
   interval: number;
   retries: number;
   timeout: number;
-  status: 'UP' | 'DOWN' | 'PENDING';
+  status: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE';
   lastCheckedAt?: string;
   group?: string;
   tags?: string[];
@@ -47,7 +47,7 @@ export interface IMonitor {
 
 export interface IHeartbeat {
   monitorId: string;
-  status: 'UP' | 'DOWN';
+  status: 'UP' | 'DOWN' | 'MAINTENANCE';
   latency?: number;
   message?: string;
   timestamp: string;
@@ -60,14 +60,14 @@ export interface MonitorEvent {
   monitorName: string;
   target: string;
   timestamp: string;
-  status: 'UP' | 'DOWN';
+  status: 'UP' | 'DOWN' | 'MAINTENANCE';
   ping: number | null;
   msg: string | null;
 }
 
 export interface IMonitorGroup {
   name: string;
-  worstStatus: 'UP' | 'DOWN' | 'PENDING';
+  worstStatus: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE';
   avgLatency: number;
   monitors: IMonitor[];
 }
@@ -212,7 +212,7 @@ export class MonitorService {
           status: statusStr,
           lastCheckedAt: heartbeat.timestamp,
           lastPing: heartbeat.latency ?? heartbeat.ping,
-          lastErrorMsg: statusStr === 'DOWN' ? heartbeat.msg ?? undefined : undefined,
+          lastErrorMsg: (statusStr === 'DOWN' || statusStr === 'MAINTENANCE') ? heartbeat.msg ?? undefined : undefined,
           certExpiry: heartbeat.certExpiry !== undefined ? heartbeat.certExpiry : m.certExpiry,
           domainExpiry: heartbeat.domainExpiry !== undefined ? heartbeat.domainExpiry : m.domainExpiry,
           isLocalNetworkDown: heartbeat.isLocalNetworkDown
