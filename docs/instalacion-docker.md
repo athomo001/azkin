@@ -363,7 +363,47 @@ dominios internos igual que tu navegador.
 
 ---
 
-## 12. Ver también
+## 12. Requisitos de red (puertos y protocolos)
+
+Lista pensada para pedirle al área de Redes exactamente lo que hay que abrir — separada en lo que
+debe llegar **hacia** el servidor donde corre Azkin (entrada) y lo que Azkin necesita poder alcanzar
+**desde** ese servidor (salida) para que el motor de monitoreo y las notificaciones funcionen.
+
+### Entrada (hacia el servidor Azkin)
+
+| Puerto | Protocolo | Variable | ¿Quién lo necesita? |
+|---|---|---|---|
+| 80 (o el que definas) | TCP (HTTP) | `AZKIN_FRONTEND_PORT` | **Obligatorio.** Es el único puerto que necesita cualquier usuario con navegador — Nginx sirve la SPA y hace de proxy interno hacia el backend para `/api/*` y `/socket.io/*` (WebSockets), así que todo el tráfico de usuario normal (UI, API, tiempo real) entra por acá. |
+| 3000 (o el que definas) | TCP (HTTP) | `AZKIN_BACK_PORT` | Opcional. Solo si necesitas llegar al backend **sin pasar por el proxy del frontend** — ej. un scraper de Prometheus (`/metrics`) o un integrador de la [API pública](./api-publica.md) que prefiera apuntar directo al backend. Si todo tu tráfico entra por el puerto 80, no hace falta abrir este. |
+| 8443 (o el que definas) | TCP (HTTPS) | `AZKIN_HTTPS_PORT` | Solo si activas el listener HTTPS nativo desde `/settings` → **TLS/Sistema** (ver §6). Si no usas esa función, no hace falta abrirlo. |
+| 27017 (o el que definas) | TCP | `AZKIN_MONGO_PORT` | **No abrir hacia la red.** Está enlazado únicamente a `127.0.0.1` del propio servidor (ver §4) — solo para depurar con Compass/mongosh estando conectado directamente a esa máquina. El backend nunca lo usa: se conecta a Mongo por la red interna de Docker. |
+
+### Salida (desde el servidor Azkin hacia internet/red interna)
+
+El motor de monitoreo necesita alcanzar cada objetivo que le pidas vigilar, y cada canal de alerta
+que configures. Qué protocolos/puertos exactos dependen de qué tipos de monitor y canales uses:
+
+| Protocolo / Puerto | Para qué | Tipo de monitor / canal |
+|---|---|---|
+| TCP 80/443 (o el puerto propio de cada sitio) | HTTP(S) saliente hacia cada objetivo | Monitor **HTTP/HTTPS** |
+| ICMP (echo request/reply) | Ping saliente | Monitor **Ping** |
+| TCP (el puerto que configures por monitor) | Conexión TCP saliente hacia el puerto vigilado | Monitor **Puerto (TCP)** |
+| UDP/TCP 53 | Consultas DNS — al servidor configurado en el monitor (`dnsResolver`), o al DNS del contenedor si no se especifica ninguno | Monitor **DNS Resolver**, y resolución de nombres en general para el resto de los monitores |
+| UDP 161 (o el puerto que configures, `snmpPort`) | Consultas SNMP v1/v2c/v3 | Monitor **SNMP** |
+| TCP 587/465/25 (según cómo configures el canal) | Envío de correo SMTP saliente | Canal de notificación **Email**, y el **SMTP de Aplicación** (recuperación de contraseña, `/settings` → TLS/Sistema) |
+| TCP 443 (HTTPS saliente) | Llamadas a la API del servicio | Canales **Slack**, **Discord**, **Telegram** y **Webhook genérico** (cada uno llama a su propia URL vía HTTPS — `hooks.slack.com`, `discord.com`, `api.telegram.org`, o el host que definas en un webhook) |
+
+Ninguno de los anteriores requiere que abras un puerto de **entrada** — son conexiones que el
+backend inicia hacia afuera; el firewall del servidor solo necesita permitir la **salida**.
+
+**Casos especiales ya documentados en detalle en este mismo archivo:**
+- Si un monitor apunta a un servicio en el **mismo servidor físico** que Azkin y falla por
+  inalcanzable pese a estar arriba, ver §10 (`host.docker.internal`) — es un problema de red
+  interna del host/Docker, no del firewall perimetral.
+- Si tus monitores apuntan a **dominios internos** que un DNS público no resuelve (ej. `*.corp`,
+  `*.local`), ver §11 — hay que decirle al contenedor qué DNS interno usar.
+
+## 13. Ver también
 
 - [README raíz](../README.md) — resumen del proyecto y stack.
 - [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) — arquitectura, autenticación, API pública.
