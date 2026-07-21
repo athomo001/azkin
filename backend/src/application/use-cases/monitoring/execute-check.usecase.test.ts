@@ -61,6 +61,18 @@ function makeRegistry(result: CheckResult): ICheckerRegistry {
   return { resolve: () => strategy };
 }
 
+/** Como `makeRegistry`, pero devuelve un `CheckResult` distinto según el tipo pedido —
+ * necesario para probar `runDegradationHeuristic`, que resuelve "ping"/"port" por separado
+ * del checker HTTP principal del monitor. */
+function makeTypedRegistry(results: Partial<Record<"http" | "ping" | "port", CheckResult>>): ICheckerRegistry {
+  return {
+    resolve: (type) => ({
+      type,
+      check: async () => results[type as "http" | "ping" | "port"] ?? { ok: false, ping: null, msg: "sin mock para este tipo" },
+    }),
+  };
+}
+
 function makeHeartbeats(): IHeartbeatRepository & { saved: IHeartbeat[] } {
   const saved: IHeartbeat[] = [];
   return {
@@ -107,6 +119,21 @@ function makeMaintenanceRepo(activeWindows: IMaintenanceWindow[] = []): IMainten
     close: async () => null,
     delete: async () => false,
   };
+}
+
+/** La heurística post-caída corre fire-and-forget (no la espera `execute()`) — como todos los
+ * mocks del archivo resuelven de inmediato, unas pocas vueltas de `setImmediate` alcanzan para
+ * que termine antes de las aserciones. */
+function flushAsync(times = 5): Promise<void> {
+  return new Promise((resolve) => {
+    let count = 0;
+    const tick = (): void => {
+      count++;
+      if (count >= times) resolve();
+      else setImmediate(tick);
+    };
+    setImmediate(tick);
+  });
 }
 
 function makeWindow(overrides: Partial<IMaintenanceWindow> = {}): IMaintenanceWindow {
@@ -352,4 +379,33 @@ test("el intervalo acelerado nunca es más rápido que el retryInterval del prop
 
   assert.equal(outcome.status, MonitorStatus.DOWN);
   assert.equal(outcome.nextDelaySeconds, 30, "el retryInterval (30s) del monitor gana sobre el acelerado global (15s)");
+});
+
+test("heurística post-caída: al concluir DEGRADADO, el heartbeat lleva el ping real medido (no null)", async () => {
+  const heartbeats = makeHeartbeats();
+  const notifier = makeNotifier();
+  const registry = makeTypedRegistry({
+    http: { ok: false, ping: null, msg: "timeout" },
+    ping: { ok: true, ping: 42, msg: "alive (42 ms)" },
+    port: { ok: false, ping: null, msg: "ECONNREFUSED" },
+  });
+  const useCase = new ExecuteCheckUseCase(
+    registry,
+    heartbeats,
+    makeRealtime(),
+    notifier,
+    makeMaintenanceRepo([]),
+    makeConfigResolver(),
+  );
+
+  await useCase.execute(makeMonitor(), { lastStatus: MonitorStatus.UP, retryAttempts: 0 });
+  await flushAsync();
+
+  assert.equal(heartbeats.saved.length, 2, "el heartbeat DOWN inicial + el DEGRADADO de la heurística");
+  const degradedBeat = heartbeats.saved[1];
+  assert.equal(degradedBeat.status, MonitorStatus.DEGRADED);
+  assert.equal(degradedBeat.ping, 42, "debe llevar el ping real medido por el checker de ping, no null");
+  assert.equal(notifier.events.length, 2, "aviso DOWN inicial + aviso DEGRADADO de la heurística");
+  assert.equal(notifier.events[1].eventType, "DEGRADED");
+  assert.equal(notifier.events[1].beat.ping, 42);
 });

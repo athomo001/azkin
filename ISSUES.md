@@ -35,6 +35,7 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-029](#az-029-no-existe-api-publica-para-integrar-sistemas-externos-sin-usar-sesion-de-usuario) | No existe API publica para integrar sistemas externos sin usar sesion de usuario | Media-Alta | [x] Resuelto |
 | [AZ-035](#az-035-respaldo-granular-de-activos-exportacionimportacion-molecular-de-monitores) | Respaldo granular de activos: exportacion/importacion molecular de monitores | Media | [x] Resuelto |
 | [AZ-040](#az-040-modulo-de-mantenimiento-y-silenciado-de-alertas) | Módulo de Mantenimiento y Silenciado de Alertas | Media-Alta | [x] Resuelto |
+| [AZ-041](#az-041-una-azkin_tls_encryption_key-mal-formada-tumba-todo-el-backend-al-arrancar) | Una `AZKIN_TLS_ENCRYPTION_KEY` mal formada tumba todo el backend al arrancar | Alta | [x] Resuelto |
 
 ### Calidad de codigo / deuda tecnica (auditoria senior)
 
@@ -1438,3 +1439,83 @@ export interface IMaintenanceWindow {
 - `backend/src/application/services/monitor-access-policy.ts` y `domain/entities/user.ts` (`IUserPermission`, precedente directo del shape de alcance granular a reutilizar en `IMaintenanceScope`).
 - `backend/src/infrastructure/persistence/mongoose/repositories/mongoose-heartbeat.repository.ts` (`getSummaries()`, donde se resolvería la pregunta abierta de exclusión del uptime).
 - `frontend/src/app/features/settings/tls-panel.ts` (sección "SMTP de Aplicación").
+
+---
+
+## AZ-041) Una `AZKIN_TLS_ENCRYPTION_KEY` mal formada tumba todo el backend al arrancar
+- Codigo: AZ-041
+- Estado: [x] Resuelto
+- Prioridad: Alta
+- Reportado: 2026-07-21
+- Resuelto: 2026-07-21
+
+### Resolucion
+- Extraída la validación de `AZKIN_TLS_ENCRYPTION_KEY` del schema Zod global de `env.ts` a una
+  función pura y testeable, `resolveTlsEncryptionKey()`
+  (`backend/src/infrastructure/config/resolve-tls-encryption-key.ts`): si el valor no tiene el
+  formato esperado (64 hex), devuelve `{ value: undefined, warning: "..." }` en vez de hacer
+  fallar el `schema.safeParse()` completo.
+- `env.ts` ahora solo acepta cualquier string no vacío en el schema (sin regex), resuelve el valor
+  efectivo con esa función, y hace `console.warn(...)` (mismo patrón que la advertencia existente
+  de `AZKIN_CORS_ORIGIN='*'`) en vez de `process.exit(1)` — el resto de variables críticas
+  (`AZKIN_JWT_SECRET`, `AZKIN_MONGO_URI`, `AZKIN_CORS_ORIGIN`) siguen fallando rápido sin cambios.
+- Verificado manualmente: arrancar con un valor mal formado ya no tumba el proceso (exit code 0),
+  solo imprime la advertencia y deja `tlsEncryptionKey` en `undefined` — la función de TLS-desde-UI
+  queda deshabilitada de forma controlada (ya existente en `apply-tls-config.usecase.ts`), el
+  resto del backend sigue operando con normalidad.
+- Tests nuevos: `resolve-tls-encryption-key.test.ts` (valor ausente, válido, corto, con
+  caracteres no-hex, y el caso real reportado — un salto de línea pegado al valor).
+- Mejora opcional #4 también implementada: botón "Generar clave" en `/settings` → TLS/Sistema.
+  Genera el valor de 64 hex enteramente en el navegador (`crypto.getRandomValues`, sin llamar al
+  backend ni persistir nada) y lo muestra en un modal con botón "Copiar al portapapeles" —mismo
+  patrón que el modal de API Keys ya existente— junto con las instrucciones de pegarlo en `.env`
+  y reiniciar el contenedor.
+
+### Descripcion
+Un admin agregó un valor a `AZKIN_TLS_ENCRYPTION_KEY` en `.env` (para poder subir un certificado
+TLS desde `/settings`) y el backend completo dejó de arrancar. Causa raíz: `env.ts` valida **todas**
+las variables de entorno en un único `schema.safeParse(process.env)` (líneas 13-57); si **cualquier**
+campo falla su validación, el resultado es `!parsed.success` y el proceso hace `console.error(...)` y
+luego `process.exit(1)` (líneas ~59-63) — sin distinguir qué tan crítica es esa variable puntual.
+
+`AZKIN_TLS_ENCRYPTION_KEY` exige exactamente 64 caracteres hexadecimales
+(`.regex(/^[0-9a-fA-F]{64}$/)`, línea 45) — un valor con un espacio, salto de línea, comillas, o
+generado con un método que no dé justo 32 bytes en hex, hace fallar *esa* variable y con ella cae
+**toda la aplicación** (login, monitoreo, todo), no solo la función opcional de TLS-desde-UI que la
+usa. Es una falla desproporcionada: un typo en una función secundaria no debería poder tumbar el
+resto del sistema.
+
+### Comportamiento esperado
+1. Un valor mal formado en `AZKIN_TLS_ENCRYPTION_KEY` no debe impedir que el backend arranque.
+2. En su lugar, se loguea una advertencia clara al arrancar (mismo patrón que ya existe para
+   `AZKIN_CORS_ORIGIN='*'`, ver `env.ts` líneas ~119-121) y la variable se trata como si no
+   estuviera configurada.
+3. La función de TLS-desde-UI (`/settings` → TLS/Sistema → "Aplicar configuración") sigue
+   fallando de forma clara y controlada si se intenta usar sin una clave válida — pero eso ya
+   ocurre a nivel de esa request puntual, nunca debe tumbar el proceso completo.
+4. (Mejora de UX opcional, no bloqueante) La pantalla de TLS ofrece un botón "Generar clave" que
+   entrega un valor válido de 64 caracteres hex listo para copiar a `.env`, para que nadie tenga
+   que ejecutar `node -e "..."` a mano ni arriesgarse a copiar mal el valor. Deliberadamente **no**
+   se autogenera y guarda la clave en Mongo: viviría en la misma base de datos que protege,
+   debilitando el propósito del cifrado en reposo si alguien llega a robar el Mongo completo.
+
+### Criterios de aceptacion
+1. Configurar `AZKIN_TLS_ENCRYPTION_KEY` con un valor que no sea 64 hex válidos y arrancar el
+   backend: el proceso sigue arriba, sirviendo todas las demás funciones con normalidad.
+2. En ese mismo caso, el log de arranque muestra una advertencia explícita mencionando la variable
+   y cómo generar un valor válido.
+3. Intentar aplicar un certificado TLS sin una clave válida configurada devuelve un error claro al
+   admin en esa request puntual, sin afectar el resto de la sesión ni del servicio.
+4. El resto de variables de entorno igual de críticas (`AZKIN_JWT_SECRET`, `AZKIN_MONGO_URI`,
+   `AZKIN_CORS_ORIGIN`) siguen fallando rápido (`process.exit(1)`) ante un valor inválido — este
+   cambio es específico a `AZKIN_TLS_ENCRYPTION_KEY` (y candidatos futuros de la misma categoría:
+   configuración opcional de una función secundaria), no una relajación general de la validación.
+
+### Pistas de investigacion
+- `backend/src/infrastructure/config/env.ts` líneas 41-47 (regex de la variable) y ~59-63
+  (`process.exit(1)` sobre cualquier fallo del schema completo).
+- `backend/src/composition-root.ts` línea ~308 (`env.tlsEncryptionKey ?? ""`) y
+  `apply-tls-config.usecase.ts` línea 91 (`encryptPrivateKey(input.keyPem, this.encryptionKey)`,
+  donde ya existe un fallo controlado si la clave es inválida — ese es el patrón a imitar).
+- `frontend/src/app/features/settings/tls-panel.ts` (para el botón "Generar clave" opcional del
+  punto 4).
