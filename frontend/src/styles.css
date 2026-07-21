@@ -19,45 +19,44 @@ body.light-theme ::-webkit-scrollbar-thumb {
   border-radius: 4px;
 }
 
-/* Fondos y bordes generales */
+/* Fondos y bordes generales
+   Nota: además del selector de clase exacta (necesario porque Tailwind v4 escapa el "/" de las
+   variantes de opacidad como "\/", ej. ".bg-zinc-900\/20"), se agrega un selector de atributo
+   "termina-en-/" (ej. [class*="bg-zinc-900/"]) para cubrir CUALQUIER opacidad usada (incluida una
+   nueva variante agregada a futuro) sin tener que enumerar cada una a mano — así se evita repetir
+   el bug de "bg-zinc-950/60 nunca se agregó a la lista" para la próxima clase que se use. El sufijo
+   "/" en el substring evita falsos positivos con variantes "hover:" (ej. "hover:bg-zinc-900" no
+   contiene el substring "bg-zinc-900/", así que no se ve afectado por esta regla base). */
 body.light-theme .bg-zinc-950 {
   background-color: #f9fafb !important;
   color: #111827 !important;
 }
-body.light-theme .bg-zinc-900 {
-  background-color: #ffffff !important;
-  color: #111827 !important;
-  border-color: #e5e7eb !important;
-}
-body.light-theme .bg-zinc-900\/50,
-body.light-theme .bg-zinc-900\/60,
-body.light-theme .bg-zinc-900\/80 {
+body.light-theme .bg-zinc-900,
+body.light-theme [class*="bg-zinc-900/"] {
   background-color: #ffffff !important;
   border-color: #e5e7eb !important;
   color: #111827 !important;
 }
-body.light-theme .bg-zinc-900\/10,
-body.light-theme .bg-zinc-900\/20,
-body.light-theme .bg-zinc-900\/30,
-body.light-theme .bg-zinc-900\/40 {
-  background-color: #ffffff !important;
-  border-color: #e5e7eb !important;
-  color: #111827 !important;
-}
-body.light-theme .bg-zinc-950\/20,
-body.light-theme .bg-zinc-950\/40,
-body.light-theme .bg-zinc-950\/80 {
+body.light-theme [class*="bg-zinc-950/"] {
   background-color: #f3f4f6 !important;
   color: #111827 !important;
 }
-body.light-theme .bg-zinc-800 {
+body.light-theme .bg-zinc-800,
+body.light-theme [class*="bg-zinc-800/"] {
   background-color: #e5e7eb !important;
 }
-body.light-theme .border-zinc-800,
-body.light-theme .border-zinc-900,
-body.light-theme .border-zinc-850,
-body.light-theme .border-zinc-900\/60,
-body.light-theme .border-zinc-900\/80 {
+body.light-theme [class~="border-zinc-700"],
+body.light-theme [class*="border-zinc-700/"],
+body.light-theme [class~="border-zinc-800"],
+body.light-theme [class*="border-zinc-800/"],
+body.light-theme [class~="border-zinc-850"],
+body.light-theme [class*="border-zinc-850/"],
+body.light-theme [class~="border-zinc-900"],
+body.light-theme [class*="border-zinc-900/"] {
+  border-color: #e5e7eb !important;
+}
+body.light-theme [class~="divide-zinc-900"],
+body.light-theme [class*="divide-zinc-900/"] {
   border-color: #e5e7eb !important;
 }
 
@@ -80,8 +79,26 @@ body.light-theme .text-zinc-400 {
 body.light-theme .text-zinc-500 {
   color: #6b7280 !important;
 }
-body.light-theme .text-zinc-600 {
+body.light-theme .text-zinc-600,
+body.light-theme .text-zinc-700 {
   color: #9ca3af !important;
+}
+
+/* text-rose-200/300 son tonos claros pensados para leerse sobre un fondo oscuro (ej. la caja
+   "Zona de peligro", bg-rose-500/10) — en modo claro esa misma caja compone a un rosa muy pálido,
+   así que ese mismo texto queda casi invisible. Se oscurecen solo para este tema. */
+body.light-theme .text-rose-200 {
+  color: #9f1239 !important;
+}
+body.light-theme .text-rose-300 {
+  color: #be123c !important;
+}
+
+/* Mismo problema que text-rose-200/300: text-orange-300 sobre bg-orange-500/15 (pill de rango
+   seleccionado en las tablas de eventos) se pensó para un fondo oscuro — en modo claro esa caja
+   compone a un durazno muy pálido y el texto queda casi invisible. */
+body.light-theme .text-orange-300 {
+  color: #9a3412 !important;
 }
 
 /* Inputs y Selects */
