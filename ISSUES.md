@@ -45,6 +45,7 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-045](#az-045-modulo-de-informes-periodicos-de-disponibilidad-y-reportes-en-pdf) | Módulo de Informes Periódicos de Disponibilidad y Reportes en PDF | Media-Alta | [x] Resuelto |
 | [AZ-046](#az-046-el-estado-degradado-se-disparaba-con-ping-icmp-al-host-en-vez-del-puerto-real-de-la-app) | El estado DEGRADADO se disparaba con ping ICMP al host, en vez del puerto real de la app | Alta | [x] Resuelto |
 | [AZ-047](#az-047-informes-az-045-huecos-de-monitoreo-detenido-contados-como-downtime-real-y-boton-enviar-ahora-podia-crear-informes-duplicados) | Informes (AZ-045): huecos de monitoreo detenido contados como downtime real, y "Enviar ahora" podía crear informes duplicados | Media | [x] Resuelto |
+| [AZ-048](#az-048-informes-az-045-el-rango-de-fechas-del-pdfcorreo-se-mostraba-en-utc-en-vez-de-hora-local-del-servidor) | Informes (AZ-045): el rango de fechas del PDF/correo se mostraba en UTC en vez de hora local del servidor | Baja | [x] Resuelto |
 
 ### Calidad de codigo / deuda tecnica (auditoria senior)
 
@@ -2105,3 +2106,43 @@ intentar un "enviar prueba" sobre el duplicado (sin destinatarios configurados).
 - `backend/src/application/ports/repositories/heartbeat-repository.ts` y
   `mongoose-heartbeat.repository.ts` (`getAvailabilityReport`).
 - `frontend/src/app/features/settings/reports-panel.ts` (`onSave`/`onSaveAndSendNow`/`formBusy`).
+
+---
+
+## AZ-048) Informes (AZ-045): el rango de fechas del PDF/correo se mostraba en UTC en vez de hora local del servidor
+- Codigo: AZ-048
+- Estado: [x] Resuelto
+- Prioridad: Baja
+- Reportado: 2026-07-22
+- Resuelto: 2026-07-22
+
+### Resolucion
+- `formatDateRange` (`application/services/report-format.ts`) usaba `Date.toISOString()`
+  (siempre UTC) para imprimir el encabezado del PDF y el cuerpo del correo, etiquetado
+  explícitamente "(UTC)". Se reemplazó por un formateo con los getters locales de `Date`
+  (`getFullYear`/`getMonth`/`getDate`/`getHours`/`getMinutes`), sin la etiqueta UTC — ahora
+  coincide con la hora local del servidor, la misma referencia que ya usa
+  `RunScheduledReportsUseCase.isDue()` (`now.getHours()`/`now.getDay()`) para decidir cuándo
+  disparar un informe según el `hour`/`dayOfWeek` configurado.
+
+### Descripcion
+El encabezado de un informe generado mostraba un rango como "2026-07-21 15:51 — 2026-07-22 15:51
+(UTC)", pese a que el reloj local al momento de revisarlo marcaba 12:22 y el informe se había
+generado un buen rato antes — el rango impreso no calzaba con la hora que el usuario esperaba ver.
+Causa: `formatDateRange` imprimía en UTC mientras que el resto del sistema (incluyendo la propia
+hora `hour`/`dayOfWeek` que el admin configura para el envío programado) opera en hora local del
+servidor — dos referencias horarias distintas conviviendo en el mismo informe.
+
+### Comportamiento esperado
+1. El rango de fechas mostrado en el PDF y en el cuerpo del correo usa la misma hora local del
+   servidor que ya rige la programación (`hour`/`dayOfWeek`) del informe.
+2. No se etiqueta el rango como "(UTC)" ya que deja de serlo.
+
+### Criterios de aceptacion
+1. El rango impreso en un informe generado "ahora" tiene como límite superior una hora cercana a
+   la hora local real del servidor al momento de la generación, no desplazada por el offset UTC.
+
+### Pistas de investigacion
+- `backend/src/application/services/report-format.ts` (`formatDateRange`).
+- `backend/src/application/use-cases/reports/run-scheduled-reports.usecase.ts` (`isDue`, misma
+  referencia de hora local que debe coincidir).
