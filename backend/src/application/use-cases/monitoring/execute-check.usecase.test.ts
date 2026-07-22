@@ -386,8 +386,9 @@ test("heurística post-caída: al concluir DEGRADADO, el heartbeat lleva el ping
   const notifier = makeNotifier();
   const registry = makeTypedRegistry({
     http: { ok: false, ping: null, msg: "timeout" },
-    ping: { ok: true, ping: 42, msg: "alive (42 ms)" },
-    port: { ok: false, ping: null, msg: "ECONNREFUSED" },
+    // El puerto TCP exacto de la app SÍ acepta conexión (handshake ok) pero la petición HTTP
+    // igual falla — esa es la única señal real de "app viva pero degradada/sobrecargada".
+    port: { ok: true, ping: 42, msg: "connected" },
   });
   const useCase = new ExecuteCheckUseCase(
     registry,
@@ -404,8 +405,37 @@ test("heurística post-caída: al concluir DEGRADADO, el heartbeat lleva el ping
   assert.equal(heartbeats.saved.length, 2, "el heartbeat DOWN inicial + el DEGRADADO de la heurística");
   const degradedBeat = heartbeats.saved[1];
   assert.equal(degradedBeat.status, MonitorStatus.DEGRADED);
-  assert.equal(degradedBeat.ping, 42, "debe llevar el ping real medido por el checker de ping, no null");
+  assert.equal(degradedBeat.ping, 42, "debe llevar el ping real medido por el checker de puerto, no null");
   assert.equal(notifier.events.length, 2, "aviso DOWN inicial + aviso DEGRADADO de la heurística");
   assert.equal(notifier.events[1].eventType, "DEGRADED");
   assert.equal(notifier.events[1].beat.ping, 42);
+});
+
+test("heurística post-caída: si el puerto TCP exacto rechaza la conexión, el veredicto queda en DOWN aunque el host responda ping", async () => {
+  // Caso real reportado: el host tiene otros servicios y responde ping igual, pero el puerto de
+  // la app monitoreada está completamente cerrado (ECONNREFUSED) — eso es una caída real, no
+  // "degradación". El ping ICMP ya no participa en absoluto de esta decisión.
+  const heartbeats = makeHeartbeats();
+  const notifier = makeNotifier();
+  const registry = makeTypedRegistry({
+    http: { ok: false, ping: null, msg: "timeout" },
+    ping: { ok: true, ping: 1, msg: "alive (1 ms)" },
+    port: { ok: false, ping: null, msg: "ECONNREFUSED" },
+  });
+  const useCase = new ExecuteCheckUseCase(
+    registry,
+    heartbeats,
+    makeRealtime(),
+    notifier,
+    makeMaintenanceRepo([]),
+    makeConfigResolver(),
+  );
+
+  await useCase.execute(makeMonitor(), { lastStatus: MonitorStatus.UP, retryAttempts: 0 });
+  await flushAsync();
+
+  assert.equal(heartbeats.saved.length, 1, "solo el heartbeat DOWN inicial — la heurística no debe agregar un DEGRADADO");
+  assert.equal(heartbeats.saved[0].status, MonitorStatus.DOWN);
+  assert.equal(notifier.events.length, 1, "solo el aviso DOWN inicial");
+  assert.equal(notifier.events[0].eventType, "DOWN");
 });

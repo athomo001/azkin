@@ -4,7 +4,10 @@ import cors from "cors";
 import express from "express";
 import cookieParser from "cookie-parser";
 import pLimit from "p-limit";
+import cron from "node-cron";
 import { Server } from "socket.io";
+import { logger } from "./infrastructure/logger";
+import { getErrorMessage } from "./application/services/get-error-message";
 
 import { Env } from "./infrastructure/config/env";
 import { IScheduler } from "./application/ports/services/scheduler";
@@ -23,6 +26,7 @@ import { MongooseApiKeyRepository } from "./infrastructure/persistence/mongoose/
 import { MongooseAppSmtpSettingsRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-app-smtp-settings.repository";
 import { MongooseMaintenanceRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-maintenance.repository";
 import { MongooseMonitoringEngineSettingsRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-monitoring-engine-settings.repository";
+import { MongooseReportDefinitionRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-report-definition.repository";
 
 // Services
 import { JwtTokenService } from "./infrastructure/security/jwt-token-service";
@@ -41,6 +45,8 @@ import { encryptPrivateKey } from "./infrastructure/security/tls-key-cipher";
 import { SmtpMailer } from "./infrastructure/notifier/smtp-mailer";
 import { ResolveAppSmtpConfig } from "./application/services/resolve-app-smtp-config";
 import { ResolveMonitoringEngineConfig } from "./application/services/resolve-monitoring-engine-config";
+import { ResolveDefaultAlertRecipients } from "./application/services/resolve-default-alert-recipients";
+import { PdfmakeReportRenderer } from "./infrastructure/reporting/pdfmake-report-renderer";
 
 // Use cases
 import { RegisterUseCase } from "./application/use-cases/auth/register.usecase";
@@ -65,6 +71,15 @@ import { ListMaintenanceWindowsUseCase } from "./application/use-cases/maintenan
 import { UpdateMaintenanceWindowUseCase } from "./application/use-cases/maintenance/update-maintenance-window.usecase";
 import { EndMaintenanceWindowUseCase } from "./application/use-cases/maintenance/end-maintenance-window.usecase";
 import { DeleteMaintenanceWindowUseCase } from "./application/use-cases/maintenance/delete-maintenance-window.usecase";
+import { CreateReportDefinitionUseCase } from "./application/use-cases/reports/create-report-definition.usecase";
+import { ListReportDefinitionsUseCase } from "./application/use-cases/reports/list-report-definitions.usecase";
+import { UpdateReportDefinitionUseCase } from "./application/use-cases/reports/update-report-definition.usecase";
+import { DeleteReportDefinitionUseCase } from "./application/use-cases/reports/delete-report-definition.usecase";
+import { GenerateReportDataUseCase } from "./application/use-cases/reports/generate-report-data.usecase";
+import { SendReportEmailUseCase } from "./application/use-cases/reports/send-report-email.usecase";
+import { SendTestReportUseCase } from "./application/use-cases/reports/send-test-report.usecase";
+import { DownloadReportPdfUseCase } from "./application/use-cases/reports/download-report-pdf.usecase";
+import { RunScheduledReportsUseCase } from "./application/use-cases/reports/run-scheduled-reports.usecase";
 
 // Use cases de Viewers y Backup
 import { ListViewersUseCase } from "./application/use-cases/users/list-viewers.usecase";
@@ -123,6 +138,7 @@ import { SystemController } from "./infrastructure/http/controllers/system.contr
 import { ApiKeyController } from "./infrastructure/http/controllers/api-key.controller";
 import { AuditLogController } from "./infrastructure/http/controllers/audit-log.controller";
 import { MaintenanceController } from "./infrastructure/http/controllers/maintenance.controller";
+import { ReportController } from "./infrastructure/http/controllers/report.controller";
 
 import { authRoutes } from "./infrastructure/http/routes/auth.routes";
 import { monitorRoutes } from "./infrastructure/http/routes/monitor.routes";
@@ -134,6 +150,7 @@ import { systemRoutes } from "./infrastructure/http/routes/system.routes";
 import { apiKeyRoutes } from "./infrastructure/http/routes/api-key.routes";
 import { auditLogRoutes } from "./infrastructure/http/routes/audit-log.routes";
 import { maintenanceRoutes } from "./infrastructure/http/routes/maintenance.routes";
+import { reportRoutes } from "./infrastructure/http/routes/report.routes";
 
 import { makeAuthGuard } from "./infrastructure/http/middlewares/auth-guard";
 import { makeApiKeyAuth } from "./infrastructure/http/middlewares/api-key-auth";
@@ -202,11 +219,16 @@ export function buildContainer(env: Env): AppContainer {
   const appSmtpSettingsRepo = new MongooseAppSmtpSettingsRepository();
   const maintenanceRepo = new MongooseMaintenanceRepository();
   const monitoringEngineSettingsRepo = new MongooseMonitoringEngineSettingsRepository();
+  const reportDefinitionsRepo = new MongooseReportDefinitionRepository();
 
   // SMTP de aplicación: por defecto AZKIN_SMTP_* del .env, o el de un canal de notificación
   // "email" reutilizado si el admin eligió uno (ver ResolveAppSmtpConfig).
   const smtpConfigResolver = new ResolveAppSmtpConfig(appSmtpSettingsRepo, notifications, env.smtp);
   const mailer = new SmtpMailer(smtpConfigResolver);
+  // "Correo de alertas global" para informes (AZ-045): reutiliza el mismo canal ya elegido como
+  // SMTP de Aplicación, tomando su destinatario configurado (ver ResolveDefaultAlertRecipients).
+  const defaultAlertRecipients = new ResolveDefaultAlertRecipients(appSmtpSettingsRepo, notifications);
+  const reportPdfRenderer = new PdfmakeReportRenderer();
 
   // Configuración del motor de monitoreo: por defecto AZKIN_DEGRADED_LATENCY_MS/
   // AZKIN_ACCELERATED_INTERVAL_SECONDS del .env, o el override que haya guardado un Admin
@@ -264,6 +286,23 @@ export function buildContainer(env: Env): AppContainer {
   const updateMaintenanceWindow = new UpdateMaintenanceWindowUseCase(maintenanceRepo, auditLog);
   const endMaintenanceWindow = new EndMaintenanceWindowUseCase(maintenanceRepo, auditLog);
   const deleteMaintenanceWindow = new DeleteMaintenanceWindowUseCase(maintenanceRepo, auditLog);
+
+  // Informes periódicos de disponibilidad (AZ-045)
+  const createReportDefinition = new CreateReportDefinitionUseCase(reportDefinitionsRepo, auditLog);
+  const listReportDefinitions = new ListReportDefinitionsUseCase(reportDefinitionsRepo);
+  const updateReportDefinition = new UpdateReportDefinitionUseCase(reportDefinitionsRepo, auditLog);
+  const deleteReportDefinition = new DeleteReportDefinitionUseCase(reportDefinitionsRepo, auditLog);
+  const generateReportData = new GenerateReportDataUseCase(monitors, heartbeats);
+  const sendReportEmail = new SendReportEmailUseCase(
+    generateReportData,
+    reportPdfRenderer,
+    mailer,
+    defaultAlertRecipients,
+    reportDefinitionsRepo,
+  );
+  const sendTestReport = new SendTestReportUseCase(reportDefinitionsRepo, sendReportEmail, auditLog);
+  const downloadReportPdf = new DownloadReportPdfUseCase(reportDefinitionsRepo, generateReportData, reportPdfRenderer);
+  const runScheduledReports = new RunScheduledReportsUseCase(reportDefinitionsRepo, sendReportEmail);
 
   // Instanciación de Use cases de Viewers y Backup
   const listViewers = new ListViewersUseCase(users);
@@ -391,6 +430,14 @@ export function buildContainer(env: Env): AppContainer {
     endMaintenanceWindow,
     deleteMaintenanceWindow,
   );
+  const reportController = new ReportController(
+    createReportDefinition,
+    listReportDefinitions,
+    updateReportDefinition,
+    deleteReportDefinition,
+    sendTestReport,
+    downloadReportPdf,
+  );
   const getMetrics = new GetMetricsUseCase(monitors, heartbeats);
   const metricsController = new MetricsController(getMetrics);
 
@@ -414,10 +461,21 @@ export function buildContainer(env: Env): AppContainer {
   app.use("/api/v1/api-keys", authGuard, apiKeyRoutes(apiKeyController));
   app.use("/api/v1/audit-log", authGuard, auditLogRoutes(auditLogController));
   app.use("/api/v1/maintenance", authGuard, maintenanceRoutes(maintenanceController));
+  app.use("/api/v1/reports", authGuard, reportRoutes(reportController));
   // API pública autenticada por API Key en vez de sesión JWT — reutiliza el mismo
   // MonitorController/monitorRoutes, sin duplicar lógica de negocio.
   app.use("/api/public/v1/monitors", apiKeyAuth, monitorRoutes(monitorController));
   app.use(errorHandler);
+
+  // Tick del cron de informes periódicos (AZ-045): cada 15 minutos evalúa qué definiciones
+  // habilitadas coinciden con su hora/día configurado y las envía. `RunScheduledReportsUseCase`
+  // ya captura errores por definición individualmente; este catch es solo una red de seguridad
+  // ante un fallo catastrófico (ej. Mongo caído al listar definiciones).
+  cron.schedule("*/15 * * * *", () => {
+    runScheduledReports.execute().catch((err) => {
+      logger.error(`[Reports] Fallo inesperado en el tick del cron de informes: ${getErrorMessage(err)}`);
+    });
+  });
 
   return { server, scheduler, tlsServerManager, tlsConfigs, tlsEncryptionKey: env.tlsEncryptionKey };
 }

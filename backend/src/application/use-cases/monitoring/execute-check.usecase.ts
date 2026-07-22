@@ -162,27 +162,24 @@ export class ExecuteCheckUseCase {
       return;
     }
 
-    const [pingResult, portResult] = await Promise.allSettled([
-      this.registry.resolve("ping").check({ ...monitor, target: hostname }),
-      this.registry.resolve("port").check({ ...monitor, target: hostname, port }),
-    ]);
+    // Deliberadamente NO se usa ping ICMP como evidencia de degradación: el ping va al host, no
+    // al puerto/app monitoreado, y un host con más de un servicio puede responder ping aunque la
+    // app monitoreada esté completamente caída (falso "degradado" reportado en producción — el
+    // puerto rechazaba la conexión por completo y aun así se avisó DEGRADED en vez de DOWN).
+    // Solo un handshake TCP exitoso contra el puerto exacto de la app es evidencia real de
+    // "servidor vivo pero aplicación no responde"; si el puerto rechaza la conexión, es una
+    // caída real y el DOWN ya emitido queda como veredicto final.
+    const portResult = await this.registry.resolve("port").check({ ...monitor, target: hostname, port });
+    if (!portResult.ok) return;
 
-    const pingCheck = pingResult.status === "fulfilled" ? pingResult.value : null;
-    const portCheck = portResult.status === "fulfilled" ? portResult.value : null;
-    const pingOk = pingCheck?.ok === true;
-    const portOk = portCheck?.ok === true;
-    if (!pingOk && !portOk) return; // Caída real confirmada — el DOWN ya emitido queda como veredicto final.
-
-    const layer = pingOk && portOk ? "ping y TCP" : pingOk ? "ping" : "TCP";
-    // Latencia real medida por el chequeo que respondió (ping ICMP o conexión TCP), no la del
-    // heartbeat DOWN original — ese venía de un chequeo HTTP fallido, con `ping: null` siempre.
-    const measuredPing = pingOk ? pingCheck!.ping : portOk ? portCheck!.ping : null;
     const beat: IHeartbeat = {
       monitorId: monitor.id,
       timestamp: new Date(),
       status: MonitorStatus.DEGRADED,
-      ping: measuredPing,
-      msg: `Servidor responde a nivel de red (${layer}) pero la aplicación no — posible degradación/sobrecarga.`,
+      // Latencia real del handshake TCP, no la del heartbeat DOWN original (ese venía de un
+      // chequeo HTTP fallido, con `ping: null` siempre).
+      ping: portResult.ping,
+      msg: "El puerto TCP de la aplicación responde pero la petición HTTP no — posible degradación/sobrecarga.",
       isLocalNetworkDown: false,
     };
 

@@ -15,11 +15,12 @@ import { BackupsPanelComponent } from './backups-panel';
 import { ViewersPanelComponent } from './viewers-panel';
 import { AlertsPanelComponent } from './alerts-panel';
 import { MaintenancePanelComponent } from './maintenance-panel';
+import { ReportsPanelComponent } from './reports-panel';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, ConfirmModalComponent, ToastComponent, TlsPanelComponent, AuditLogPanelComponent, ApiKeysPanelComponent, BackupsPanelComponent, ViewersPanelComponent, AlertsPanelComponent, MaintenancePanelComponent],
+  imports: [CommonModule, RouterModule, FormsModule, ConfirmModalComponent, ToastComponent, TlsPanelComponent, AuditLogPanelComponent, ApiKeysPanelComponent, BackupsPanelComponent, ViewersPanelComponent, AlertsPanelComponent, MaintenancePanelComponent, ReportsPanelComponent],
   template: `
     <div class="min-h-screen bg-zinc-950 text-white flex flex-col font-sans">
       <!-- Navbar -->
@@ -86,6 +87,11 @@ import { MaintenancePanelComponent } from './maintenance-panel';
             class="transition-all relative z-10 px-1">
             Mantenimiento
           </button>
+          <button (click)="activeTab.set('reports')"
+            [class]="activeTab() === 'reports' ? 'border-b-2 border-orange-500 text-white font-bold pb-3 -mb-[2px]' : 'text-zinc-400 hover:text-zinc-200 pb-3 -mb-[2px] transition-colors'"
+            class="transition-all relative z-10 px-1">
+            Informes
+          </button>
           <button (click)="activeTab.set('tls')"
             [class]="activeTab() === 'tls' ? 'border-b-2 border-orange-500 text-white font-bold pb-3 -mb-[2px]' : 'text-zinc-400 hover:text-zinc-200 pb-3 -mb-[2px] transition-colors'"
             class="transition-all relative z-10 px-1">
@@ -123,6 +129,11 @@ import { MaintenancePanelComponent } from './maintenance-panel';
           <!-- ================= PESTAÑA: MANTENIMIENTO ================= -->
           @if (activeTab() === 'maintenance') {
             <app-maintenance-panel />
+          }
+
+          <!-- ================= PESTAÑA: INFORMES ================= -->
+          @if (activeTab() === 'reports') {
+            <app-reports-panel />
           }
 
           <!-- ================= PESTAÑA: TLS / SISTEMA ================= -->
@@ -166,7 +177,7 @@ export class SettingsComponent implements OnInit {
   public readonly lang = inject(LanguageService);
   public readonly themeService = inject(ThemeService);
 
-  readonly activeTab = signal<'alerts' | 'viewers' | 'backups' | 'maintenance' | 'tls' | 'api' | 'audit'>('alerts');
+  readonly activeTab = signal<'alerts' | 'viewers' | 'backups' | 'maintenance' | 'reports' | 'tls' | 'api' | 'audit'>('alerts');
 
   ngOnInit(): void {
     // Estado compartido leido por varios paneles (Viewers, Backups) — se carga aqui, a nivel de
@@ -174,7 +185,7 @@ export class SettingsComponent implements OnInit {
     this.monitorService.loadMonitors().subscribe();
 
     const requestedTab = this.route.snapshot.queryParamMap.get('tab');
-    const validTabs = ['alerts', 'viewers', 'backups', 'maintenance', 'tls', 'api', 'audit'] as const;
+    const validTabs = ['alerts', 'viewers', 'backups', 'maintenance', 'reports', 'tls', 'api', 'audit'] as const;
     if (requestedTab && (validTabs as readonly string[]).includes(requestedTab)) {
       this.activeTab.set(requestedTab as (typeof validTabs)[number]);
     }

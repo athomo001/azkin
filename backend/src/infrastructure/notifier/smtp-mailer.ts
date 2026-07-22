@@ -38,6 +38,12 @@ export class SmtpMailer implements IMailer {
         to: input.to,
         subject: input.subject,
         text: input.text,
+        html: input.html,
+        attachments: input.attachments?.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+          contentType: a.contentType,
+        })),
       });
     } catch (err) {
       if (options?.throwOnFailure) throw err;

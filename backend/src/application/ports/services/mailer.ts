@@ -1,8 +1,16 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
+export interface SendMailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+}
+
 export interface SendMailInput {
   to: string;
   subject: string;
   text: string;
+  html?: string;
+  attachments?: SendMailAttachment[];
 }
 
 export interface SendMailOptions {
