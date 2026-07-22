@@ -16,13 +16,18 @@ export class FileDownloadService {
     this.downloadBlob(content, mimeType, filename);
   }
 
-  private downloadBlob(content: string, mimeType: string, filename: string): void {
-    const blob = new Blob([content], { type: mimeType });
+  /** Descarga un Blob binario recibido tal cual del backend (ej. un PDF), sin pasar por JSON.stringify. */
+  downloadFileBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  private downloadBlob(content: string, mimeType: string, filename: string): void {
+    const blob = new Blob([content], { type: mimeType });
+    this.downloadFileBlob(blob, filename);
   }
 }

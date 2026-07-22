@@ -42,6 +42,9 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-042](#az-042-estado-degradado-y-monitoreo-adaptativo) | Estado DEGRADADO y monitoreo adaptativo | Alta | [x] Resuelto |
 | [AZ-043](#az-043-el-historial-de-auditoria-solo-cubria-12-acciones-administrativas-de-un-inventario-mucho-mayor) | El historial de auditoría solo cubría 12 acciones administrativas de un inventario mucho mayor | Media-Alta | [x] Resuelto |
 | [AZ-044](#az-044-la-pantalla-de-settings-se-desordeno-al-acumular-pestanas-y-secciones-nuevas) | La pantalla de Settings se desordenó al acumular pestañas y secciones nuevas | Baja | [x] Resuelto |
+| [AZ-045](#az-045-modulo-de-informes-periodicos-de-disponibilidad-y-reportes-en-pdf) | Módulo de Informes Periódicos de Disponibilidad y Reportes en PDF | Media-Alta | [x] Resuelto |
+| [AZ-046](#az-046-el-estado-degradado-se-disparaba-con-ping-icmp-al-host-en-vez-del-puerto-real-de-la-app) | El estado DEGRADADO se disparaba con ping ICMP al host, en vez del puerto real de la app | Alta | [x] Resuelto |
+| [AZ-047](#az-047-informes-az-045-huecos-de-monitoreo-detenido-contados-como-downtime-real-y-boton-enviar-ahora-podia-crear-informes-duplicados) | Informes (AZ-045): huecos de monitoreo detenido contados como downtime real, y "Enviar ahora" podía crear informes duplicados | Media | [x] Resuelto |
 
 ### Calidad de codigo / deuda tecnica (auditoria senior)
 
@@ -1720,3 +1723,385 @@ desordenado en pantallas anchas.
 - `frontend/src/app/features/settings/settings.ts` (contenedor `<main>`, línea ~59).
 - `frontend/src/app/features/settings/backups-panel.ts` y `tls-panel.ts` (patrón de grid a
   replicar en futuras pestañas que crezcan demasiado).
+
+---
+
+## AZ-045) Módulo de Informes Periódicos de Disponibilidad y Reportes en PDF
+- Codigo: AZ-045
+- Estado: [x] Resuelto
+- Prioridad: Media-Alta
+- Reportado: 2026-07-21
+- Resuelto: 2026-07-22
+
+### Resolucion
+- Nuevo módulo completo `reports` calcado del patrón de Mantenimiento (AZ-040): entidad
+  `IReportDefinition` (`domain/entities/report-definition.ts`), puerto + esquema Mongoose +
+  repositorio (`report-definition-repository.ts` / `mongoose-report-definition.repository.ts`),
+  CRUD de casos de uso con auditoría (`REPORT_CREATE/UPDATE/DELETE/SEND_TEST`), controlador y
+  rutas `/api/v1/reports` bajo `requireRole("admin")` — sin acceso alguno para Viewer, ni en la UI
+  (nueva pestaña "Informes" en `/settings`, sin punto de entrada en el Dashboard).
+- **Alcance por área/grupo**: `resolveReportScopeMonitors` (bulk, a diferencia del check
+  per-monitor de Mantenimiento) resuelve `all`/`group`/`monitor` reutilizando el mismo shape de
+  alcance granular.
+- **Métricas**: nuevo `IHeartbeatRepository.getAvailabilityReport(monitorIds, from, to)` +
+  función pura `computeAvailabilityStats` (con suite de tests dedicada) calculan incidentes,
+  downtime exacto en segundos (sin crédito parcial) y uptime (con el mismo crédito parcial 0.5 a
+  DEGRADED que ya usa el dashboard), excluyendo heartbeats en `MAINTENANCE`. Se llama dos veces
+  por informe (periodo actual y periodo anterior equivalente) para la comparación de tendencia.
+- **Top de indisponibilidad/degradación**, **servicios sin incidentes** y **KPIs ejecutivos con
+  trend** (↑/↓ vs. periodo anterior) implementados en `GenerateReportDataUseCase`, con tests.
+- **PDF**: `pdfmake` (`LETTER`, márgenes `[40,60,40,60]`, `dontBreakRows: true`, pie "Página X de
+  Y"). *Desviación deliberada del diseño original*: en vez de `chartjs-node-canvas` (requiere el
+  paquete nativo `canvas`, alto riesgo de fallo de compilación en Windows sin Visual Studio Build
+  Tools), el histograma de caídas se dibuja con las primitivas vectoriales propias de pdfmake
+  (rectángulos) — cero dependencias nativas, decisión confirmada con el usuario. Las fuentes usan
+  los 14 estándares de PDFKit (Helvetica) por nombre, sin archivos `.ttf` externos. *Recorte de
+  alcance*: no se implementó una curva de latencia separada (hubiera requerido una agregación de
+  series de tiempo adicional); el histograma de downtime por monitor cubre el requisito de
+  "gráficos representativos".
+- **Correo con adjunto**: `SendMailInput` ganó `html`/`attachments`; `SmtpMailer` los pasa a
+  `nodemailer.sendMail`. El envío de informes reutiliza el transporte SMTP de aplicación
+  (`ResolveAppSmtpConfig`), no el notificador multicanal por evento.
+- **"Correo global de alertas"**: como no existe ese concepto en el sistema (los destinatarios
+  viven por canal de notificación), `default_alert_email` reutiliza el mismo canal ya referenciado
+  por `IAppSmtpSettings` ("SMTP de Aplicación") vía el nuevo `ResolveDefaultAlertRecipients` —
+  decisión confirmada con el usuario antes de implementar.
+- **Cron**: nueva dependencia `node-cron` (pura JS, sin bindings nativos), tick cada 15 minutos en
+  `composition-root.ts` que invoca `RunScheduledReportsUseCase` — compara hora/día configurados
+  contra la hora actual y usa `lastSentAt` con una guarda de "mínimo 20h" (diario) / "mínimo 6
+  días" (semanal) para evitar doble envío dentro de la misma ventana, en vez de comparar límites
+  exactos de calendario. Un fallo en una definición no detiene el envío del resto.
+- Frontend: `report.service.ts` (calcado de `maintenance.service.ts`) + `reports-panel.ts`
+  (calcado de `maintenance-panel.ts`, mismo selector de alcance reutilizado por copy-paste, mismo
+  precedente ya establecido por Mantenimiento/Viewers) + `FileDownloadService.downloadFileBlob()`
+  (capacidad nueva: descarga de un Blob binario devuelto por el backend, antes solo se descargaban
+  strings construidos en cliente). Pestaña "Informes" agregada a `settings.ts` sin tocar ningún
+  guard — `/settings` ya es 100% admin-only a nivel de ruta.
+- Verificado: `pnpm typecheck` y `pnpm test` (183/183, incluye 8 tests de
+  `computeAvailabilityStats`, 6 de `GenerateReportDataUseCase`/scope resolver, 8 de
+  `RunScheduledReportsUseCase`) en el backend; `pnpm build` (Angular) limpio en el frontend; un
+  script ad-hoc confirmó que `PdfmakeReportRenderer` genera un buffer con firma `%PDF-` válida.
+  **No verificado**: un recorrido manual end-to-end en navegador (crear un informe, click en
+  "Enviar prueba" contra un SMTP real, confirmar recepción del correo con el PDF adjunto) — los
+  servidores de desarrollo no se levantaron en esta sesión.
+
+### Descripcion
+Azkin no tiene ninguna forma de consolidar la actividad de un periodo (día/semana) en un resumen
+ejecutivo: hoy el único acceso a las métricas de caídas es el dashboard en vivo y el historial
+crudo por monitor. Se solicita un sistema de generación automática (por cron) y bajo demanda de
+**Informes Periódicos de Rendimiento y Disponibilidad** (Diario y Semanal), que consolide número
+de incidentes, tiempo total de indisponibilidad y % de uptime por monitor/grupo, los visualice en
+el panel con gráficos, y los exporte como PDF adjunto a un correo — con destinatarios configurables
+por informe (correo global de alertas ya existente, o una lista propia por reporte).
+
+Distintas áreas de una organización suelen querer ver solo su propia porción del inventario (ej.
+"Comercial" solo quiere el reporte de sus webs, no el de Infraestructura), no un único reporte
+global para todos — por eso el reporte necesita alcance configurable, con el mismo concepto de
+alcance granular (`all`/`group`/`monitor`) que ya usan los permisos de Viewer (AZ-001) y las
+ventanas de mantenimiento (AZ-040).
+
+No existe hoy ningún scheduler/cron en el backend (no hay dependencia `node-cron` ni equivalente en
+`backend/package.json`) ni ningún generador de PDF — este issue introduce ambas piezas de
+infraestructura nueva, además del módulo de reporting en sí.
+
+### Comportamiento esperado
+1. Un Admin puede crear varias **definiciones de reporte** independientes (no un único reporte
+   global fijo), cada una con su propia frecuencia (Diario/Semanal), horario, alcance y
+   destinatarios — ej. "Diario — Comercial" acotado al grupo Comercial enviado a
+   `comercial@empresa.com`, y "Semanal — Gerencia" con alcance `all` enviado al correo global.
+2. Cada definición de reporte tiene un **alcance** (`all` / un grupo / uno o más monitores
+   puntuales, mismo concepto que ya usan los permisos de Viewer y las ventanas de mantenimiento):
+   el reporte solo consolida y muestra los monitores dentro de ese alcance, nunca el inventario
+   completo si el alcance es más acotado.
+3. El informe consolida, por el periodo correspondiente (últimas 24h o últimos 7 días) y dentro de
+   su alcance: total de incidentes (transiciones a `DOWN`/`DEGRADED`), tiempo total de
+   indisponibilidad acumulado (suma exacta de segundos en `DOWN`/`DEGRADED`, no una estimación por
+   intervalo de check), y % de uptime consolidado por monitor y por grupo.
+4. Al llegar la hora programada, el sistema genera el PDF y lo envía por correo como adjunto, con
+   un resumen ejecutivo en el cuerpo del correo (HTML) antes del PDF.
+5. Cada definición de reporte elige, de forma independiente, si el envío va al correo global de
+   alertas ya configurado en el sistema o a una lista de correos específica definida solo para ese
+   reporte (gerencia, TI, clientes, el área dueña del alcance, etc.).
+6. El Admin puede generar y descargar el PDF de cualquier definición bajo demanda
+   ("hoy"/"esta semana") y enviar un correo de prueba, sin esperar al cron.
+7. El PDF incluye gráficos (histograma de caídas, curva de latencia, desglose de uptime por
+   grupo/activo) generados en el servidor (sin navegador headless).
+8. El informe incluye un **Top de indisponibilidad/degradación**: ranking de los N monitores (
+   dentro del alcance de la definición) con más incidentes y/o más segundos acumulados en
+   `DOWN`/`DEGRADED` en el periodo, ordenado de peor a mejor — la vista rápida de "qué está
+   fallando más" para una gerencia que no va a leer el detalle completo.
+9. El informe incluye, de forma igual de visible que el Top de fallas, un listado de **servicios
+   sin incidentes** ("100% uptime del periodo" / cero caídas) — contenido positivo pensado para
+   reportar a un área o gerencia, no solo lo que salió mal.
+10. El resumen ejecutivo (primer bloque del PDF y del cuerpo del correo) muestra KPIs tipo tarjeta
+    (uptime global del periodo, incidentes totales, tiempo total de indisponibilidad, monitor más
+    estable y monitor más problemático) antes de entrar al detalle tabular — el formato "ejecutivo"
+    que puede leerse en 10 segundos sin abrir el PDF completo.
+11. Cada KPI del resumen ejecutivo se muestra junto a una **comparación con el periodo anterior**
+    equivalente (el día previo para el Diario, la semana previa para el Semanal): variación en
+    puntos porcentuales de uptime y en número de incidentes, con indicador visual de mejora/
+    empeoramiento (ej. ↑/↓ en verde/rojo) — la pregunta que una gerencia hace de inmediato es
+    "¿vamos mejor o peor que la vez pasada?", no solo el valor absoluto del periodo.
+12. El módulo completo (crear/editar/eliminar definiciones, enviar prueba, descargar PDF bajo
+    demanda) es exclusivo del rol Admin — un Viewer no tiene acceso a ninguna parte de este módulo,
+    ni siquiera de solo lectura, ya que el reporte puede exponer datos fuera del alcance granular
+    que el Viewer tiene autorizado hoy en el dashboard.
+13. Toda la funcionalidad vive únicamente dentro de `/settings` (nueva pestaña "Informes", mismo
+    nivel que "Mantenimiento" y "Respaldos") — no hay ningún punto de entrada en el Dashboard
+    general; un Admin que quiera el PDF de hoy entra a `/settings` a buscarlo, igual que ya hace
+    hoy para descargar un respaldo.
+
+### Diseño propuesto
+
+**Persistencia de configuración**: a diferencia de `IAppSmtpSettings`/`IMonitoringEngineSettings`
+(un singleton por instancia), el reporte necesita **múltiples definiciones** independientes (una
+por área/alcance), así que el patrón correcto es el mismo de `IMaintenanceWindow` (AZ-040):
+colección con CRUD propio, no un singleton.
+
+```ts
+// domain/entities/report-definition.ts
+export type ReportFrequency = "daily" | "weekly";
+export type ReportRecipientMode = "default_alert_email" | "custom_list";
+
+export type ReportScopeType = "all" | "group" | "monitor";
+export interface IReportScope {
+  type: ReportScopeType;
+  value?: string; // nombre de grupo o id de monitor; se omite si type === "all"
+}
+// Mismo shape que `IMaintenanceScope` (AZ-040) / permisos de Viewer — se reutiliza el mismo
+// concepto de alcance granular, no se inventa uno nuevo.
+
+export interface IReportDefinition {
+  id: string;
+  name: string;                  // ej. "Diario — Comercial", visible en la UI y en el asunto del correo
+  enabled: boolean;
+  frequency: ReportFrequency;
+  scope: IReportScope[];
+  hour: number;                  // 0-23, hora local del servidor/instancia
+  dayOfWeek?: number;            // 0-6, solo si frequency === "weekly"
+  recipientMode: ReportRecipientMode;
+  recipientEmails: string[];     // solo aplica si recipientMode === "custom_list"
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+**Scheduler**: introducir `node-cron` (no hay ninguna dependencia de cron en el repo hoy) cableado
+en `composition-root.ts`, con una tarea de "tick" (ej. cada minuto/hora) que lee todas las
+`IReportDefinition` habilitadas y dispara la generación de las que coinciden con la hora/día actual
+— mismo espíritu que el resto del sistema evita lógica de negocio en `composition-root.ts`
+(ver AZ-013): el cron solo debe invocar un `RunScheduledReportsUseCase`, sin lógica propia.
+
+**Métricas** (agregación sobre `Heartbeat`, reutilizando el patrón de `getSummaries()` en
+`mongoose-heartbeat.repository.ts`): nuevo método en `IHeartbeatRepository` (ej.
+`getAvailabilityReport(monitorIds, from, to)`) que agregue, por monitor, conteo de transiciones a
+`DOWN`/`DEGRADED` y suma de segundos en esos estados entre heartbeats consecutivos — cuidando
+excluir explícitamente los heartbeats en `MAINTENANCE` (ver AZ-040), igual que ya hace
+`getSummaries()` para el cálculo de `uptime24h`. El caso de uso de generación llama este mismo
+método dos veces por definición de reporte: una para `[from, to)` (el periodo actual) y otra para
+`[from - periodo, from)` (el periodo anterior equivalente), y calcula la variación entre ambos para
+la comparación de tendencia — sin tabla ni cache nueva, es la misma agregación con otro rango.
+
+**Generación de PDF**: `pdfmake` (sin Puppeteer/Chromium) — página `LETTER`, márgenes
+`[40, 60, 40, 60]`, tablas con `dontBreakRows: true`, encabezado/pie con numeración "Página X de Y".
+Gráficos renderizados server-side a PNG/Base64 (ej. `chartjs-node-canvas`) e inyectados como
+`image` en la definición de `pdfmake`.
+
+**Contenido orientado a gerencia/área** (no solo datos crudos), en este orden dentro del PDF —
+todo acotado al `scope` de la definición de reporte:
+1. Encabezado con el `name` de la definición (ej. "Diario — Comercial") y el rango de fechas exacto
+   del periodo, para que quede claro a qué alcance corresponde el PDF.
+2. Bloque de KPIs tipo tarjeta (uptime global, incidentes totales, downtime acumulado, mejor/peor
+   monitor del periodo), cada uno con su variación vs. el periodo anterior equivalente (↑/↓ en
+   puntos porcentuales o en número de incidentes).
+3. **Top de indisponibilidad/degradación**: tabla ordenada de mayor a menor downtime/incidentes
+   (monitor, grupo, incidentes, segundos de indisponibilidad, % uptime), truncada a un Top N
+   configurable (ej. 10) con el resto agregado en un total "otros".
+4. **Servicios sin incidentes**: lista simple (o chip grid) de monitores con 0 caídas/degradaciones
+   en el periodo — refuerza el mensaje positivo, no solo el listado de fallas.
+5. Gráficos: histograma de caídas por día (o por hora en el Diario), curva de latencia, desglose de
+   uptime por grupo.
+6. Detalle tabular completo por monitor (el nivel de detalle que hoy no existe en ningún lado).
+
+**Envío**: reutilizar `smtp-mailer.ts`/`multichannel-notifier.ts` (ya usado por el canal de
+notificación tipo email y por recuperación de contraseña) agregando soporte de adjuntos; resolver
+destinatarios según `recipientMode` (correo global de alertas vs `recipientEmails` del reporte).
+
+**Frontend**: nueva pestaña "Informes" en `/settings` (mismo nivel que "Mantenimiento" y
+"Respaldos", solo accesible para Admin — sin punto de entrada en el Dashboard general ni en ningún
+lugar visible para Viewer) con listado de definiciones de reporte existentes (mismo patrón de
+listado que la pestaña "Mantenimiento" de AZ-040) y botón "Nuevo reporte": formulario con nombre,
+frecuencia (Diario/Semanal), selector de alcance (reutilizando el mismo componente que ya usa el
+formulario de permisos de Viewer y el de Mantenimiento para elegir "Todo"/"Grupo"/"Monitor"),
+selector de hora/día, radio "Correo de alertas global" vs "Lista personalizada" con input de chips
+para los correos. Cada definición en el listado tiene botones "Enviar prueba" y "Descargar PDF de
+hoy/esta semana".
+
+### Criterios de aceptacion
+1. Con una definición de reporte Diario habilitada a una hora dada, al llegar esa hora se genera y
+   envía un correo con PDF adjunto a los destinatarios configurados, sin intervención manual.
+2. Una definición con alcance de grupo (ej. "Comercial") genera un PDF que solo contiene monitores
+   de ese grupo — no el inventario completo — y su Top/servicios-sin-incidentes están acotados al
+   mismo alcance.
+3. El PDF muestra el mismo número de incidentes y segundos de indisponibilidad que se pueden
+   verificar manualmente sumando el historial crudo de heartbeats del periodo, dentro del alcance
+   de la definición.
+4. Cambiar el modo de destinatarios de "correo global" a "lista personalizada" (o viceversa) en una
+   definición se refleja en su próximo envío, programado o de prueba, sin afectar a otras
+   definiciones.
+5. "Enviar reporte de prueba" y "Descargar PDF de hoy/esta semana" funcionan por definición, sin
+   depender de que el cron haya disparado.
+6. Los heartbeats en `MAINTENANCE` no se cuentan como incidente ni como tiempo de indisponibilidad
+   en el informe.
+7. Endpoints de configuración/envío manual devuelven 403 para rol Viewer, y la pestaña "Informes"
+   de `/settings` (incluida en el listado de pestañas visibles) no aparece en absoluto para un
+   Viewer — ni siquiera en modo solo lectura.
+8. El PDF muestra un Top de indisponibilidad/degradación ordenado correctamente de mayor a menor
+   (verificable contra los datos crudos) y, por separado, la lista de monitores con 0 incidentes en
+   el periodo — ambos visibles sin necesidad de abrir el detalle tabular completo.
+9. Los KPIs del resumen ejecutivo muestran una variación vs. el periodo anterior equivalente que
+   coincide con calcular manualmente la misma métrica sobre el rango previo (ej. uptime del día
+   anterior para el Diario).
+
+### Pistas de investigacion
+- `backend/src/domain/entities/maintenance-window.ts` y
+  `application/services/maintenance-scope-policy.ts` (AZ-040 — precedente directo del patrón de
+  colección con alcance granular `all`/`group`/`monitor` a replicar en `IReportDefinition`).
+- `backend/src/domain/entities/app-smtp-settings.ts` y `monitoring-engine-settings.ts` (precedente
+  del shape de una entidad de configuración simple con `updatedAt`/`updatedById`).
+- `backend/src/infrastructure/persistence/mongoose/repositories/mongoose-heartbeat.repository.ts`
+  (`getSummaries()`, punto de partida para la nueva agregación de disponibilidad por periodo).
+- `backend/src/infrastructure/notifier/smtp-mailer.ts` y `multichannel-notifier.ts` (transporte de
+  correo existente a extender con adjuntos).
+- `backend/src/domain/value-objects/monitor-status.ts` (`MAINTENANCE`) y AZ-040 (exclusión de
+  ventanas de mantenimiento del cálculo).
+- `backend/package.json` — no existe aún ninguna dependencia de cron; evaluar `node-cron` por ser
+  la opción más liviana ya usada implícitamente como referencia en el resto de specs del proyecto.
+
+---
+
+## AZ-046) El estado DEGRADADO se disparaba con ping ICMP al host, en vez del puerto real de la app
+- Codigo: AZ-046
+- Estado: [x] Resuelto
+- Prioridad: Alta
+- Reportado: 2026-07-22
+- Resuelto: 2026-07-22
+
+### Resolucion
+- `execute-check.usecase.ts` (`runDegradationHeuristic`): se eliminó por completo el chequeo de
+  ping ICMP de la decisión DOWN→DEGRADED. Antes, tras un DOWN confirmado de un monitor HTTP, la
+  heurística marcaba DEGRADED si **ping o puerto** respondían (`if (!pingOk && !portOk) return`);
+  ahora depende únicamente de un handshake TCP exitoso contra el puerto exacto de la app
+  (`if (!portResult.ok) return`) — si el puerto rechaza la conexión, el DOWN original queda como
+  veredicto final sin importar si el host responde ping.
+- Mensaje del heartbeat DEGRADADO actualizado ("El puerto TCP de la aplicación responde pero la
+  petición HTTP no...") para no seguir mencionando "ping" como señal de degradación.
+- Test existente que encodaba el comportamiento viejo (`ping: ok, port: ECONNREFUSED` esperando
+  DEGRADED) corregido para reflejar el veredicto correcto (DOWN, sin heartbeat adicional); nuevo
+  test agregado para el caso real reportado (puerto exacto rechaza conexión pese a que el host
+  responde ping → se mantiene en DOWN).
+
+### Descripcion
+Un usuario apagó deliberadamente un servicio HTTP (puerto TCP cerrado, `nc -zv` confirmó
+`Connection refused`) para probar el flujo de alertas, y en vez de recibir una alerta DOWN
+consistente, recibió DOWN seguido casi de inmediato por una alerta DEGRADED contradictoria
+("Servidor responde a nivel de red (ping) pero la aplicación no — posible degradación/sobrecarga",
+con `Ping: 0ms`). El host en cuestión aloja más de un servicio, así que el ping ICMP al host
+respondía con normalidad aunque el puerto específico del monitor estuviera completamente cerrado
+— la heurística post-caída de AZ-042 confundía "el host está vivo" (ping) con "la app monitoreada
+está viva pero lenta/sobrecargada" (que solo un handshake TCP al puerto exacto puede indicar).
+
+### Comportamiento esperado
+1. Tras un DOWN confirmado de un monitor HTTP, el heartbeat solo se reclasifica a DEGRADED si un
+   handshake TCP contra el puerto exacto de la app tiene éxito (el puerto acepta conexión pero la
+   petición HTTP igual falla).
+2. Si el puerto exacto rechaza la conexión (`ECONNREFUSED`) o no responde, el DOWN original queda
+   como veredicto final — sin importar si un ping ICMP al host sí responde.
+3. El mensaje del heartbeat DEGRADADO no atribuye la señal a "ping"; refleja específicamente que
+   fue el puerto TCP el que respondió.
+
+### Criterios de aceptacion
+1. Con el puerto exacto de la app en `ECONNREFUSED` y el host respondiendo ping, el monitor queda
+   en DOWN — no se genera un segundo heartbeat DEGRADADO ni una segunda alerta.
+2. Con el puerto exacto de la app aceptando conexión pero la petición HTTP fallando, el monitor sí
+   se reclasifica a DEGRADADO, con el ping medido del handshake TCP (no `null`).
+3. Tests unitarios cubren ambos casos (`execute-check.usecase.test.ts`).
+
+### Pistas de investigacion
+- `backend/src/application/use-cases/monitoring/execute-check.usecase.ts`
+  (`runDegradationHeuristic`).
+- `backend/src/application/use-cases/monitoring/execute-check.usecase.test.ts`.
+
+---
+
+## AZ-047) Informes (AZ-045): huecos de monitoreo detenido contados como downtime real, y "Enviar ahora" podía crear informes duplicados
+- Codigo: AZ-047
+- Estado: [x] Resuelto
+- Prioridad: Media
+- Reportado: 2026-07-22
+- Resuelto: 2026-07-22
+
+### Resolucion
+**Backend — cálculo de uptime (`availability-report-calculator.ts`):**
+- `computeAvailabilityStats` ganó un parámetro `maxIntervalSeconds`: la duración atribuida a un
+  solo heartbeat (hasta el siguiente, o hasta `to`) ahora se acota a ese tope; el exceso se excluye
+  del cálculo por completo (ni suma downtime ni uptime) en vez de atribuirle todo el hueco al
+  último estado conocido — sin importar si ese estado era DOWN/DEGRADED (falso downtime masivo,
+  el bug reportado: ~17% de uptime con solo 2 caídas reales) o UP (falso 100% de uptime
+  extrapolando sobre un hueco del que no hay datos).
+- `GenerateReportDataUseCase` deriva el tope dinámicamente del intervalo/retryInterval configurado
+  de los monitores del reporte (con margen de seguridad 20x, piso de 30 min) en vez de un valor
+  fijo ciego, para no recortar monitores con un intervalo de chequeo legítimamente largo.
+- `IHeartbeatRepository.getAvailabilityReport` y su implementación Mongoose ganaron el parámetro
+  opcional `maxIntervalSeconds` para propagar el tope.
+- Causa raíz: reinicios frecuentes del backend durante el desarrollo/pruebas de AZ-045 dejaron
+  huecos de horas en el historial de heartbeats; varios monitores tenían su último heartbeat antes
+  de un hueco en DOWN/DEGRADED, y ese estado se estiraba sobre horas de "silencio" del motor de
+  monitoreo (no del sitio monitoreado).
+
+**Frontend — formulario de "Informes" (`reports-panel.ts`):**
+- El botón "Enviar ahora" reseteaba el formulario a uno nuevo y en blanco *antes* de que el envío
+  de prueba terminara, y ningún botón se deshabilitaba durante ese intervalo — un clic repetido en
+  esa ventana creaba un informe duplicado en vez de tocar el que se acababa de crear (percibido
+  como "ambos botones hacen lo mismo").
+- `onSaveAndSendNow()` ahora deja el formulario en modo edición sobre el informe recién
+  guardado (en vez de resetearlo) y ambos botones ("Enviar ahora"/"Crear informe" o "Guardar
+  cambios") se deshabilitan mientras cualquiera de los dos flujos está en curso (`formBusy`).
+
+### Descripcion
+Un PDF de prueba generado con datos reales mostró columnas de Uptime de ~17% para más de un
+monitor a la vez, pese a que el usuario reportó solo 2 caídas reales — resultado de reinicios del
+backend durante el desarrollo que dejaron huecos de horas en el historial de heartbeats,
+malinterpretados como downtime continuo. Por separado, al usar el botón nuevo "Enviar ahora" del
+formulario de creación de informes, el reset prematuro del formulario (sin deshabilitar los
+botones) permitía crear un informe duplicado con un clic de más, lo que a su vez causó un 400 al
+intentar un "enviar prueba" sobre el duplicado (sin destinatarios configurados).
+
+### Comportamiento esperado
+1. Un hueco anómalo en el historial de heartbeats (motor de monitoreo detenido/reiniciado) no se
+   cuenta como downtime real ni como uptime real — queda excluido del cálculo.
+2. Un monitor con un intervalo de chequeo configurado legítimamente largo no ve su historial
+   recortado por el tope de hueco.
+3. El botón "Enviar ahora" no puede crear más de un informe por acción del usuario: mientras hay
+   un guardado/envío en curso, ambos botones de acción quedan deshabilitados.
+4. Tras "Enviar ahora", el formulario queda claramente en modo edición sobre el informe recién
+   creado, no en un estado "nuevo" ambiguo.
+
+### Criterios de aceptacion
+1. Un monitor con un hueco de heartbeats de N horas (motor detenido) y un solo heartbeat DOWN
+   justo antes del hueco no reporta un uptime cercano a 0% — el downtime queda acotado al tope
+   derivado del intervalo del monitor.
+2. Tests unitarios cubren: hueco largo acotado correctamente, tope personalizado respetado, y los
+   casos de duración normal (sin hueco) sin verse afectados por el tope.
+3. Hacer clic en "Enviar ahora" y de inmediato volver a hacer clic en cualquiera de los dos
+   botones no crea un segundo informe — los botones están deshabilitados hasta que la operación
+   en curso termina.
+
+### Pistas de investigacion
+- `backend/src/application/services/availability-report-calculator.ts` y su test.
+- `backend/src/application/use-cases/reports/generate-report-data.usecase.ts` (derivación del
+  tope desde `scopedMonitors`).
+- `backend/src/application/ports/repositories/heartbeat-repository.ts` y
+  `mongoose-heartbeat.repository.ts` (`getAvailabilityReport`).
+- `frontend/src/app/features/settings/reports-panel.ts` (`onSave`/`onSaveAndSendNow`/`formBusy`).

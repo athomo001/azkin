@@ -8,6 +8,10 @@ import {
 import { IHeartbeat } from "../../../../domain/entities/heartbeat";
 import { MonitorStatus } from "../../../../domain/value-objects/monitor-status";
 import { HeartbeatModel } from "../schemas/heartbeat.schema";
+import {
+  AvailabilityStats,
+  computeAvailabilityStats,
+} from "../../../../application/services/availability-report-calculator";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -156,5 +160,35 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
       ping: doc.ping ?? null,
       msg: doc.msg ?? null,
     }));
+  }
+
+  async getAvailabilityReport(
+    monitorIds: string[],
+    from: Date,
+    to: Date,
+    maxIntervalSeconds?: number,
+  ): Promise<Record<string, AvailabilityStats>> {
+    const result: Record<string, AvailabilityStats> = {};
+
+    for (const id of monitorIds) {
+      if (!Types.ObjectId.isValid(id)) continue;
+      const mId = new Types.ObjectId(id);
+
+      const docs = await HeartbeatModel.find({
+        monitorId: mId,
+        timestamp: { $gte: from, $lt: to },
+      })
+        .sort({ timestamp: 1 })
+        .select("timestamp status");
+
+      result[id] = computeAvailabilityStats(
+        docs.map((doc) => ({ timestamp: doc.timestamp, status: doc.status as MonitorStatus })),
+        from,
+        to,
+        maxIntervalSeconds,
+      );
+    }
+
+    return result;
   }
 }

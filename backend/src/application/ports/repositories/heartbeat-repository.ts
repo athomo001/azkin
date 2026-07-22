@@ -1,6 +1,7 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IHeartbeat } from "../../../domain/entities/heartbeat";
 import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
+import { AvailabilityStats } from "../../services/availability-report-calculator";
 
 export interface HeartbeatSummary {
   lastStatus: MonitorStatus | null;
@@ -37,4 +38,18 @@ export interface IHeartbeatRepository {
   getSummaries(monitorIds: string[]): Promise<Record<string, HeartbeatSummary>>;
   /** Últimos N eventos (heartbeats) entre un conjunto de monitores, orden descendente por timestamp. */
   findLastEventsForMonitors(monitorIds: string[], limit: number): Promise<RecentEventRecord[]>;
+  /**
+   * Incidentes/downtime/uptime de cada monitor dentro de `[from, to)` (AZ-045, informes
+   * periódicos). Se llama dos veces por definición de reporte — una para el periodo actual y otra
+   * para el periodo anterior equivalente — reutilizando el mismo método con otro rango.
+   * `maxIntervalSeconds` acota cuánto se le puede atribuir a un solo heartbeat (ver
+   * `computeAvailabilityStats`) — normalmente derivado del intervalo configurado de los monitores
+   * del reporte, para no confundir un motor de monitoreo detenido con downtime real.
+   */
+  getAvailabilityReport(
+    monitorIds: string[],
+    from: Date,
+    to: Date,
+    maxIntervalSeconds?: number,
+  ): Promise<Record<string, AvailabilityStats>>;
 }
