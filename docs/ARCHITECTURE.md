@@ -359,3 +359,71 @@ singleton `MonitoringEngineSettings` (mismo patrón que `AppSmtpSettings`/`TlsCo
 resolviendo un override guardado en Mongo por encima del valor de `.env`. UI en `/settings` →
 **TLS/Sistema** → "Motor de Monitoreo", con botón "Restablecer" por campo que vuelve al valor de
 `.env` sin reiniciar el contenedor.
+
+## 14. Federación de instancias (multi-región)
+
+> 🚧 **Planeado, no implementado.** Esta sección documenta una decisión de arquitectura ya
+> tomada y su diseño, para que quede registrada antes de construirla — no describe código
+> existente. Ningún archivo, entidad o endpoint mencionado aquí existe todavía en el repo.
+> Especificación completa (comportamiento esperado, criterios de aceptación, pistas de
+> investigación) en [`ISSUES.md`](../ISSUES.md), **AZ-049**.
+
+**Por qué existe esta decisión:** Azkin corre hoy como una única instancia con una única ubicación
+geográfica de origen para sus checks activos. Eso impide distinguir "el sitio está realmente
+caído" de "hay un problema de red regional entre el datacenter de Azkin y el sitio monitoreado"
+(ej. un corte de peering entre Chile y Asia que no afecta al resto del mundo). La solución elegida
+—correr una instancia Azkin completa por región y **federarlas**— se evaluó contra dos alternativas
+descartadas explícitamente:
+
+* **"Central único + nodos sonda livianos"**: un solo Azkin con la base de datos y el dashboard,
+  y nodos remotos sin estado propio que solo ejecutan checks y reportan. Se descartó porque si el
+  central cae, todo el sistema (dashboard, alertas, historial) cae con él — justo lo que se quería
+  evitar.
+* **"Malla P2P sin autoridad única"** (descubrimiento tipo gossip, consenso/quorum, datos
+  replicados sin dueño): resuelve mejor la independencia, pero implica un rediseño distribuido
+  completo, comparable a construir un sistema nuevo desde cero — sobredimensionado para el caso de
+  uso real (comparar el mismo sitio desde un puñado de regiones).
+
+**Modelo elegido — federación de instancias completas e independientes:** cada región corre un
+Azkin normal y autosuficiente (su propia base de datos, dashboard, monitores y alertas). Dos
+instancias se **enrolan** entre sí (mTLS, con un token de enrollment de un solo uso — mismo
+concepto que el enrollment token de Elasticsearch/Kibana) y a partir de ahí intercambian
+resultados de monitores que el Admin agrupó explícitamente como "el mismo objetivo". Si una
+instancia cae, las demás no pierden ninguna funcionalidad propia; solo dejan de recibir datos
+frescos de esa instancia para la vista combinada.
+
+```mermaid
+sequenceDiagram
+    participant A as Instancia A (ej. Chile)
+    participant B as Instancia B (ej. China)
+
+    A->>A: Admin genera token de enrollment (un solo uso, expira en 15-30 min)
+    A-->>B: Admin de B pega el token en su /settings
+    B->>A: Solicita enrollment con el token
+    A->>A: Valida token, lo invalida de inmediato
+    A-->>B: Emite certificados mTLS específicos para el par A-B
+    Note over A,B: Desde aquí, toda comunicación se autentica por certificado, no por el token
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Instancia A
+    participant B as Instancia B
+
+    Note over A,B: Sondeo periódico autenticado por mTLS (no conexión persistente)
+    A->>B: GET /federation/sync?since=<último_timestamp_utc_recibido>
+    B-->>A: Heartbeats de monitores del grupo, generados desde ese cursor (UTC, en lote)
+    A->>A: Persiste localmente (colección FederatedHeartbeat, TTL 30 días)
+    Note over A: Si B no responde por más del umbral configurado,<br/>A marca la federación como "sin reportar" y notifica
+```
+
+**Límites deliberados de esta decisión (no técnicos, de alcance):**
+
+* **Máximo 5 instancias federadas simultáneas.** El modelo de malla completa (cada par se enrola
+  directamente) es simple y suficiente para ese tamaño; no se diseña para 10+ instancias, relay/hub
+  ni invitación en bloque — eso sería sobreingeniería para el caso de uso real.
+* **Alertas siempre independientes por instancia**: cada Azkin notifica según lo que ve
+  localmente, sin esperar confirmación de sus pares.
+* **La vista "Combinado" nunca reemplaza la vista por-región**, y reutiliza la misma jerarquía de
+  severidad que ya usa `combineStatus()` en `get-group-overview.usecase.ts`
+  (`DOWN > DEGRADED > PENDING > MAINTENANCE > UP`) en vez de inventar una regla nueva.
