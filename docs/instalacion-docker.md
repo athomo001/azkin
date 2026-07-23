@@ -51,7 +51,7 @@ para el listado completo y comentado):
 | `AZKIN_MONGO_USER` / `AZKIN_MONGO_PASSWORD` | Credenciales root de MongoDB. El compose construye `AZKIN_MONGO_URI` automáticamente a partir de estas dos — no se define a mano en `.env`. La URI se arma por interpolación directa de texto (sin URL-encoding), así que una contraseña con caracteres especiales (`@ : / % ? #`) rompe el parseo de forma silenciosa; genera una solo alfanumérica con `openssl rand -hex 24`. | credenciales de ejemplo — **cámbialas** |
 | `AZKIN_JWT_SECRET` | Firma los tokens de sesión. | placeholder — **obligatorio cambiar** |
 | `AZKIN_FIRST_ADMIN_NAME` / `_EMAIL` / `_PASSWORD` | Cuenta Admin creada automáticamente al primer arranque (seeder), si no existe ningún Admin aún. | credenciales de ejemplo — **cámbialas** |
-| `AZKIN_TLS_ENCRYPTION_KEY` | Cifra en reposo la clave privada TLS y la identidad de federación. Opcional: vacío = se deriva automáticamente de `AZKIN_JWT_SECRET` (ambas funciones quedan disponibles sin configurar nada). Fijarla solo si querés una clave independiente. | vacío (se deriva sola) |
+| `AZKIN_TLS_ENCRYPTION_KEY` | Cifra en reposo la clave privada TLS y el secreto compartido de federación de instancias. Opcional: vacío = se deriva automáticamente de `AZKIN_JWT_SECRET` (ambas funciones quedan disponibles sin configurar nada). Fijarla solo si querés una clave independiente. | vacío (se deriva sola) |
 | `AZKIN_CORS_ORIGIN` | Orígenes permitidos para HTTP/Socket.io. `*` es válido en desarrollo, pero como decisión consciente. | `*` |
 | `AZKIN_BACK_PORT` / `AZKIN_FRONTEND_PORT` / `AZKIN_HTTPS_PORT` | Puertos publicados en el host. Cambia estos valores si ya usas `3000`/`80`/`8443`. | `3000` / `80` / `8443` |
 | `AZKIN_MONGO_PORT` | Puerto de MongoDB en el host, solo para depuración/administración directa (Compass, mongosh, migraciones). Enlazado únicamente a `127.0.0.1` — no queda alcanzable desde la red externa (ver §4). El backend nunca usa esta variable, siempre se conecta internamente vía `azkin-db:27017`. | `27017` |
@@ -375,11 +375,10 @@ debe llegar **hacia** el servidor donde corre Azkin (entrada) y lo que Azkin nec
 
 | Puerto | Protocolo | Variable | ¿Quién lo necesita? |
 |---|---|---|---|
-| 80 (o el que definas) | TCP (HTTP) | `AZKIN_FRONTEND_PORT` | **Obligatorio.** Es el único puerto que necesita cualquier usuario con navegador — Nginx sirve la SPA y hace de proxy interno hacia el backend para `/api/*` y `/socket.io/*` (WebSockets), así que todo el tráfico de usuario normal (UI, API, tiempo real) entra por acá. |
+| 80 (o el que definas) | TCP (HTTP) | `AZKIN_FRONTEND_PORT` | **Obligatorio.** Es el único puerto que necesita cualquier usuario con navegador — Nginx sirve la SPA y hace de proxy interno hacia el backend para `/api/*` y `/socket.io/*` (WebSockets), así que todo el tráfico de usuario normal (UI, API, tiempo real) entra por acá. Si federas esta instancia con otras (ver `ISSUES.md`, AZ-049), el sondeo entre pares también entra por este mismo puerto — no hay un puerto dedicado a federación. |
 | 3000 (o el que definas) | TCP (HTTP) | `AZKIN_BACK_PORT` | Opcional. Solo si necesitas llegar al backend **sin pasar por el proxy del frontend** — ej. un scraper de Prometheus (`/metrics`) o un integrador de la [API pública](./api-publica.md) que prefiera apuntar directo al backend. Si todo tu tráfico entra por el puerto 80, no hace falta abrir este. |
 | 8443 (o el que definas) | TCP (HTTPS) | `AZKIN_HTTPS_PORT` | Solo si activas el listener HTTPS nativo desde `/settings` → **TLS/Sistema** (ver §6). Si no usas esa función, no hace falta abrirlo. |
 | 27017 (o el que definas) | TCP | `AZKIN_MONGO_PORT` | **No abrir hacia la red.** Está enlazado únicamente a `127.0.0.1` del propio servidor (ver §4) — solo para depurar con Compass/mongosh estando conectado directamente a esa máquina. El backend nunca lo usa: se conecta a Mongo por la red interna de Docker. |
-| 8444 (o el que definas) | TCP (mTLS) | `AZKIN_FEDERATION_PORT` | Solo si federas esta instancia con otras hasta un máximo de 5 (ver `ISSUES.md`, AZ-049) — cada par de instancias federadas se conecta directamente entre sí para el sondeo periódico de resultados, autenticado por certificado, en un puerto propio separado del frontend/API. Configurable desde `/settings` → **Multi-Región** (análogo a como AZ-006 permite configurar `AZKIN_HTTPS_PORT`); si lo cambias ahí, actualiza también la variable de entorno para que el mapeo de puertos del compose siga coincidiendo. |
 
 ### Salida (desde el servidor Azkin hacia internet/red interna)
 
@@ -395,12 +394,12 @@ que configures. Qué protocolos/puertos exactos dependen de qué tipos de monito
 | UDP 161 (o el puerto que configures, `snmpPort`) | Consultas SNMP v1/v2c/v3 | Monitor **SNMP** |
 | TCP 587/465/25 (según cómo configures el canal) | Envío de correo SMTP saliente | Canal de notificación **Email**, y el **SMTP de Aplicación** (recuperación de contraseña, `/settings` → TLS/Sistema) |
 | TCP 443 (HTTPS saliente) | Llamadas a la API del servicio | Canales **Slack**, **Discord**, **Telegram** y **Webhook genérico** (cada uno llama a su propia URL vía HTTPS — `hooks.slack.com`, `discord.com`, `api.telegram.org`, o el host que definas en un webhook) |
-| 8444 (o el que definas), `AZKIN_FEDERATION_PORT` (mTLS) | Sondeo periódico saliente hacia cada instancia federada | Ver `ISSUES.md`, AZ-049. El tráfico es bidireccional: cada instancia federada abre conexión hacia sus pares y también recibe la de ellos (ver fila equivalente en la tabla de Entrada), hasta un máximo de 5 instancias federadas por decisión de alcance, no por límite técnico. |
+| El mismo puerto de entrada del par (80/443 u otro que hayan definido) | Sondeo periódico saliente hacia cada instancia federada | Ver `ISSUES.md`, AZ-049. El tráfico es bidireccional: cada instancia federada abre conexión hacia sus pares y también recibe la de ellos, hasta un máximo de 5 instancias federadas por decisión de alcance, no por límite técnico. No hay un puerto propio de federación: viaja por el mismo puerto que cada instancia ya usa para su API/frontend. |
 
-Ninguno de los anteriores (salvo la federación) requiere que abras un puerto de **entrada** — son
-conexiones que el backend inicia hacia afuera; el firewall del servidor solo necesita permitir la
-**salida**. La federación es la excepción: al ser bidireccional, necesita el puerto de entrada
-`AZKIN_FEDERATION_PORT` de la tabla de arriba abierto en ambos sentidos.
+Ninguno de los anteriores requiere que abras un puerto de **entrada** más allá de los ya listados
+en la tabla de arriba — son conexiones que el backend inicia hacia afuera (o, en el caso de
+federación, hacia el mismo puerto de entrada que el par ya tiene abierto); el firewall del
+servidor no necesita reglas adicionales para esto.
 
 **Requisito adicional si usas federación:** los relojes de las instancias federadas deben estar
 razonablemente sincronizados (NTP) — el mecanismo de recuperación de historial tras un corte de

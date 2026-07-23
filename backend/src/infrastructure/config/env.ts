@@ -45,10 +45,6 @@ const schema = z.object({
   // (AZ-041): un valor explícito mal formado no debe poder tumbar el arranque completo del
   // backend — se valida por separado más abajo, con una advertencia en vez de `process.exit(1)`.
   AZKIN_TLS_ENCRYPTION_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
-  // Puerto dedicado del listener mTLS de federación (AZ-049, slice 2) — separado del puerto de la
-  // API principal. Arranca automáticamente ya que la clave de cifrado ahora siempre tiene un
-  // valor (explícito o derivado) salvo que AZKIN_TLS_ENCRYPTION_KEY esté mal formada.
-  AZKIN_FEDERATION_PORT: z.coerce.number().int().positive().default(8444),
   // SMTP a nivel de aplicación para correos transaccionales (recuperación de contraseña).
   AZKIN_SMTP_HOST: z.string().optional(),
   AZKIN_SMTP_PORT: z.coerce.number().int().positive().default(587),
@@ -98,7 +94,6 @@ export interface Env {
   firstAdminEmail?: string;
   firstAdminPassword?: string;
   tlsEncryptionKey?: string;
-  federationPort: number;
   smtp: {
     host?: string;
     port: number;
@@ -128,7 +123,6 @@ export const env: Env = {
   firstAdminEmail: raw.AZKIN_FIRST_ADMIN_EMAIL,
   firstAdminPassword: raw.AZKIN_FIRST_ADMIN_PASSWORD,
   tlsEncryptionKey,
-  federationPort: raw.AZKIN_FEDERATION_PORT,
   smtp: {
     host: raw.AZKIN_SMTP_HOST,
     port: raw.AZKIN_SMTP_PORT,

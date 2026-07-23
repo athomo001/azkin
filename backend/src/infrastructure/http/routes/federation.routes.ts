@@ -7,7 +7,6 @@ import { validateBody } from "../middlewares/validate";
 import { makeAuthRateLimiter } from "../middlewares/rate-limit";
 import {
   acceptEnrollmentSchema,
-  applyFederationPortSchema,
   createFederatedMonitorLinkSchema,
   joinFederationSchema,
   setFederationOwnUrlSchema,
@@ -31,8 +30,7 @@ export function federationRoutes(controller: FederationController, authGuard: Re
   router.delete("/instances/:id", authGuard, requireRole("admin"), asyncHandler(controller.revoke));
   router.post("/enrollments", enrollmentLimiter, validateBody(acceptEnrollmentSchema), asyncHandler(controller.accept));
 
-  router.get("/port", authGuard, requireRole("admin"), asyncHandler(controller.getPort));
-  router.put("/port", authGuard, requireRole("admin"), validateBody(applyFederationPortSchema), asyncHandler(controller.applyPort));
+  router.get("/own-url", authGuard, requireRole("admin"), asyncHandler(controller.getOwnUrl));
   router.put("/own-url", authGuard, requireRole("admin"), validateBody(setFederationOwnUrlSchema), asyncHandler(controller.setOwnUrl));
   router.post("/test-connection", authGuard, requireRole("admin"), validateBody(testAddressConnectionSchema), asyncHandler(controller.testConnection));
   router.post("/instances/:id/test-connection", authGuard, requireRole("admin"), asyncHandler(controller.testInstanceConnection));

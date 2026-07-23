@@ -13,9 +13,6 @@ import { Env } from "./infrastructure/config/env";
 import { IScheduler } from "./application/ports/services/scheduler";
 import { ITlsServerManager } from "./application/ports/services/tls-server-manager";
 import { ITlsConfigRepository } from "./application/ports/repositories/tls-config-repository";
-import { IFederationServerManager } from "./application/ports/services/federation-server-manager";
-import { IFederationIdentityService } from "./application/ports/services/federation-identity";
-import { IFederationPortSettingsRepository } from "./application/ports/repositories/federation-port-settings-repository";
 
 // Repositories
 import { MongooseUserRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-user.repository";
@@ -32,10 +29,9 @@ import { MongooseMonitoringEngineSettingsRepository } from "./infrastructure/per
 import { MongooseReportDefinitionRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-report-definition.repository";
 import { MongooseFederatedInstanceRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federated-instance.repository";
 import { MongooseFederationEnrollmentTokenRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federation-enrollment-token.repository";
-import { MongooseFederationIdentityRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federation-identity.repository";
 import { MongooseFederatedMonitorLinkRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federated-monitor-link.repository";
 import { MongooseFederatedHeartbeatRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federated-heartbeat.repository";
-import { MongooseFederationPortSettingsRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federation-port-settings.repository";
+import { MongooseFederationSettingsRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federation-settings.repository";
 
 // Services
 import { JwtTokenService } from "./infrastructure/security/jwt-token-service";
@@ -50,14 +46,12 @@ import { DnsChecker } from "./infrastructure/checkers/dns.checker";
 import { SnmpChecker } from "./infrastructure/checkers/snmp.checker";
 import { InMemoryScheduler } from "./infrastructure/scheduler/in-memory-scheduler";
 import { HttpsServerManager } from "./infrastructure/http/https-server-manager";
-import { FederationServerManager } from "./infrastructure/http/federation-server-manager";
-import { encryptPrivateKey } from "./infrastructure/security/tls-key-cipher";
+import { encryptPrivateKey, decryptPrivateKey } from "./infrastructure/security/tls-key-cipher";
 import { SmtpMailer } from "./infrastructure/notifier/smtp-mailer";
 import { ResolveAppSmtpConfig } from "./application/services/resolve-app-smtp-config";
 import { ResolveMonitoringEngineConfig } from "./application/services/resolve-monitoring-engine-config";
 import { ResolveDefaultAlertRecipients } from "./application/services/resolve-default-alert-recipients";
 import { PdfmakeReportRenderer } from "./infrastructure/reporting/pdfmake-report-renderer";
-import { FederationIdentityService } from "./infrastructure/security/federation-identity-service";
 import { FederationFetchClient } from "./infrastructure/security/federation-fetch-client";
 
 // Use cases
@@ -143,8 +137,7 @@ import { ListAuditLogUseCase } from "./application/use-cases/audit-log/list-audi
 import { CreateEnrollmentTokenUseCase } from "./application/use-cases/federation/create-enrollment-token.usecase";
 import { JoinFederationUseCase } from "./application/use-cases/federation/join-federation.usecase";
 import { AcceptEnrollmentUseCase } from "./application/use-cases/federation/accept-enrollment.usecase";
-import { GetFederationPortUseCase } from "./application/use-cases/federation/get-federation-port.usecase";
-import { ApplyFederationPortUseCase } from "./application/use-cases/federation/apply-federation-port.usecase";
+import { GetFederationOwnUrlUseCase } from "./application/use-cases/federation/get-federation-own-url.usecase";
 import { SetFederationOwnUrlUseCase } from "./application/use-cases/federation/set-federation-own-url.usecase";
 import { TestAddressConnectionUseCase } from "./application/use-cases/federation/test-address-connection.usecase";
 import { TestFederatedInstanceConnectionUseCase } from "./application/use-cases/federation/test-federated-instance-connection.usecase";
@@ -188,7 +181,7 @@ import { maintenanceRoutes } from "./infrastructure/http/routes/maintenance.rout
 import { reportRoutes } from "./infrastructure/http/routes/report.routes";
 import { federationRoutes } from "./infrastructure/http/routes/federation.routes";
 import { federationPeerRoutes } from "./infrastructure/http/routes/federation-peer.routes";
-import { makeVerifyPeerCertificate } from "./infrastructure/http/middlewares/verify-peer-certificate";
+import { makeVerifyPeerSecret } from "./infrastructure/http/middlewares/verify-peer-secret";
 
 import { makeAuthGuard } from "./infrastructure/http/middlewares/auth-guard";
 import { makeApiKeyAuth } from "./infrastructure/http/middlewares/api-key-auth";
@@ -207,10 +200,6 @@ export interface AppContainer {
   tlsServerManager: ITlsServerManager;
   tlsConfigs: ITlsConfigRepository;
   tlsEncryptionKey?: string;
-  federationServerManager: IFederationServerManager;
-  federationIdentityService: IFederationIdentityService;
-  federationPortSettings: IFederationPortSettingsRepository;
-  federationPortDefault: number;
 }
 
 /**
@@ -232,12 +221,6 @@ export function buildContainer(env: Env): AppContainer {
   const server = http.createServer(app);
   const io = new Server(server, { cors: { origin: env.corsOrigin } });
   const tlsServerManager = new HttpsServerManager(app);
-
-  // App Express separada para el listener mTLS de federación (AZ-049, slice 2): nunca comparte
-  // middlewares con la API principal (CORS, cookies, rate limits de auth, etc. no aplican acá).
-  const federationApp = express();
-  federationApp.use(express.json());
-  const federationServerManager = new FederationServerManager(federationApp);
 
   // Redirección opcional HTTP -> HTTPS. Nota operativa: si el backend corre detrás de un
   // proxy (ej. nginx) que le reenvía tráfico por HTTP interno, habilitar esta opción redirigirá
@@ -270,23 +253,18 @@ export function buildContainer(env: Env): AppContainer {
   const reportDefinitionsRepo = new MongooseReportDefinitionRepository();
   const federatedInstancesRepo = new MongooseFederatedInstanceRepository();
   const federationTokensRepo = new MongooseFederationEnrollmentTokenRepository();
-  const federationIdentityRepo = new MongooseFederationIdentityRepository();
   const federatedMonitorLinksRepo = new MongooseFederatedMonitorLinkRepository();
   const federatedHeartbeatsRepo = new MongooseFederatedHeartbeatRepository();
-  const federationPortSettingsRepo = new MongooseFederationPortSettingsRepository();
-  // Override persistido del puerto de federación, o el default de .env si el admin no fijó ninguno
-  // (AZ-049, "puerto configurable" — ver ISSUES.md). Se resuelve en cada uso, no una sola vez al
-  // construir el contenedor, para que un cambio hecho en caliente se refleje de inmediato.
-  const resolveOwnFederationPort = async (): Promise<number> =>
-    (await federationPortSettingsRepo.getActive())?.port ?? env.federationPort;
+  const federationSettingsRepo = new MongooseFederationSettingsRepository();
   // Dirección pública guardada una sola vez por el Admin (ver SetFederationOwnUrlUseCase) — se
   // reutiliza al invitar y al unirse, en vez de pedirla a mano en cada una. `null` si todavía no
   // se configuró (los use-cases que la necesitan lanzan un error claro pidiendo configurarla).
-  const resolveOwnUrl = async (): Promise<string | null> => (await federationPortSettingsRepo.getActive())?.ownUrl ?? null;
-  // Federación de instancias (AZ-049, slice 1): reutiliza el mismo cifrado en reposo que la
-  // clave privada TLS (AZKIN_TLS_ENCRYPTION_KEY) en vez de introducir una clave nueva.
-  const federationIdentityService = new FederationIdentityService(federationIdentityRepo, env.tlsEncryptionKey ?? "");
-  const federationClient = new FederationFetchClient(federationIdentityService);
+  const resolveOwnUrl = async (): Promise<string | null> => (await federationSettingsRepo.getActive())?.ownUrl ?? null;
+  // Federación de instancias (AZ-049): el secreto compartido de cada par se cifra en reposo con
+  // la misma clave que ya cifra la clave privada TLS (AZKIN_TLS_ENCRYPTION_KEY, derivada sola de
+  // AZKIN_JWT_SECRET si no se configuró explícita) — reutiliza tls-key-cipher.ts tal cual.
+  const federationEncryptionKey = env.tlsEncryptionKey ?? "";
+  const federationClient = new FederationFetchClient();
 
   // SMTP de aplicación: por defecto AZKIN_SMTP_* del .env, o el de un canal de notificación
   // "email" reutilizado si el admin eligió uno (ver ResolveAppSmtpConfig).
@@ -493,17 +471,29 @@ export function buildContainer(env: Env): AppContainer {
 
   // Instanciación de Use cases de Federación de instancias (AZ-049, slice 1: enrollment)
   const createEnrollmentToken = new CreateEnrollmentTokenUseCase(federationTokensRepo, auditLog, resolveOwnUrl);
-  const joinFederation = new JoinFederationUseCase(federatedInstancesRepo, federationIdentityService, federationClient, auditLog, resolveOwnFederationPort, resolveOwnUrl);
-  const acceptEnrollment = new AcceptEnrollmentUseCase(federationTokensRepo, federatedInstancesRepo, federationIdentityService, auditLog, resolveOwnFederationPort);
-  const getFederationPort = new GetFederationPortUseCase(federationPortSettingsRepo, federationServerManager, env.federationPort);
-  const applyFederationPort = new ApplyFederationPortUseCase(federationPortSettingsRepo, auditLog, federationServerManager, federationIdentityService);
-  const setFederationOwnUrl = new SetFederationOwnUrlUseCase(federationPortSettingsRepo, auditLog);
+  const joinFederation = new JoinFederationUseCase(
+    federatedInstancesRepo,
+    federationClient,
+    auditLog,
+    resolveOwnUrl,
+    encryptPrivateKey,
+    federationEncryptionKey,
+  );
+  const acceptEnrollment = new AcceptEnrollmentUseCase(
+    federationTokensRepo,
+    federatedInstancesRepo,
+    auditLog,
+    encryptPrivateKey,
+    federationEncryptionKey,
+  );
+  const getFederationOwnUrl = new GetFederationOwnUrlUseCase(federationSettingsRepo);
+  const setFederationOwnUrl = new SetFederationOwnUrlUseCase(federationSettingsRepo, auditLog);
   const testAddressConnection = new TestAddressConnectionUseCase();
   const testFederatedInstanceConnection = new TestFederatedInstanceConnectionUseCase(federatedInstancesRepo);
   const listFederatedInstances = new ListFederatedInstancesUseCase(federatedInstancesRepo);
   const revokeFederatedInstance = new RevokeFederatedInstanceUseCase(federatedInstancesRepo, auditLog);
   const listLocalMonitorsForPeer = new ListLocalMonitorsForPeerUseCase(monitors);
-  const listRemoteMonitors = new ListRemoteMonitorsUseCase(federatedInstancesRepo, federationClient);
+  const listRemoteMonitors = new ListRemoteMonitorsUseCase(federatedInstancesRepo, federationClient, decryptPrivateKey, federationEncryptionKey);
   const createFederatedMonitorLink = new CreateFederatedMonitorLinkUseCase(
     federatedMonitorLinksRepo,
     federatedInstancesRepo,
@@ -526,6 +516,8 @@ export function buildContainer(env: Env): AppContainer {
     federationClient,
     mailer,
     defaultAlertRecipients,
+    decryptPrivateKey,
+    federationEncryptionKey,
   );
   const federationController = new FederationController(
     createEnrollmentToken,
@@ -538,8 +530,7 @@ export function buildContainer(env: Env): AppContainer {
     listFederatedMonitorLinks,
     deleteFederatedMonitorLink,
     getFederatedComparison,
-    getFederationPort,
-    applyFederationPort,
+    getFederationOwnUrl,
     setFederationOwnUrl,
     testAddressConnection,
     testFederatedInstanceConnection,
@@ -589,19 +580,15 @@ export function buildContainer(env: Env): AppContainer {
   // remota, no un usuario con sesión); /tokens e /instances aplican authGuard+requireRole("admin")
   // dentro del propio router (ver federation.routes.ts), igual que auth.routes.ts con /login.
   app.use("/api/v1/federation", federationRoutes(federationController, authGuard));
+  // Endpoints peer-to-peer (AZ-049): corren sobre el mismo app/puerto que el resto de la API, sin
+  // sesión JWT — la autorización es el secreto compartido en el header X-Federation-Secret (ver
+  // verify-peer-secret.ts), no un certificado de cliente ni un listener dedicado.
+  const verifyPeerSecret = makeVerifyPeerSecret(federatedInstancesRepo, decryptPrivateKey, federationEncryptionKey);
+  app.use("/api/v1/federation/peer", federationPeerRoutes(federationPeerController, verifyPeerSecret));
   // API pública autenticada por API Key en vez de sesión JWT — reutiliza el mismo
   // MonitorController/monitorRoutes, sin duplicar lógica de negocio.
   app.use("/api/public/v1/monitors", apiKeyAuth, monitorRoutes(monitorController));
   app.use(errorHandler);
-
-  // Listener mTLS de federación (AZ-049, slice 2): app separada, sin sesión/CORS — la única
-  // autorización es la huella del certificado de cliente (verify-peer-certificate.ts).
-  const verifyPeerCertificate = makeVerifyPeerCertificate(federatedInstancesRepo);
-  federationApp.use("/federation", federationPeerRoutes(federationPeerController, verifyPeerCertificate));
-  // Sin este errorHandler, un rechazo (ej. UnauthorizedError de verifyPeerCertificate tras una
-  // revocación) cae en el manejador de error por defecto de Express y responde 500 genérico en
-  // vez del envelope JSON con el código HTTP real — mismo middleware que ya usa la app principal.
-  federationApp.use(errorHandler);
 
   // Tick del cron de informes periódicos (AZ-045): cada 15 minutos evalúa qué definiciones
   // habilitadas coinciden con su hora/día configurado y las envía. `RunScheduledReportsUseCase`
@@ -627,10 +614,6 @@ export function buildContainer(env: Env): AppContainer {
     tlsServerManager,
     tlsConfigs,
     tlsEncryptionKey: env.tlsEncryptionKey,
-    federationServerManager,
-    federationIdentityService,
-    federationPortSettings: federationPortSettingsRepo,
-    federationPortDefault: env.federationPort,
   };
 }
 

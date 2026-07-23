@@ -2,23 +2,15 @@
 import crypto from "crypto";
 import { IFederationEnrollmentTokenRepository } from "../../ports/repositories/federation-enrollment-token-repository";
 import { IFederatedInstanceRepository } from "../../ports/repositories/federated-instance-repository";
-import { IFederationIdentityService } from "../../ports/services/federation-identity";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
-import { getCertificateFingerprint } from "../../services/get-certificate-fingerprint";
 import { QuotaExceededError, ValidationError } from "../../../domain/errors/domain-error";
 import { MAX_FEDERATED_INSTANCES } from "./federation-limits";
 
 export interface AcceptEnrollmentInput {
   token: string;
-  callerCertPem: string;
   callerLabel: string;
   callerUrl: string;
-  callerFederationPort: number;
-}
-
-export interface AcceptEnrollmentOutput {
-  ownCertPem: string;
-  ownFederationPort: number;
+  callerSecret: string;
 }
 
 function hashToken(token: string): string {
@@ -30,18 +22,20 @@ function hashToken(token: string): string {
  * remota que se está uniendo, nunca un usuario con sesión — su única prueba de autorización es
  * el token de un solo uso, igual nivel de protección que `/auth/reset-password`. Por eso NO
  * recibe `actorId` de una sesión: el "actor" de la auditoría es quien generó el token
- * originalmente (`consumeValid` lo devuelve).
+ * originalmente (`consumeValid` lo devuelve). El secreto compartido (`callerSecret`) lo generó el
+ * lado que se une (`JoinFederationUseCase`) — acá solo se cifra y se guarda, no se genera nada
+ * propio ni se devuelve nada al llamador.
  */
 export class AcceptEnrollmentUseCase {
   constructor(
     private readonly tokens: IFederationEnrollmentTokenRepository,
     private readonly federatedInstances: IFederatedInstanceRepository,
-    private readonly identity: IFederationIdentityService,
     private readonly auditLog: IAuditLogRepository,
-    private readonly resolveOwnFederationPort: () => Promise<number>,
+    private readonly encryptSecret: (secret: string, key: string) => string,
+    private readonly encryptionKey: string,
   ) {}
 
-  async execute(input: AcceptEnrollmentInput): Promise<AcceptEnrollmentOutput> {
+  async execute(input: AcceptEnrollmentInput): Promise<void> {
     const consumed = await this.tokens.consumeValid(hashToken(input.token));
     if (!consumed) {
       throw new ValidationError("El token de enrollment es inválido o ha expirado");
@@ -54,20 +48,10 @@ export class AcceptEnrollmentUseCase {
       );
     }
 
-    let fingerprint: string;
-    try {
-      fingerprint = getCertificateFingerprint(input.callerCertPem);
-    } catch {
-      throw new ValidationError("El certificado presentado no tiene un formato válido");
-    }
-
-    const ownIdentity = await this.identity.getOrCreateOwnCertificate();
-
     const instance = await this.federatedInstances.create({
       label: input.callerLabel,
       remoteUrl: input.callerUrl,
-      remoteFederationPort: input.callerFederationPort,
-      peerCertFingerprint: fingerprint,
+      remoteSecretEncrypted: this.encryptSecret(input.callerSecret, this.encryptionKey),
       createdById: consumed.createdById,
     });
 
@@ -77,7 +61,5 @@ export class AcceptEnrollmentUseCase {
       targetType: "federated-instance",
       targetIds: [instance.id],
     });
-
-    return { ownCertPem: ownIdentity.certPem, ownFederationPort: await this.resolveOwnFederationPort() };
   }
 }

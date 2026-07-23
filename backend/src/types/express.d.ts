@@ -11,7 +11,7 @@ declare global {
       userRole?: string;
       adminId?: string;
       permissions?: IUserPermission[];
-      /** Inyectado por verify-peer-certificate.ts tras validar la huella del cliente mTLS. */
+      /** Inyectado por verify-peer-secret.ts tras validar el secreto compartido del par. */
       federatedInstance?: IFederatedInstance;
     }
   }

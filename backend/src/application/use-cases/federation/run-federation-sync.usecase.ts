@@ -24,6 +24,8 @@ export class RunFederationSyncUseCase {
     private readonly client: IFederationClient,
     private readonly mailer: IMailer,
     private readonly defaultAlertRecipients: ResolveDefaultAlertRecipients,
+    private readonly decryptSecret: (encrypted: string, key: string) => string,
+    private readonly encryptionKey: string,
   ) {}
 
   async execute(): Promise<void> {
@@ -42,11 +44,12 @@ export class RunFederationSyncUseCase {
     if (links.length === 0) return;
 
     let reachedThisTick = false;
+    const secret = this.decryptSecret(instance.remoteSecretEncrypted, this.encryptionKey);
 
     for (const link of links) {
       try {
         const heartbeats = await this.client.syncHeartbeats(
-          { remoteUrl: instance.remoteUrl, remoteFederationPort: instance.remoteFederationPort },
+          { remoteUrl: instance.remoteUrl, secret },
           link.remoteMonitorId,
           link.lastSyncedAt,
         );

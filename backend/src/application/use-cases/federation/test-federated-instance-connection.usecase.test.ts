@@ -20,8 +20,7 @@ function makeInstance(overrides: Partial<IFederatedInstance> = {}): IFederatedIn
     id: "instance-1",
     label: "China-VPS1",
     remoteUrl: "http://127.0.0.1:1",
-    remoteFederationPort: 1,
-    peerCertFingerprint: "aa:bb",
+    remoteSecretEncrypted: "encrypted-placeholder",
     status: "enrolled",
     createdById: "admin-1",
     createdAt: new Date(),
@@ -39,7 +38,6 @@ function makeRepo(instance: IFederatedInstance | null): IFederatedInstanceReposi
     findById: async () => instance,
     countActive: async () => (instance ? 1 : 0),
     revoke: async () => instance,
-    findEnrolledByFingerprint: async () => instance,
     findAllActive: async () => (instance ? [instance] : []),
     markSyncSuccess: async () => {},
     setNotifiedDown: async () => {},
@@ -51,10 +49,10 @@ test("TestFederatedInstanceConnectionUseCase lanza NotFoundError si la instancia
   await assert.rejects(() => useCase.execute("no-existe"));
 });
 
-test("TestFederatedInstanceConnectionUseCase prueba el puerto de federación guardado en la instancia (reachable)", async () => {
+test("TestFederatedInstanceConnectionUseCase prueba el host+puerto de la URL guardada en la instancia (reachable)", async () => {
   const { server, port } = await listenOnEphemeralPort();
   try {
-    const instance = makeInstance({ remoteUrl: "http://127.0.0.1", remoteFederationPort: port });
+    const instance = makeInstance({ remoteUrl: `http://127.0.0.1:${port}` });
     const useCase = new TestFederatedInstanceConnectionUseCase(makeRepo(instance));
 
     const result = await useCase.execute("instance-1");
@@ -66,11 +64,11 @@ test("TestFederatedInstanceConnectionUseCase prueba el puerto de federación gua
   }
 });
 
-test("TestFederatedInstanceConnectionUseCase reporta no alcanzable si nadie escucha en el puerto guardado", async () => {
+test("TestFederatedInstanceConnectionUseCase reporta no alcanzable si nadie escucha en la URL guardada", async () => {
   const { server, port } = await listenOnEphemeralPort();
   await new Promise<void>((resolve) => server.close(() => resolve()));
 
-  const instance = makeInstance({ remoteUrl: "http://127.0.0.1", remoteFederationPort: port });
+  const instance = makeInstance({ remoteUrl: `http://127.0.0.1:${port}` });
   const useCase = new TestFederatedInstanceConnectionUseCase(makeRepo(instance));
 
   const result = await useCase.execute("instance-1");

@@ -23,8 +23,7 @@ function makeInstance(overrides: Partial<IFederatedInstance> = {}): IFederatedIn
     id: "instance-1",
     label: "China-VPS1",
     remoteUrl: "https://china.example.com",
-    remoteFederationPort: 8444,
-    peerCertFingerprint: "aa:bb",
+    remoteSecretEncrypted: "encrypted-placeholder",
     status: "enrolled",
     createdById: "admin-1",
     createdAt: new Date(Date.now() - 1000 * 60 * 60),
@@ -70,7 +69,6 @@ test("RunFederationSyncUseCase no hace nada si la instancia no tiene ningun vinc
     findById: async () => null,
     countActive: async () => 0,
     revoke: async () => null,
-    findEnrolledByFingerprint: async () => null,
     findAllActive: async () => [makeInstance()],
     markSyncSuccess: async () => undefined,
     setNotifiedDown: async () => undefined,
@@ -105,6 +103,8 @@ test("RunFederationSyncUseCase no hace nada si la instancia no tiene ningun vinc
     client,
     mailer,
     makeFakeResolver(["admin@test.local"]),
+    (enc) => enc,
+    "identity-key",
   );
 
   await useCase.execute();
@@ -126,7 +126,6 @@ test("RunFederationSyncUseCase persiste heartbeats, marca sincronizacion exitosa
     findById: async () => instance,
     countActive: async () => 1,
     revoke: async () => null,
-    findEnrolledByFingerprint: async () => null,
     findAllActive: async () => [instance],
     markSyncSuccess: async (id, at) => {
       markSyncSuccessCalls.push({ id, at });
@@ -169,6 +168,8 @@ test("RunFederationSyncUseCase persiste heartbeats, marca sincronizacion exitosa
     client,
     mailer,
     makeFakeResolver(["admin@test.local"]),
+    (enc) => enc,
+    "identity-key",
   );
 
   await useCase.execute();
@@ -197,7 +198,6 @@ test("RunFederationSyncUseCase notifica 'sin reportar' solo tras superar el umbr
     findById: async () => overdueInstance,
     countActive: async () => 1,
     revoke: async () => null,
-    findEnrolledByFingerprint: async () => null,
     findAllActive: async () => [overdueInstance],
     markSyncSuccess: async () => undefined,
     setNotifiedDown: async (_id, value) => {
@@ -234,6 +234,8 @@ test("RunFederationSyncUseCase notifica 'sin reportar' solo tras superar el umbr
     client,
     mailer,
     makeFakeResolver(["admin@test.local"]),
+    (enc) => enc,
+    "identity-key",
   );
 
   await useCase.execute();

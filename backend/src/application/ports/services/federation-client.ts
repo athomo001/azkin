@@ -2,21 +2,21 @@
 export interface RequestEnrollmentInput {
   remoteUrl: string;
   token: string;
-  callerCertPem: string;
   callerLabel: string;
   callerUrl: string;
-  callerFederationPort: number;
+  /** Secreto compartido que esta instancia genera durante el enrollment (AZ-049) — protegido solo
+   * por el token de un solo uso. A partir de ahí, ambos lados lo presentan en el header
+   * `X-Federation-Secret` para autenticarse mutuamente (ver verify-peer-secret.ts). */
+  callerSecret: string;
 }
 
-export interface RequestEnrollmentResult {
-  ownCertPem: string;
-  ownFederationPort: number;
-}
-
-/** Datos mínimos para alcanzar el listener mTLS de un par ya enrolado. */
+/** Datos mínimos para alcanzar a un par ya enrolado — corre sobre el mismo puerto que su API
+ * principal (con o sin HTTPS nativo), no un puerto dedicado. */
 export interface RemotePeerAddress {
   remoteUrl: string;
-  remoteFederationPort: number;
+  /** Secreto compartido ya descifrado (ver tls-key-cipher.ts) — nunca guardarlo así, solo pasarlo
+   * en memoria justo antes de la llamada saliente. */
+  secret: string;
 }
 
 export interface RemoteMonitorSummary {
@@ -36,12 +36,12 @@ export interface SyncedHeartbeat {
 
 /**
  * Puerto (interfaz) para los llamados salientes que hace esta instancia hacia sus pares
- * federados. `requestEnrollment` es el bootstrap (sin certificado de cliente, protegido solo por
- * el token de un solo uso). `listRemoteMonitors`/`syncHeartbeats` sí presentan el certificado
- * propio como client cert (mTLS) contra el listener dedicado del par (AZ-049, slice 2).
+ * federados. `requestEnrollment` es el bootstrap (protegido solo por el token de un solo uso).
+ * `listRemoteMonitors`/`syncHeartbeats` presentan el secreto compartido en el header
+ * `X-Federation-Secret` contra el mismo puerto principal del par (AZ-049).
  */
 export interface IFederationClient {
-  requestEnrollment(input: RequestEnrollmentInput): Promise<RequestEnrollmentResult>;
+  requestEnrollment(input: RequestEnrollmentInput): Promise<void>;
   listRemoteMonitors(peer: RemotePeerAddress): Promise<RemoteMonitorSummary[]>;
   /** `since: null` trae todo el historial disponible (solo ocurre en el primer sondeo). */
   syncHeartbeats(peer: RemotePeerAddress, remoteMonitorId: string, since: Date | null): Promise<SyncedHeartbeat[]>;

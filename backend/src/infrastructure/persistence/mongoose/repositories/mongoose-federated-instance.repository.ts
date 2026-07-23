@@ -13,8 +13,7 @@ export class MongooseFederatedInstanceRepository implements IFederatedInstanceRe
     const doc = await FederatedInstanceModel.create({
       label: data.label,
       remoteUrl: data.remoteUrl,
-      remoteFederationPort: data.remoteFederationPort,
-      peerCertFingerprint: data.peerCertFingerprint,
+      remoteSecretEncrypted: data.remoteSecretEncrypted,
       status: "enrolled",
       createdById: new Types.ObjectId(data.createdById),
       revokedAt: null,
@@ -49,11 +48,6 @@ export class MongooseFederatedInstanceRepository implements IFederatedInstanceRe
     return doc ? this.toDomain(doc) : null;
   }
 
-  async findEnrolledByFingerprint(fingerprint: string): Promise<IFederatedInstance | null> {
-    const doc = await FederatedInstanceModel.findOne({ peerCertFingerprint: fingerprint, status: "enrolled" });
-    return doc ? this.toDomain(doc) : null;
-  }
-
   async findAllActive(): Promise<IFederatedInstance[]> {
     const docs = await FederatedInstanceModel.find({ status: "enrolled" });
     return docs.map((doc) => this.toDomain(doc));
@@ -74,8 +68,7 @@ export class MongooseFederatedInstanceRepository implements IFederatedInstanceRe
       id: toDomainId(doc._id),
       label: doc.label,
       remoteUrl: doc.remoteUrl,
-      remoteFederationPort: doc.remoteFederationPort,
-      peerCertFingerprint: doc.peerCertFingerprint,
+      remoteSecretEncrypted: doc.remoteSecretEncrypted,
       status: doc.status as FederatedInstanceStatus,
       createdById: String(doc.createdById),
       createdAt: doc.createdAt,

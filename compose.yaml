@@ -49,10 +49,6 @@ services:
       # fijo del Dockerfile), así que el mapeo host:contenedor debe coincidir con
       # ese mismo número en ambos lados.
       - "${AZKIN_HTTPS_PORT:-8443}:${AZKIN_HTTPS_PORT:-8443}"
-      # Puerto mTLS de federación de instancias (AZ-049). Igual criterio que el HTTPS de
-      # arriba: si el Admin lo cambia desde /settings → Multi-Región, este valor debe
-      # actualizarse a mano en el .env para que el mapeo host:contenedor siga coincidiendo.
-      - "${AZKIN_FEDERATION_PORT:-8444}:${AZKIN_FEDERATION_PORT:-8444}"
     extra_hosts:
       # Los checkers HTTP/Puerto/Ping (infrastructure/checkers/same-host-fallback.ts) usan
       # este hostname portable como fallback AUTOMÁTICO cuando un monitor apunta a una IP
@@ -84,11 +80,9 @@ services:
       AZKIN_PROMETHEUS_USER: ${AZKIN_PROMETHEUS_USER}
       AZKIN_PROMETHEUS_PASS: ${AZKIN_PROMETHEUS_PASS}
       AZKIN_PROMETHEUS_API_KEY: ${AZKIN_PROMETHEUS_API_KEY}
-      # Clave de cifrado en reposo para la clave privada TLS subida desde la UI.
+      # Clave de cifrado en reposo para la clave privada TLS subida desde la UI, y para el
+      # secreto compartido de federación de instancias (AZ-049) — corre sobre este mismo puerto.
       AZKIN_TLS_ENCRYPTION_KEY: ${AZKIN_TLS_ENCRYPTION_KEY}
-      # Puerto por defecto del listener mTLS de federación (AZ-049) hasta que el Admin guarde
-      # uno distinto desde /settings → Multi-Región.
-      AZKIN_FEDERATION_PORT: ${AZKIN_FEDERATION_PORT:-8444}
 
   frontend:
     build:

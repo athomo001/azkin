@@ -6,7 +6,7 @@ import {
   FederationService,
   IFederatedInstance,
   IFederatedMonitorLink,
-  IFederationPortStatus,
+  IFederationOwnUrlStatus,
   IRemoteMonitorSummary,
   ITestConnectionResult,
 } from '../../core/services/federation.service';
@@ -30,32 +30,18 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
       <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl p-6 space-y-4">
         <div>
           <h3 class="text-sm font-bold text-white tracking-tight">Configuración de red de esta instancia</h3>
-          <p class="text-[11px] text-zinc-500 mt-0.5 font-medium">Se configura una sola vez acá y se reutiliza automáticamente al invitar o unirte a una federación — no hace falta volver a escribirla.</p>
+          <p class="text-[11px] text-zinc-500 mt-0.5 font-medium">Se configura una sola vez acá y se reutiliza automáticamente al invitar o unirte a una federación — no hace falta volver a escribirla. Corre sobre el mismo puerto que ya usás para entrar al dashboard, con o sin HTTPS nativo.</p>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="space-y-2">
-            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Mi dirección pública</label>
-            <input type="text" [(ngModel)]="networkForm.ownUrl" placeholder="203.0.113.5 o mi-azkin.miempresa.cl"
-              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
-            <button (click)="onSaveOwnUrl()" [disabled]="isSavingOwnUrl()"
-              class="w-full px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-xs font-bold transition-all">
-              {{ isSavingOwnUrl() ? 'Guardando...' : 'Guardar dirección' }}
-            </button>
-          </div>
-          <div class="space-y-2">
-            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Puerto de federación (mTLS)</label>
-            <input type="number" [(ngModel)]="portForm.port" placeholder="8444"
-              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
-            <button (click)="onApplyPort()" [disabled]="isApplyingPort()"
-              class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:bg-orange-800 text-xs font-bold transition-all shadow-md">
-              {{ isApplyingPort() ? 'Aplicando...' : 'Aplicar puerto' }}
-            </button>
-          </div>
+        <div class="space-y-2 max-w-md">
+          <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Mi dirección pública</label>
+          <input type="text" [(ngModel)]="networkForm.ownUrl" placeholder="203.0.113.5 o mi-azkin.miempresa.cl"
+            class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
+          <button (click)="onSaveOwnUrl()" [disabled]="isSavingOwnUrl()"
+            class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-xs font-bold transition-all shadow-md">
+            {{ isSavingOwnUrl() ? 'Guardando...' : 'Guardar dirección' }}
+          </button>
         </div>
-        @if (portStatus(); as status) {
-          <p class="text-[10px] text-zinc-500">Puerto: {{ status.listenerActive ? ('activo en ' + status.listenerPort) : 'inactivo' }} · {{ status.isOverridden ? 'valor guardado desde este panel' : 'valor por defecto de AZKIN_FEDERATION_PORT' }}</p>
-        }
-        <p class="text-[10px] text-amber-500/80 font-medium">Advertencia: si cambias el puerto o la dirección con pares ya enrolados, ellos seguirán intentando contactarte con el valor anterior hasta que vuelvan a enrolarse — no hay re-anuncio automático.</p>
+        <p class="text-[10px] text-amber-500/80 font-medium">Advertencia: si cambias esta dirección con pares ya enrolados, ellos seguirán intentando contactarte con el valor anterior hasta que vuelvan a enrolarse — no hay re-anuncio automático.</p>
       </div>
 
       <!-- ================= PROBAR CONECTIVIDAD ================= -->
@@ -97,12 +83,12 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
             <h3 class="text-sm font-bold text-white tracking-tight">Invitar a otra instancia</h3>
             <p class="text-[11px] text-zinc-500 mt-0.5 font-medium">Genera un código de un solo uso (expira en 20 min) que el Admin de la otra instancia pega en su propio panel de Federación.</p>
           </div>
-          @if (portStatus()?.ownUrl) {
-            <p class="text-[10px] text-zinc-500">Se compartirá como tu dirección: <span class="font-mono text-zinc-300">{{ portStatus()?.ownUrl }}</span></p>
+          @if (ownUrlStatus()?.ownUrl) {
+            <p class="text-[10px] text-zinc-500">Se compartirá como tu dirección: <span class="font-mono text-zinc-300">{{ ownUrlStatus()?.ownUrl }}</span></p>
           } @else {
             <p class="text-[10px] text-amber-500/80 font-medium">Configura "Mi dirección pública" arriba antes de generar un código.</p>
           }
-          <button (click)="onCreateToken()" [disabled]="!portStatus()?.ownUrl" class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-xs font-bold transition-all shadow-md">
+          <button (click)="onCreateToken()" [disabled]="!ownUrlStatus()?.ownUrl" class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-xs font-bold transition-all shadow-md">
             Generar código de enrollment
           </button>
           @if (generatedCode()) {
@@ -136,12 +122,12 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                 class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
             </div>
           </div>
-          @if (portStatus()?.ownUrl) {
-            <p class="text-[10px] text-zinc-500">Te identificarás con tu dirección: <span class="font-mono text-zinc-300">{{ portStatus()?.ownUrl }}</span></p>
+          @if (ownUrlStatus()?.ownUrl) {
+            <p class="text-[10px] text-zinc-500">Te identificarás con tu dirección: <span class="font-mono text-zinc-300">{{ ownUrlStatus()?.ownUrl }}</span></p>
           } @else {
             <p class="text-[10px] text-amber-500/80 font-medium">Configura "Mi dirección pública" arriba antes de unirte.</p>
           }
-          <button (click)="onJoin()" [disabled]="!portStatus()?.ownUrl" class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-xs font-bold transition-all shadow-md">
+          <button (click)="onJoin()" [disabled]="!ownUrlStatus()?.ownUrl" class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-xs font-bold transition-all shadow-md">
             Unirse a la federación
           </button>
         </div>
@@ -169,7 +155,7 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                     {{ i.status === 'enrolled' ? 'Enrolada' : 'Revocada' }}
                   </span>
                 </div>
-                <p class="text-[10px] text-zinc-500 font-mono">{{ i.remoteUrl }}:{{ i.remoteFederationPort }}</p>
+                <p class="text-[10px] text-zinc-500 font-mono">{{ i.remoteUrl }}</p>
                 <p class="text-[10px] text-zinc-600">
                   {{ i.lastSuccessfulSyncAt ? ('Último sondeo: ' + (i.lastSuccessfulSyncAt | date: 'short')) : 'Sin sondeo todavía' }}
                   @if (i.notifiedDown) { <span class="text-rose-400 font-bold"> · sin reportar</span> }
@@ -256,51 +242,29 @@ export class FederationPanelComponent {
   readonly codeExpiresAt = signal<string>('');
   readonly exploringInstance = signal<IFederatedInstance | null>(null);
   readonly remoteMonitors = signal<IRemoteMonitorSummary[]>([]);
-  readonly portStatus = signal<IFederationPortStatus | null>(null);
-  readonly isApplyingPort = signal(false);
+  readonly ownUrlStatus = signal<IFederationOwnUrlStatus | null>(null);
   readonly isSavingOwnUrl = signal(false);
   readonly addressTestResult = signal<ITestConnectionResult | null>(null);
   readonly isTestingAddress = signal(false);
 
   joinForm = { code: '', peerLabel: '', ownLabel: '' };
   linkForm = { localMonitorId: '', remoteMonitorId: '', remoteMonitorLabel: '' };
-  portForm = { port: 8444 };
   networkForm = { ownUrl: '' };
   testForm = { host: '', port: 8444 };
 
   constructor() {
     this.federation.loadInstances().subscribe();
     this.federation.loadLinks().subscribe();
-    this.loadPortStatus();
+    this.loadOwnUrlStatus();
   }
 
-  private loadPortStatus(): void {
-    this.federation.getPort().subscribe({
+  private loadOwnUrlStatus(): void {
+    this.federation.getOwnUrl().subscribe({
       next: (status) => {
-        this.portStatus.set(status);
-        this.portForm.port = status.port;
+        this.ownUrlStatus.set(status);
         this.networkForm.ownUrl = status.ownUrl ?? '';
       },
       error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al consultar la configuración de red.')),
-    });
-  }
-
-  onApplyPort(): void {
-    if (!this.portForm.port) {
-      this.toast.show('Indica un puerto válido.');
-      return;
-    }
-    this.isApplyingPort.set(true);
-    this.federation.setPort(this.portForm.port).subscribe({
-      next: () => {
-        this.isApplyingPort.set(false);
-        this.toast.show('Puerto de federación actualizado.');
-        this.loadPortStatus();
-      },
-      error: (err) => {
-        this.isApplyingPort.set(false);
-        this.toast.show(extractApiErrorMessage(err, 'Error al aplicar el puerto de federación.'));
-      },
     });
   }
 
@@ -314,7 +278,7 @@ export class FederationPanelComponent {
       next: () => {
         this.isSavingOwnUrl.set(false);
         this.toast.show('Dirección pública guardada.');
-        this.loadPortStatus();
+        this.loadOwnUrlStatus();
       },
       error: (err) => {
         this.isSavingOwnUrl.set(false);
