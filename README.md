@@ -30,6 +30,8 @@ Para conocer el diseño detallado de la arquitectura de Clean Architecture, el f
 Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión de usuario, consulta la [Documentación de la API Pública](./docs/api-publica.md).
 
 > ⚠️ **Estado: Beta.** Azkin está en desarrollo activo. Las funcionalidades principales operan de forma estable en uso diario, pero todavía faltan por probar en profundidad: casos límite de los distintos tipos de monitor (SNMP, Push Pasivo, DNS), volúmenes altos de monitores concurrentes, y varios flujos de administración (Viewers, respaldos, TLS) bajo condiciones reales de producción. No existe aún un test runner de frontend automatizado (ver [ISSUES.md](./ISSUES.md), AZ-019). Repórtanos cualquier bug que encuentres.
+>
+> 🚧 **Planeado, no implementado:** federación de hasta 5 instancias Azkin independientes en distintas ubicaciones geográficas, para comparar el estado de un mismo servicio visto desde varias regiones sin depender de un servidor central. Diseño completo (arquitectura, límites y seguridad) en [ISSUES.md](./ISSUES.md), AZ-049 — todavía sin código.
 
 ---
 

@@ -377,6 +377,7 @@ debe llegar **hacia** el servidor donde corre Azkin (entrada) y lo que Azkin nec
 | 3000 (o el que definas) | TCP (HTTP) | `AZKIN_BACK_PORT` | Opcional. Solo si necesitas llegar al backend **sin pasar por el proxy del frontend** — ej. un scraper de Prometheus (`/metrics`) o un integrador de la [API pública](./api-publica.md) que prefiera apuntar directo al backend. Si todo tu tráfico entra por el puerto 80, no hace falta abrir este. |
 | 8443 (o el que definas) | TCP (HTTPS) | `AZKIN_HTTPS_PORT` | Solo si activas el listener HTTPS nativo desde `/settings` → **TLS/Sistema** (ver §6). Si no usas esa función, no hace falta abrirlo. |
 | 27017 (o el que definas) | TCP | `AZKIN_MONGO_PORT` | **No abrir hacia la red.** Está enlazado únicamente a `127.0.0.1` del propio servidor (ver §4) — solo para depurar con Compass/mongosh estando conectado directamente a esa máquina. El backend nunca lo usa: se conecta a Mongo por la red interna de Docker. |
+| A definir, dedicado (o el que definas) | TCP (mTLS) | — | 🚧 **Planeado, no implementado (ver `ISSUES.md`, AZ-049).** Solo si en el futuro federas esta instancia con otras hasta un máximo de 5 — cada par de instancias federadas se conecta directamente entre sí para el sondeo periódico de resultados, autenticado por certificado, en un puerto propio separado del frontend/API. |
 
 ### Salida (desde el servidor Azkin hacia internet/red interna)
 
@@ -392,9 +393,15 @@ que configures. Qué protocolos/puertos exactos dependen de qué tipos de monito
 | UDP 161 (o el puerto que configures, `snmpPort`) | Consultas SNMP v1/v2c/v3 | Monitor **SNMP** |
 | TCP 587/465/25 (según cómo configures el canal) | Envío de correo SMTP saliente | Canal de notificación **Email**, y el **SMTP de Aplicación** (recuperación de contraseña, `/settings` → TLS/Sistema) |
 | TCP 443 (HTTPS saliente) | Llamadas a la API del servicio | Canales **Slack**, **Discord**, **Telegram** y **Webhook genérico** (cada uno llama a su propia URL vía HTTPS — `hooks.slack.com`, `discord.com`, `api.telegram.org`, o el host que definas en un webhook) |
+| A definir, dedicado (mTLS) | Sondeo periódico saliente hacia cada instancia federada | 🚧 **Planeado, no implementado (ver `ISSUES.md`, AZ-049).** El tráfico es bidireccional: cada instancia federada abre conexión hacia sus pares y también recibe la de ellos (ver fila equivalente en la tabla de Entrada), hasta un máximo de 5 instancias federadas por decisión de alcance, no por límite técnico. |
 
-Ninguno de los anteriores requiere que abras un puerto de **entrada** — son conexiones que el
-backend inicia hacia afuera; el firewall del servidor solo necesita permitir la **salida**.
+Ninguno de los anteriores (salvo la federación, aún no implementada) requiere que abras un puerto
+de **entrada** — son conexiones que el backend inicia hacia afuera; el firewall del servidor solo
+necesita permitir la **salida**.
+
+**Requisito adicional si en el futuro se usa federación:** los relojes de las instancias
+federadas deben estar razonablemente sincronizados (NTP) — el mecanismo de recuperación de
+historial tras un corte de red depende de comparar timestamps en UTC entre instancias.
 
 **Casos especiales ya documentados en detalle en este mismo archivo:**
 - Si un monitor apunta a un servicio en el **mismo servidor físico** que Azkin y falla por
@@ -406,7 +413,8 @@ backend inicia hacia afuera; el firewall del servidor solo necesita permitir la 
 ## 13. Ver también
 
 - [README raíz](../README.md) — resumen del proyecto y stack.
-- [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) — arquitectura, autenticación, API pública.
+- [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) — arquitectura, autenticación, API pública, y §14
+  (federación de instancias — planeado, ver `ISSUES.md` AZ-049).
 - [`docs/api-publica.md`](./api-publica.md) — integración externa por API Key.
 - [`backend/README.md`](../backend/README.md) — desarrollo del backend fuera de Docker.
 - [`frontend/README.md`](../frontend/README.md) — desarrollo del frontend fuera de Docker.
