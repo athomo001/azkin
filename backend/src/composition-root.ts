@@ -27,6 +27,9 @@ import { MongooseAppSmtpSettingsRepository } from "./infrastructure/persistence/
 import { MongooseMaintenanceRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-maintenance.repository";
 import { MongooseMonitoringEngineSettingsRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-monitoring-engine-settings.repository";
 import { MongooseReportDefinitionRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-report-definition.repository";
+import { MongooseFederatedInstanceRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federated-instance.repository";
+import { MongooseFederationEnrollmentTokenRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federation-enrollment-token.repository";
+import { MongooseFederationIdentityRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federation-identity.repository";
 
 // Services
 import { JwtTokenService } from "./infrastructure/security/jwt-token-service";
@@ -47,6 +50,8 @@ import { ResolveAppSmtpConfig } from "./application/services/resolve-app-smtp-co
 import { ResolveMonitoringEngineConfig } from "./application/services/resolve-monitoring-engine-config";
 import { ResolveDefaultAlertRecipients } from "./application/services/resolve-default-alert-recipients";
 import { PdfmakeReportRenderer } from "./infrastructure/reporting/pdfmake-report-renderer";
+import { FederationIdentityService } from "./infrastructure/security/federation-identity-service";
+import { FederationFetchClient } from "./infrastructure/security/federation-fetch-client";
 
 // Use cases
 import { RegisterUseCase } from "./application/use-cases/auth/register.usecase";
@@ -127,6 +132,13 @@ import { RevokeApiKeyUseCase } from "./application/use-cases/api-keys/revoke-api
 import { DeleteApiKeyUseCase } from "./application/use-cases/api-keys/delete-api-key.usecase";
 import { ListAuditLogUseCase } from "./application/use-cases/audit-log/list-audit-log.usecase";
 
+// Use cases de Federación de instancias (AZ-049, slice 1: enrollment)
+import { CreateEnrollmentTokenUseCase } from "./application/use-cases/federation/create-enrollment-token.usecase";
+import { JoinFederationUseCase } from "./application/use-cases/federation/join-federation.usecase";
+import { AcceptEnrollmentUseCase } from "./application/use-cases/federation/accept-enrollment.usecase";
+import { ListFederatedInstancesUseCase } from "./application/use-cases/federation/list-federated-instances.usecase";
+import { RevokeFederatedInstanceUseCase } from "./application/use-cases/federation/revoke-federated-instance.usecase";
+
 // HTTP
 import { AuthController } from "./infrastructure/http/controllers/auth.controller";
 import { MonitorController } from "./infrastructure/http/controllers/monitor.controller";
@@ -139,6 +151,7 @@ import { ApiKeyController } from "./infrastructure/http/controllers/api-key.cont
 import { AuditLogController } from "./infrastructure/http/controllers/audit-log.controller";
 import { MaintenanceController } from "./infrastructure/http/controllers/maintenance.controller";
 import { ReportController } from "./infrastructure/http/controllers/report.controller";
+import { FederationController } from "./infrastructure/http/controllers/federation.controller";
 
 import { authRoutes } from "./infrastructure/http/routes/auth.routes";
 import { monitorRoutes } from "./infrastructure/http/routes/monitor.routes";
@@ -151,6 +164,7 @@ import { apiKeyRoutes } from "./infrastructure/http/routes/api-key.routes";
 import { auditLogRoutes } from "./infrastructure/http/routes/audit-log.routes";
 import { maintenanceRoutes } from "./infrastructure/http/routes/maintenance.routes";
 import { reportRoutes } from "./infrastructure/http/routes/report.routes";
+import { federationRoutes } from "./infrastructure/http/routes/federation.routes";
 
 import { makeAuthGuard } from "./infrastructure/http/middlewares/auth-guard";
 import { makeApiKeyAuth } from "./infrastructure/http/middlewares/api-key-auth";
@@ -220,6 +234,13 @@ export function buildContainer(env: Env): AppContainer {
   const maintenanceRepo = new MongooseMaintenanceRepository();
   const monitoringEngineSettingsRepo = new MongooseMonitoringEngineSettingsRepository();
   const reportDefinitionsRepo = new MongooseReportDefinitionRepository();
+  const federatedInstancesRepo = new MongooseFederatedInstanceRepository();
+  const federationTokensRepo = new MongooseFederationEnrollmentTokenRepository();
+  const federationIdentityRepo = new MongooseFederationIdentityRepository();
+  // Federación de instancias (AZ-049, slice 1): reutiliza el mismo cifrado en reposo que la
+  // clave privada TLS (AZKIN_TLS_ENCRYPTION_KEY) en vez de introducir una clave nueva.
+  const federationIdentityService = new FederationIdentityService(federationIdentityRepo, env.tlsEncryptionKey ?? "");
+  const federationClient = new FederationFetchClient();
 
   // SMTP de aplicación: por defecto AZKIN_SMTP_* del .env, o el de un canal de notificación
   // "email" reutilizado si el admin eligió uno (ver ResolveAppSmtpConfig).
@@ -423,6 +444,20 @@ export function buildContainer(env: Env): AppContainer {
   const apiKeyController = new ApiKeyController(createApiKey, listApiKeys, revokeApiKey, deleteApiKey);
   const listAuditLog = new ListAuditLogUseCase(auditLog, users);
   const auditLogController = new AuditLogController(listAuditLog);
+
+  // Instanciación de Use cases de Federación de instancias (AZ-049, slice 1: enrollment)
+  const createEnrollmentToken = new CreateEnrollmentTokenUseCase(federationTokensRepo, auditLog);
+  const joinFederation = new JoinFederationUseCase(federatedInstancesRepo, federationIdentityService, federationClient, auditLog);
+  const acceptEnrollment = new AcceptEnrollmentUseCase(federationTokensRepo, federatedInstancesRepo, federationIdentityService, auditLog);
+  const listFederatedInstances = new ListFederatedInstancesUseCase(federatedInstancesRepo);
+  const revokeFederatedInstance = new RevokeFederatedInstanceUseCase(federatedInstancesRepo, auditLog);
+  const federationController = new FederationController(
+    createEnrollmentToken,
+    joinFederation,
+    acceptEnrollment,
+    listFederatedInstances,
+    revokeFederatedInstance,
+  );
   const maintenanceController = new MaintenanceController(
     createMaintenanceWindow,
     listMaintenanceWindows,
@@ -462,6 +497,10 @@ export function buildContainer(env: Env): AppContainer {
   app.use("/api/v1/audit-log", authGuard, auditLogRoutes(auditLogController));
   app.use("/api/v1/maintenance", authGuard, maintenanceRoutes(maintenanceController));
   app.use("/api/v1/reports", authGuard, reportRoutes(reportController));
+  // Sin authGuard a nivel de mount: /enrollments es pública (la llama el backend de la instancia
+  // remota, no un usuario con sesión); /tokens e /instances aplican authGuard+requireRole("admin")
+  // dentro del propio router (ver federation.routes.ts), igual que auth.routes.ts con /login.
+  app.use("/api/v1/federation", federationRoutes(federationController, authGuard));
   // API pública autenticada por API Key en vez de sesión JWT — reutiliza el mismo
   // MonitorController/monitorRoutes, sin duplicar lógica de negocio.
   app.use("/api/public/v1/monitors", apiKeyAuth, monitorRoutes(monitorController));
