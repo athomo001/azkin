@@ -6,8 +6,6 @@ export function toFederatedInstanceResponse(instance: IFederatedInstance) {
     id: instance.id,
     label: instance.label,
     remoteUrl: instance.remoteUrl,
-    remoteFederationPort: instance.remoteFederationPort,
-    peerCertFingerprint: instance.peerCertFingerprint,
     status: instance.status,
     createdAt: instance.createdAt.toISOString(),
     revokedAt: instance.revokedAt ? instance.revokedAt.toISOString() : null,

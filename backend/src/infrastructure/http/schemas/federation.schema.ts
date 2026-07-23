@@ -11,10 +11,9 @@ export const joinFederationSchema = z.object({
 // que un endpoint público, ya que el único filtro de autorización es el token en el body.
 export const acceptEnrollmentSchema = z.object({
   token: z.string().min(1),
-  callerCertPem: z.string().min(1),
   callerLabel: z.string().min(1).max(100),
   callerUrl: z.string().url(),
-  callerFederationPort: z.coerce.number().int().positive(),
+  callerSecret: z.string().min(1),
 });
 
 export const createFederatedMonitorLinkSchema = z.object({
@@ -22,10 +21,6 @@ export const createFederatedMonitorLinkSchema = z.object({
   federatedInstanceId: z.string().min(1),
   remoteMonitorId: z.string().min(1),
   remoteMonitorLabel: z.string().min(1).max(255),
-});
-
-export const applyFederationPortSchema = z.object({
-  port: z.coerce.number().int().min(1).max(65535),
 });
 
 // Sin `.url()` a propósito: acepta IP o dominio simple, sin exigir esquema — se normaliza en

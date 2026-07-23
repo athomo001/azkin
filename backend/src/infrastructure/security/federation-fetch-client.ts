@@ -1,28 +1,22 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
-import { Agent, fetch as undiciFetch } from "undici";
 import {
   IFederationClient,
   RemoteMonitorSummary,
   RemotePeerAddress,
   RequestEnrollmentInput,
-  RequestEnrollmentResult,
   SyncedHeartbeat,
 } from "../../application/ports/services/federation-client";
-import { IFederationIdentityService } from "../../application/ports/services/federation-identity";
 import { ValidationError } from "../../domain/errors/domain-error";
 import { getErrorMessage } from "../../application/services/get-error-message";
 
 /**
- * Implementa los llamados salientes de federación. `requestEnrollment` usa `fetch()` nativo sin
- * certificado de cliente (bootstrap, protegido solo por el token — mismo mecanismo que ya usa
- * `multichannel-notifier.ts` para webhooks). `listRemoteMonitors`/`syncHeartbeats` presentan el
- * certificado propio como client cert (mTLS) vía `undici.Agent`, contra el listener dedicado del
- * par (AZ-049, slice 2) — `undici` ya es dependencia directa del backend.
+ * Implementa los llamados salientes de federación. Todos corren sobre el mismo puerto que la API
+ * principal del par (con o sin HTTPS nativo, según cómo tenga configurado el destino) — no hay
+ * agente mTLS ni certificado de cliente: la autenticación es el secreto compartido en el header
+ * `X-Federation-Secret` (ver verify-peer-secret.ts), un `fetch()` liso en todos los casos.
  */
 export class FederationFetchClient implements IFederationClient {
-  constructor(private readonly identity: IFederationIdentityService) {}
-
-  async requestEnrollment(input: RequestEnrollmentInput): Promise<RequestEnrollmentResult> {
+  async requestEnrollment(input: RequestEnrollmentInput): Promise<void> {
     const url = `${input.remoteUrl.replace(/\/$/, "")}/api/v1/federation/enrollments`;
 
     let res: Response;
@@ -32,10 +26,9 @@ export class FederationFetchClient implements IFederationClient {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           token: input.token,
-          callerCertPem: input.callerCertPem,
           callerLabel: input.callerLabel,
           callerUrl: input.callerUrl,
-          callerFederationPort: input.callerFederationPort,
+          callerSecret: input.callerSecret,
         }),
       });
     } catch (err) {
@@ -46,46 +39,30 @@ export class FederationFetchClient implements IFederationClient {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
       throw new ValidationError(body.message ?? `La instancia remota rechazó el enrollment (HTTP ${res.status})`);
     }
-
-    const data = (await res.json().catch(() => ({}))) as { ownCertPem?: string; ownFederationPort?: number };
-    if (!data.ownCertPem || !data.ownFederationPort) {
-      throw new ValidationError("Respuesta de enrollment inválida de la instancia remota");
-    }
-
-    return { ownCertPem: data.ownCertPem, ownFederationPort: data.ownFederationPort };
   }
 
   async listRemoteMonitors(peer: RemotePeerAddress): Promise<RemoteMonitorSummary[]> {
-    return this.mtlsGet(peer, "/federation/monitors");
+    return this.peerGet(peer, "/monitors");
   }
 
   async syncHeartbeats(peer: RemotePeerAddress, remoteMonitorId: string, since: Date | null): Promise<SyncedHeartbeat[]> {
     const qs = new URLSearchParams({ monitorId: remoteMonitorId });
     if (since) qs.set("since", since.toISOString());
-    return this.mtlsGet(peer, `/federation/sync?${qs.toString()}`);
+    return this.peerGet(peer, `/sync?${qs.toString()}`);
   }
 
-  private async mtlsGet<T>(peer: RemotePeerAddress, path: string): Promise<T> {
-    const credentials = await this.identity.getOwnServerCredentials();
-    const hostname = new URL(peer.remoteUrl).hostname;
-    const url = `https://${hostname}:${peer.remoteFederationPort}${path}`;
+  private async peerGet<T>(peer: RemotePeerAddress, path: string): Promise<T> {
+    const url = `${peer.remoteUrl.replace(/\/$/, "")}/api/v1/federation/peer${path}`;
 
-    // Sin cadena de CA: el par no tiene una autoridad que valide — la confianza es pinning por
-    // huella, verificado por el *receptor* en verify-peer-certificate.ts, no por este cliente.
-    const agent = new Agent({ connect: { cert: credentials.certPem, key: credentials.keyPem, rejectUnauthorized: false } });
+    let res: Response;
     try {
-      let res: Awaited<ReturnType<typeof undiciFetch>>;
-      try {
-        res = await undiciFetch(url, { dispatcher: agent });
-      } catch (err) {
-        throw new ValidationError(`No se pudo contactar el listener de federación del par: ${getErrorMessage(err)}`);
-      }
-      if (!res.ok) {
-        throw new ValidationError(`El par respondió con error (HTTP ${res.status}) en ${path}`);
-      }
-      return (await res.json()) as T;
-    } finally {
-      await agent.close();
+      res = await fetch(url, { headers: { "X-Federation-Secret": peer.secret } });
+    } catch (err) {
+      throw new ValidationError(`No se pudo contactar al par federado: ${getErrorMessage(err)}`);
     }
+    if (!res.ok) {
+      throw new ValidationError(`El par respondió con error (HTTP ${res.status}) en ${path}`);
+    }
+    return (await res.json()) as T;
   }
 }

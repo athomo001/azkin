@@ -9,8 +9,6 @@ export interface IFederatedInstance {
   id: string;
   label: string;
   remoteUrl: string;
-  remoteFederationPort: number;
-  peerCertFingerprint: string;
   status: FederatedInstanceStatus;
   createdAt: string;
   revokedAt: string | null;
@@ -70,11 +68,7 @@ export interface IFederatedComparisonResult {
   combinedStatus: number;
 }
 
-export interface IFederationPortStatus {
-  port: number;
-  isOverridden: boolean;
-  listenerActive: boolean;
-  listenerPort?: number;
+export interface IFederationOwnUrlStatus {
   ownUrl?: string;
 }
 
@@ -145,12 +139,8 @@ export class FederationService {
     return this.http.get<IFederatedComparisonResult>(`${this.apiUrl}/comparison/${localMonitorId}`);
   }
 
-  getPort(): Observable<IFederationPortStatus> {
-    return this.http.get<IFederationPortStatus>(`${this.apiUrl}/port`);
-  }
-
-  setPort(port: number): Observable<{ port: number; updatedAt: string }> {
-    return this.http.put<{ port: number; updatedAt: string }>(`${this.apiUrl}/port`, { port });
+  getOwnUrl(): Observable<IFederationOwnUrlStatus> {
+    return this.http.get<IFederationOwnUrlStatus>(`${this.apiUrl}/own-url`);
   }
 
   setOwnUrl(ownUrl: string): Observable<{ ownUrl: string; updatedAt: string }> {

@@ -1,21 +1,20 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "crypto";
 import { JoinFederationUseCase } from "./join-federation.usecase";
 import {
   CreateFederatedInstanceData,
   IFederatedInstanceRepository,
 } from "../../ports/repositories/federated-instance-repository";
-import { IFederationIdentityService } from "../../ports/services/federation-identity";
 import { IFederationClient, RequestEnrollmentInput } from "../../ports/services/federation-client";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { IFederatedInstance } from "../../../domain/entities/federated-instance";
 import { QuotaExceededError, ValidationError } from "../../../domain/errors/domain-error";
-import { generateSelfSignedCertificate } from "../../../infrastructure/security/federation-certificate-generator";
+import { encryptPrivateKey, decryptPrivateKey } from "../../../infrastructure/security/tls-key-cipher";
 import { MAX_FEDERATED_INSTANCES } from "./federation-limits";
 
-const VALID_CERT_PEM = generateSelfSignedCertificate("remote-test").certPem;
-const OWN_FEDERATION_PORT = 8444;
+const ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
 const OWN_URL = "https://china.example.com";
 
 function makeCode(url: string, token: string): string {
@@ -27,8 +26,7 @@ function makeInstance(overrides: Partial<IFederatedInstance> = {}): IFederatedIn
     id: "instance-1",
     label: "Chile-VPS1",
     remoteUrl: "https://chile.example.com",
-    remoteFederationPort: 8444,
-    peerCertFingerprint: "aa:bb",
+    remoteSecretEncrypted: encryptPrivateKey("placeholder", ENCRYPTION_KEY),
     status: "enrolled",
     createdById: "admin-1",
     createdAt: new Date(),
@@ -39,39 +37,25 @@ function makeInstance(overrides: Partial<IFederatedInstance> = {}): IFederatedIn
   };
 }
 
-function makeFakes(opts: { activeCount?: number; remoteCertPem?: string; remoteFederationPort?: number } = {}) {
+function makeFakes(opts: { activeCount?: number } = {}) {
   const created: CreateFederatedInstanceData[] = [];
   const federatedInstances: IFederatedInstanceRepository = {
     create: async (data) => {
       created.push(data);
-      return makeInstance({
-        label: data.label,
-        remoteUrl: data.remoteUrl,
-        remoteFederationPort: data.remoteFederationPort,
-        peerCertFingerprint: data.peerCertFingerprint,
-      });
+      return makeInstance({ label: data.label, remoteUrl: data.remoteUrl, remoteSecretEncrypted: data.remoteSecretEncrypted });
     },
     findAll: async () => [],
     findById: async () => null,
     countActive: async () => opts.activeCount ?? 0,
     revoke: async () => null,
-    findEnrolledByFingerprint: async () => null,
     findAllActive: async () => [],
     markSyncSuccess: async () => undefined,
     setNotifiedDown: async () => undefined,
-  };
-  const identity: IFederationIdentityService = {
-    getOrCreateOwnCertificate: async () => ({ certPem: "own-cert-pem", fingerprint: "own-fp" }),
-    getOwnServerCredentials: async () => ({ certPem: "own-cert-pem", keyPem: "own-key-pem", fingerprint: "own-fp" }),
   };
   const clientCalls: RequestEnrollmentInput[] = [];
   const client: IFederationClient = {
     requestEnrollment: async (input) => {
       clientCalls.push(input);
-      return {
-        ownCertPem: opts.remoteCertPem ?? VALID_CERT_PEM,
-        ownFederationPort: opts.remoteFederationPort ?? 8555,
-      };
     },
     listRemoteMonitors: async () => [],
     syncHeartbeats: async () => [],
@@ -82,7 +66,7 @@ function makeFakes(opts: { activeCount?: number; remoteCertPem?: string; remoteF
     listAll: async () => [],
     deleteAll: async () => 0,
   };
-  return { federatedInstances, identity, client, auditLog, created, clientCalls };
+  return { federatedInstances, client, auditLog, created, clientCalls };
 }
 
 function makeUseCase(
@@ -91,11 +75,11 @@ function makeUseCase(
 ): JoinFederationUseCase {
   return new JoinFederationUseCase(
     fakes.federatedInstances,
-    fakes.identity,
     fakes.client,
     fakes.auditLog,
-    async () => OWN_FEDERATION_PORT,
     resolveOwnUrl,
+    encryptPrivateKey,
+    ENCRYPTION_KEY,
   );
 }
 
@@ -137,8 +121,8 @@ test("JoinFederationUseCase rechaza al superar la cuota de instancias federadas"
   );
 });
 
-test("JoinFederationUseCase decodifica el código, llama a la instancia remota (con la dirección y el puerto propios) y persiste el registro simétrico", async () => {
-  const fakes = makeFakes({ remoteFederationPort: 9001 });
+test("JoinFederationUseCase decodifica el código, genera un secreto compartido, llama a la instancia remota y persiste el registro simétrico cifrado", async () => {
+  const fakes = makeFakes();
   const useCase = makeUseCase(fakes);
   const code = makeCode("https://chile.example.com", "raw-token-123");
 
@@ -152,14 +136,17 @@ test("JoinFederationUseCase decodifica el código, llama a la instancia remota (
   assert.equal(fakes.clientCalls.length, 1);
   assert.equal(fakes.clientCalls[0].remoteUrl, "https://chile.example.com");
   assert.equal(fakes.clientCalls[0].token, "raw-token-123");
-  assert.equal(fakes.clientCalls[0].callerCertPem, "own-cert-pem");
   assert.equal(fakes.clientCalls[0].callerLabel, "China-VPS1");
   assert.equal(fakes.clientCalls[0].callerUrl, OWN_URL);
-  assert.equal(fakes.clientCalls[0].callerFederationPort, OWN_FEDERATION_PORT);
+  assert.match(fakes.clientCalls[0].callerSecret, /^[0-9a-f]{64}$/);
 
   assert.equal(fakes.created.length, 1);
   assert.equal(fakes.created[0].label, "Chile-VPS1");
   assert.equal(fakes.created[0].remoteUrl, "https://chile.example.com");
-  assert.equal(fakes.created[0].remoteFederationPort, 9001);
+  // el secreto guardado (cifrado) debe descifrar exactamente al mismo que se envió a la remota
+  assert.equal(
+    decryptPrivateKey(fakes.created[0].remoteSecretEncrypted, ENCRYPTION_KEY),
+    fakes.clientCalls[0].callerSecret,
+  );
   assert.equal(result.instance.label, "Chile-VPS1");
 });

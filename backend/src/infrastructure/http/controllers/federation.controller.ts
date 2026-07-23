@@ -10,8 +10,7 @@ import { CreateFederatedMonitorLinkUseCase } from "../../../application/use-case
 import { ListFederatedMonitorLinksUseCase } from "../../../application/use-cases/federation/list-federated-monitor-links.usecase";
 import { DeleteFederatedMonitorLinkUseCase } from "../../../application/use-cases/federation/delete-federated-monitor-link.usecase";
 import { GetFederatedComparisonUseCase } from "../../../application/use-cases/federation/get-federated-comparison.usecase";
-import { GetFederationPortUseCase } from "../../../application/use-cases/federation/get-federation-port.usecase";
-import { ApplyFederationPortUseCase } from "../../../application/use-cases/federation/apply-federation-port.usecase";
+import { GetFederationOwnUrlUseCase } from "../../../application/use-cases/federation/get-federation-own-url.usecase";
 import { SetFederationOwnUrlUseCase } from "../../../application/use-cases/federation/set-federation-own-url.usecase";
 import { TestAddressConnectionUseCase } from "../../../application/use-cases/federation/test-address-connection.usecase";
 import { TestFederatedInstanceConnectionUseCase } from "../../../application/use-cases/federation/test-federated-instance-connection.usecase";
@@ -30,8 +29,7 @@ export class FederationController {
     private readonly listFederatedMonitorLinksUseCase: ListFederatedMonitorLinksUseCase,
     private readonly deleteFederatedMonitorLinkUseCase: DeleteFederatedMonitorLinkUseCase,
     private readonly getFederatedComparisonUseCase: GetFederatedComparisonUseCase,
-    private readonly getFederationPortUseCase: GetFederationPortUseCase,
-    private readonly applyFederationPortUseCase: ApplyFederationPortUseCase,
+    private readonly getFederationOwnUrlUseCase: GetFederationOwnUrlUseCase,
     private readonly setFederationOwnUrlUseCase: SetFederationOwnUrlUseCase,
     private readonly testAddressConnectionUseCase: TestAddressConnectionUseCase,
     private readonly testFederatedInstanceConnectionUseCase: TestFederatedInstanceConnectionUseCase,
@@ -54,14 +52,13 @@ export class FederationController {
 
   // Endpoint llamado por el backend de la instancia remota (sin sesión) — ver federation.routes.ts.
   accept = async (req: Request, res: Response): Promise<void> => {
-    const result = await this.acceptEnrollmentUseCase.execute({
+    await this.acceptEnrollmentUseCase.execute({
       token: req.body.token,
-      callerCertPem: req.body.callerCertPem,
       callerLabel: req.body.callerLabel,
       callerUrl: req.body.callerUrl,
-      callerFederationPort: req.body.callerFederationPort,
+      callerSecret: req.body.callerSecret,
     });
-    res.status(201).json(result);
+    res.status(201).json({});
   };
 
   list = async (_req: Request, res: Response): Promise<void> => {
@@ -110,17 +107,9 @@ export class FederationController {
     res.status(200).json(result);
   };
 
-  getPort = async (_req: Request, res: Response): Promise<void> => {
-    const status = await this.getFederationPortUseCase.execute();
+  getOwnUrl = async (_req: Request, res: Response): Promise<void> => {
+    const status = await this.getFederationOwnUrlUseCase.execute();
     res.status(200).json(status);
-  };
-
-  applyPort = async (req: Request, res: Response): Promise<void> => {
-    const { settings } = await this.applyFederationPortUseCase.execute({
-      actorId: req.userId!,
-      port: req.body.port,
-    });
-    res.status(200).json({ port: settings.port, updatedAt: settings.updatedAt });
   };
 
   setOwnUrl = async (req: Request, res: Response): Promise<void> => {

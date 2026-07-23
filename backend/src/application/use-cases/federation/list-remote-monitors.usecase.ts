@@ -11,6 +11,8 @@ export class ListRemoteMonitorsUseCase {
   constructor(
     private readonly federatedInstances: IFederatedInstanceRepository,
     private readonly client: IFederationClient,
+    private readonly decryptSecret: (encrypted: string, key: string) => string,
+    private readonly encryptionKey: string,
   ) {}
 
   async execute(federatedInstanceId: string): Promise<RemoteMonitorSummary[]> {
@@ -24,7 +26,7 @@ export class ListRemoteMonitorsUseCase {
 
     return this.client.listRemoteMonitors({
       remoteUrl: instance.remoteUrl,
-      remoteFederationPort: instance.remoteFederationPort,
+      secret: this.decryptSecret(instance.remoteSecretEncrypted, this.encryptionKey),
     });
   }
 }

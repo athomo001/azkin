@@ -7,8 +7,8 @@ import { NotFoundError, ValidationError } from "../../../domain/errors/domain-er
 /**
  * Igual que `TestAddressConnectionUseCase`, pero para un par **ya enrolado** — útil para
  * diagnosticar una instancia que aparece "sin reportar" en el sondeo periódico sin tener que
- * revocarla y volver a enrolarla. Solo prueba el puerto de federación (el que realmente importa
- * para el sondeo), no la URL web del par.
+ * revocarla y volver a enrolarla. Prueba el host+puerto de la URL guardada del par (no hay un
+ * puerto de federación separado: el sondeo corre sobre el mismo puerto que su API principal).
  */
 export class TestFederatedInstanceConnectionUseCase {
   constructor(private readonly federatedInstances: IFederatedInstanceRepository) {}
@@ -20,12 +20,15 @@ export class TestFederatedInstanceConnectionUseCase {
     }
 
     let host: string;
+    let port: number;
     try {
-      host = new URL(instance.remoteUrl).hostname;
+      const parsed = new URL(instance.remoteUrl);
+      host = parsed.hostname;
+      port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
     } catch (err) {
       throw new ValidationError(`La URL guardada de la instancia no es válida: ${getErrorMessage(err)}`);
     }
 
-    return checkTcpReachability(host, instance.remoteFederationPort);
+    return checkTcpReachability(host, port);
   }
 }

@@ -136,7 +136,15 @@ un unico certificado autofirmado (`infrastructure/security/federation-certificat
 `node-forge`) y la confianza se resuelve por **pinning de huella (fingerprint)**, no por cadena de
 CA — mas simple para un maximo de 5 pares y sin perder ninguna garantia de seguridad real.
 
-### Progreso (slice 2 — puerto dedicado, sondeo, vinculos y UI)
+### Progreso (slice 2 — puerto dedicado, sondeo, vinculos y UI) — [SUPERADO, ver slice 3 mas abajo]
+
+> El modelo mTLS/puerto dedicado descrito en este recuadro fue reemplazado el 2026-07-23 (ver
+> "Progreso slice 3" mas abajo) tras detectar en un despliegue real que el puerto dedicado era
+> exactamente el tipo de friccion operativa que la federacion busca evitar (puerto extra que abrir
+> y sincronizar por maquina, con `ECONNREFUSED` cuando el compose de una instancia no lo publicaba).
+> Se deja este recuadro como registro historico de esa primera implementacion, no como el diseño
+> vigente.
+
 Implementado y verificado end-to-end (dos instancias locales reales, including un tick real del
 cron de sondeo y una revocacion en caliente):
 
@@ -187,6 +195,38 @@ esperado/Criterios de aceptacion/Pistas de investigacion mas abajo) sigue descri
 completo original, incluyendo terminologia ("CA", "FederatedMonitorGroup") ya superada por los
 ajustes de diseño de arriba — estos dos recuadros de Progreso son la fuente de verdad de que hay
 hecho realmente.
+
+### Progreso (slice 3 — 2026-07-23: reemplazo de mTLS/puerto dedicado por secreto compartido)
+
+**Por que se cambio:** en un despliegue real (backend de produccion HTTP plano en un puerto
+distinto al de desarrollo local) el puerto dedicado de federacion nunca quedo publicado desde el
+compose de esa maquina, dando `ECONNREFUSED` pese a que el host respondia ping — exactamente el
+tipo de friccion de "un puerto mas que sincronizar por maquina" que la federacion deberia evitar,
+no sumar. Se evaluo reusar el puerto que cada instancia ya usa para su API/dashboard (garantizado
+abierto, es como el Admin ya entra al producto) en vez de uno dedicado.
+
+**Cambios:**
+- Se elimino el listener mTLS dedicado (`federation-server-manager.ts`), la identidad por
+  certificado (`federation-identity-service.ts`, `federation-certificate-generator.ts` con
+  `node-forge`) y el middleware `verify-peer-certificate.ts`.
+- Nuevo modelo: durante el enrollment, quien se une genera un **secreto compartido aleatorio por
+  par** (32 bytes) y lo manda en el mismo pedido de bootstrap (protegido solo por el token de un
+  solo uso, igual que antes protegia el intercambio de certificados). Cada lado lo guarda cifrado
+  en reposo (`FederatedInstance.remoteSecretEncrypted`, AES-256-GCM via `tls-key-cipher.ts` —
+  reutiliza `AZKIN_TLS_ENCRYPTION_KEY`/su derivacion automatica de `AZKIN_JWT_SECRET`).
+- Los endpoints peer-to-peer (`/monitors`, `/sync`) pasan a montarse en `/api/v1/federation/peer`
+  sobre el **mismo `app`/puerto** que el resto de la API, guardados por el nuevo middleware
+  `verify-peer-secret.ts` (header `X-Federation-Secret`, comparacion contra las — maximo 5 —
+  instancias activas descifradas en memoria, sin necesitar indice).
+- Se elimino `AZKIN_FEDERATION_PORT` y el modelo de puerto configurable (`FederationPortSettings`,
+  `GetFederationPortUseCase`/`ApplyFederationPortUseCase`) — ya no hay puerto que configurar. El
+  singleton de "direccion propia" (`SetFederationOwnUrlUseCase`) se mantiene tal cual, renombrado a
+  `FederationSettings`.
+- Beneficio adicional no buscado originalmente: la federacion ahora funciona igual con HTTP plano
+  o HTTPS nativo, y si una instancia activa HTTPS nativo mas tarde, la federacion pasa a ir cifrada
+  automaticamente sin cambiar nada de su configuracion.
+- **Limite conocido (ya existia, no cambia):** cambiar la direccion propia no reanuncia el cambio a
+  los pares ya enrolados — siguen usando la `remoteUrl` vieja hasta volver a enrolarse.
 
 ### Descripcion
 Hoy Azkin corre como una unica instancia (sus 3 contenedores: `azkin-db`, `azkin-back`, `azkin-front`) con una

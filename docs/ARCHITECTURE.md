@@ -362,9 +362,9 @@ resolviendo un override guardado en Mongo por encima del valor de `.env`. UI en 
 
 ## 14. Federación de instancias (multi-región)
 
-> 🚧 **Casi completo (AZ-049, slices 1 y 2).** Enrollment, listener mTLS dedicado, sondeo
-> periódico, vínculos de monitoreo y la vista "Por región/Combinado" del dashboard ya existen en
-> el código (`application/use-cases/federation/*`,
+> 🚧 **Casi completo (AZ-049).** Enrollment por secreto compartido (sin mTLS ni puerto dedicado),
+> sondeo periódico, vínculos de monitoreo y la vista "Por región/Combinado" del dashboard ya
+> existen en el código (`application/use-cases/federation/*`,
 > `infrastructure/http/routes/federation.routes.ts` y `federation-peer.routes.ts`) y fueron
 > verificados end-to-end con dos instancias reales. Solo falta la extensión opcional de Informes
 > Periódicos (AZ-045) para incluir desglose federado — ver el detalle en
@@ -403,15 +403,20 @@ nada" (cualquiera puede listar los monitores del otro o pedir heartbeats de cual
 ACL granular adicional) — mismo criterio que el modelo multi-admin sin aislamiento por tenant que
 ya usa el resto de Azkin.
 
-**Enrollment implementado (slice 1) — sin CA, por pinning de huella:** al diseñar la
-implementación se descartó una CA propia que firma certificados de terceros (innecesaria para un
-máximo de 5 pares). En su lugar, cada instancia genera **un único certificado autofirmado propio**
-(`infrastructure/security/federation-certificate-generator.ts`, con `node-forge` — Node no firma
-certificados en su `crypto` nativo, solo los lee), persistido cifrado en reposo con la misma
-clave que ya cifra la llave privada TLS (`AZKIN_TLS_ENCRYPTION_KEY`,
-`infrastructure/security/federation-identity-service.ts`). La confianza es **pinning por huella
-(fingerprint SHA-256)**, no cadena de CA: cada `FederatedInstance` guarda la huella exacta del
-certificado que el par presentó al enrolarse.
+**Enrollment implementado — sin CA, sin mTLS, por secreto compartido cifrado en reposo:** al
+diseñar la implementación se descartó una CA propia (innecesaria para un máximo de 5 pares) y,
+tras una primera versión basada en mTLS con certificados autofirmados, también se descartó el
+listener dedicado que ese modelo exigía — en el uso real, ese puerto separado resultó ser
+exactamente el tipo de fricción operativa que la federación busca evitar (un puerto más que abrir
+y sincronizar por máquina, con configuraciones de red distintas en cada una). El modelo actual es
+más simple: durante el enrollment, quien se une (`JoinFederationUseCase`) genera un **secreto
+aleatorio de 32 bytes por par** y lo manda en el mismo pedido de bootstrap que ya estaba protegido
+solo por el token de un solo uso (mismo nivel de confianza que el intercambio de certificados que
+reemplaza). Cada lado guarda ese mismo secreto **cifrado en reposo** (no solo un hash como las API
+Keys: al ser el sondeo bidireccional, cada lado necesita poder recuperarlo en texto plano para
+presentarlo cuando es él quien inicia el sondeo hacia el otro) con el mismo cifrado simétrico
+AES-256-GCM que ya protege la clave privada TLS (`infrastructure/security/tls-key-cipher.ts`,
+`AZKIN_TLS_ENCRYPTION_KEY`).
 
 **La clave de cifrado se deriva sola, sin configuración manual por nodo:** `AZKIN_TLS_ENCRYPTION_KEY`
 no necesita fijarse a mano — si no está configurada, `resolve-tls-encryption-key.ts` deriva una
@@ -431,11 +436,12 @@ sequenceDiagram
     A->>A: Admin genera token (POST /federation/tokens) — un solo uso, expira en 20 min
     Note over A: El token se empaqueta junto a la URL de A en un código base64url
     A-->>B: Admin de B pega ese código en /federation/instances
-    B->>A: POST /federation/enrollments { token, certificado propio de B, label, url }
+    B->>B: Genera un secreto aleatorio de 32 bytes para este par
+    B->>A: POST /federation/enrollments { token, secreto, label, url }
     A->>A: Consume el token atómicamente (AcceptEnrollmentUseCase), valida cuota (máx. 5)
-    A-->>B: Responde con el certificado autofirmado propio de A
-    B->>B: Persiste FederatedInstance (huella de A) — A ya persistió la huella de B
-    Note over A,B: Desde aquí, la confianza es pinning por huella, no un canal seguido abierto
+    A->>A: Persiste FederatedInstance con el secreto cifrado en reposo
+    B->>B: Persiste FederatedInstance con el mismo secreto cifrado en reposo
+    Note over A,B: Desde aquí, la confianza es el secreto compartido, no un canal seguido abierto
 ```
 
 ```mermaid
@@ -443,32 +449,25 @@ sequenceDiagram
     participant A as Instancia A
     participant B as Instancia B
 
-    Note over A,B: Tick del cron cada 2 min (RunFederationSyncUseCase), mTLS con cert propio (undici.Agent)
-    A->>B: GET /federation/sync?monitorId=<remoteMonitorId>&since=<último_timestamp_utc_recibido>
-    Note over B: verify-peer-certificate.ts valida la huella en Mongo en CADA request<br/>(no solo en el handshake TLS) — revocar corta el acceso de inmediato
+    Note over A,B: Tick del cron cada 2 min (RunFederationSyncUseCase), sobre el mismo puerto que la API principal
+    A->>B: GET /federation/peer/sync?monitorId=<remoteMonitorId>&since=<último_timestamp_utc_recibido><br/>header X-Federation-Secret: <secreto descifrado>
+    Note over B: verify-peer-secret.ts descifra y compara el secreto de cada instancia activa (máx. 5)<br/>en CADA request — revocar corta el acceso de inmediato
     B-->>A: Heartbeats del monitor vinculado, generados desde ese cursor (UTC, en lote)
     A->>A: Persiste en FederatedHeartbeat (Time-Series, TTL 30 días) y actualiza lastSyncedAt
     Note over A: Si B no responde por más del umbral (3x el intervalo del tick),<br/>A marca notifiedDown y envía un correo (mismo mecanismo que los Informes)
 ```
 
-**Puerto dedicado y cliente mTLS:** el sondeo y la exploración de monitores del par
-(`GET /federation/monitors`) corren sobre un listener separado del API principal
-(`infrastructure/http/federation-server-manager.ts`, puerto `AZKIN_FEDERATION_PORT`, default
-`8444`, app Express propia) que exige certificado de cliente (`requestCert: true`) sin cadena de
-CA. El cliente saliente (`infrastructure/security/federation-fetch-client.ts`) usa `undici.Agent`
-para presentar el certificado propio — a diferencia del bootstrap de enrollment, que sigue usando
-`fetch()` plano sin certificado (protegido solo por el token de un solo uso).
-
-**Puerto configurable en caliente desde el admin:** además del default de `.env`, el puerto acepta
-un override persistido (`FederationPortSettings`, singleton Mongo — mismo patrón que `TlsConfig`)
-que un Admin puede fijar desde `/settings` → **Multi-Región**, análogo a como AZ-006 permite
-configurar `AZKIN_HTTPS_PORT`. Aplicar un puerto nuevo recarga `FederationServerManager` en
-caliente (crea el listener nuevo, confirma que escucha, recién ahí cierra el anterior — no hay
-ventana sin servicio); si el puerto nuevo no puede abrirse, el listener anterior queda intacto y
-no se persiste nada. **Límite conocido:** cambiar el puerto propio no reanuncia el cambio a los
-pares ya enrolados — cada uno guardó el `remoteFederationPort` de esta instancia al enrolarse, y
-seguirá usando ese valor viejo hasta que se vuelva a enrolar (no existe protocolo de re-anuncio;
-fuera de alcance de AZ-049 por el mismo criterio de "herramienta simple" del resto de esta sección).
+**Mismo puerto que la API principal, con o sin HTTPS nativo:** el sondeo y la exploración de
+monitores del par (`GET /federation/peer/monitors`) corren sobre el mismo `app`/puerto Express que
+el resto de la API (`/api/v1/federation/peer/*`) — no hay listener ni puerto dedicado. El cliente
+saliente (`infrastructure/security/federation-fetch-client.ts`) es un `fetch()` liso con el header
+`X-Federation-Secret`, sin agente ni certificado especial; funciona igual si el destino sirve HTTP
+plano o HTTPS nativo, y si una instancia activa HTTPS más tarde (subiendo un certificado en
+`/settings` → TLS/Sistema), la federación pasa a ir cifrada sin ningún cambio de configuración.
+**Límite conocido:** cambiar la dirección pública propia (`/settings` → Multi-Región) no reanuncia
+el cambio a los pares ya enrolados — cada uno guardó el `remoteUrl` de esta instancia al enrolarse,
+y seguirá usando ese valor viejo hasta que se vuelva a enrolar (no existe protocolo de re-anuncio;
+fuera de alcance por el mismo criterio de "herramienta simple" del resto de esta sección).
 
 **Límites deliberados de esta decisión (no técnicos, de alcance):**
 

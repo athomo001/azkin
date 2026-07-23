@@ -1,9 +1,8 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
+import crypto from "crypto";
 import { IFederatedInstanceRepository } from "../../ports/repositories/federated-instance-repository";
-import { IFederationIdentityService } from "../../ports/services/federation-identity";
 import { IFederationClient } from "../../ports/services/federation-client";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
-import { getCertificateFingerprint } from "../../services/get-certificate-fingerprint";
 import { getErrorMessage } from "../../services/get-error-message";
 import { IFederatedInstance } from "../../../domain/entities/federated-instance";
 import { QuotaExceededError, ValidationError } from "../../../domain/errors/domain-error";
@@ -24,8 +23,9 @@ export interface JoinFederationOutput {
 }
 
 /**
- * Lado que **inicia** el enrollment (AZ-049): decodifica el código pegado por el Admin, llama de
- * salida a la instancia remota con el token, y si acepta, persiste el registro simétrico local.
+ * Lado que **inicia** el enrollment (AZ-049): decodifica el código pegado por el Admin, genera un
+ * secreto compartido nuevo para este par, llama de salida a la instancia remota con el token y el
+ * secreto, y si acepta, persiste el registro simétrico local con el secreto cifrado en reposo.
  * Caso borde aceptado (no se resuelve con 2PC — sería sobreingeniería a 5 instancias máximo): si
  * la red falla justo después de que la remota acepta pero antes de recibir la respuesta, la
  * remota queda con un registro "huérfano" que se resuelve revocándolo manualmente.
@@ -33,11 +33,11 @@ export interface JoinFederationOutput {
 export class JoinFederationUseCase {
   constructor(
     private readonly federatedInstances: IFederatedInstanceRepository,
-    private readonly identity: IFederationIdentityService,
     private readonly client: IFederationClient,
     private readonly auditLog: IAuditLogRepository,
-    private readonly resolveOwnFederationPort: () => Promise<number>,
     private readonly resolveOwnUrl: () => Promise<string | null>,
+    private readonly encryptSecret: (secret: string, key: string) => string,
+    private readonly encryptionKey: string,
   ) {}
 
   async execute(input: JoinFederationInput): Promise<JoinFederationOutput> {
@@ -56,31 +56,20 @@ export class JoinFederationUseCase {
     }
 
     const decoded = this.decodeCode(input.code);
+    const secret = crypto.randomBytes(32).toString("hex");
 
-    const ownIdentity = await this.identity.getOrCreateOwnCertificate();
-    const ownFederationPort = await this.resolveOwnFederationPort();
-
-    const result = await this.client.requestEnrollment({
+    await this.client.requestEnrollment({
       remoteUrl: decoded.url,
       token: decoded.token,
-      callerCertPem: ownIdentity.certPem,
       callerLabel: input.ownLabel,
       callerUrl: ownUrl,
-      callerFederationPort: ownFederationPort,
+      callerSecret: secret,
     });
-
-    let fingerprint: string;
-    try {
-      fingerprint = getCertificateFingerprint(result.ownCertPem);
-    } catch {
-      throw new ValidationError("El certificado devuelto por la instancia remota no tiene un formato válido");
-    }
 
     const instance = await this.federatedInstances.create({
       label: input.peerLabel,
       remoteUrl: decoded.url,
-      remoteFederationPort: result.ownFederationPort,
-      peerCertFingerprint: fingerprint,
+      remoteSecretEncrypted: this.encryptSecret(secret, this.encryptionKey),
       createdById: input.actorId,
     });
 
