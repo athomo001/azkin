@@ -51,18 +51,30 @@ test("TestFederatedInstanceConnectionUseCase lanza NotFoundError si la instancia
   await assert.rejects(() => useCase.execute("no-existe"));
 });
 
-test("TestFederatedInstanceConnectionUseCase prueba la URL y el puerto de federación guardados en la instancia", async () => {
-  const { server: urlServer, port: urlPort } = await listenOnEphemeralPort();
+test("TestFederatedInstanceConnectionUseCase prueba el puerto de federación guardado en la instancia (reachable)", async () => {
+  const { server, port } = await listenOnEphemeralPort();
   try {
-    const instance = makeInstance({ remoteUrl: `http://127.0.0.1:${urlPort}`, remoteFederationPort: urlPort + 1 });
+    const instance = makeInstance({ remoteUrl: "http://127.0.0.1", remoteFederationPort: port });
     const useCase = new TestFederatedInstanceConnectionUseCase(makeRepo(instance));
 
     const result = await useCase.execute("instance-1");
 
-    assert.equal(result.urlReachable, true);
-    assert.equal(result.federationPort, urlPort + 1);
-    assert.equal(result.portReachable, false); // nadie escucha en ese puerto
+    assert.equal(result.reachable, true);
+    assert.equal(typeof result.latencyMs, "number");
   } finally {
-    urlServer.close();
+    server.close();
   }
+});
+
+test("TestFederatedInstanceConnectionUseCase reporta no alcanzable si nadie escucha en el puerto guardado", async () => {
+  const { server, port } = await listenOnEphemeralPort();
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+
+  const instance = makeInstance({ remoteUrl: "http://127.0.0.1", remoteFederationPort: port });
+  const useCase = new TestFederatedInstanceConnectionUseCase(makeRepo(instance));
+
+  const result = await useCase.execute("instance-1");
+
+  assert.equal(result.reachable, false);
+  assert.ok(result.error);
 });

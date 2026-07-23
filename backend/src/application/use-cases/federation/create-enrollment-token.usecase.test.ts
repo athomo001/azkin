@@ -8,6 +8,7 @@ import {
   IFederationEnrollmentTokenRepository,
 } from "../../ports/repositories/federation-enrollment-token-repository";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
+import { ValidationError } from "../../../domain/errors/domain-error";
 
 function makeFakes() {
   const created: CreateFederationEnrollmentTokenData[] = [];
@@ -26,11 +27,11 @@ function makeFakes() {
   return { tokens, created, auditLog };
 }
 
-test("CreateEnrollmentTokenUseCase persiste solo el hash (no el token crudo) y devuelve un código base64url con url+puerto+token", async () => {
+test("CreateEnrollmentTokenUseCase persiste solo el hash (no el token crudo) y devuelve un código base64url con la url propia guardada", async () => {
   const { tokens, created, auditLog } = makeFakes();
-  const useCase = new CreateEnrollmentTokenUseCase(tokens, auditLog, async () => 8444);
+  const useCase = new CreateEnrollmentTokenUseCase(tokens, auditLog, async () => "https://chile.example.com");
 
-  const result = await useCase.execute({ actorId: "admin-1", ownUrl: "https://chile.example.com" });
+  const result = await useCase.execute({ actorId: "admin-1" });
 
   assert.equal(created.length, 1);
   assert.equal(created[0].createdById, "admin-1");
@@ -38,7 +39,14 @@ test("CreateEnrollmentTokenUseCase persiste solo el hash (no el token crudo) y d
 
   const decoded = JSON.parse(Buffer.from(result.code, "base64url").toString("utf8"));
   assert.equal(decoded.url, "https://chile.example.com");
-  assert.equal(decoded.port, 8444);
   assert.match(decoded.token, /^[0-9a-f]{64}$/); // token crudo, distinto del hash guardado
   assert.notEqual(decoded.token, created[0].tokenHash);
+});
+
+test("CreateEnrollmentTokenUseCase rechaza generar un código si no hay dirección propia guardada", async () => {
+  const { tokens, created, auditLog } = makeFakes();
+  const useCase = new CreateEnrollmentTokenUseCase(tokens, auditLog, async () => null);
+
+  await assert.rejects(() => useCase.execute({ actorId: "admin-1" }), ValidationError);
+  assert.equal(created.length, 0); // no se crea el token si falta la dirección propia
 });

@@ -7,11 +7,13 @@ export interface FederationPortStatus {
   isOverridden: boolean;
   listenerActive: boolean;
   listenerPort?: number; // puerto realmente escuchado ahora mismo (puede diferir si aún no se aplicó)
+  ownUrl?: string; // dirección pública guardada para esta instancia (independiente del puerto)
 }
 
 /**
- * Caso de uso para consultar el puerto vigente del listener mTLS de federación, junto con el
- * estado real del listener — mismo patrón que `GetTlsConfigUseCase` para el puerto HTTPS (AZ-006).
+ * Caso de uso para consultar el puerto vigente del listener mTLS de federación y la dirección
+ * propia guardada, junto con el estado real del listener — mismo patrón que `GetTlsConfigUseCase`
+ * para el puerto HTTPS (AZ-006).
  */
 export class GetFederationPortUseCase {
   constructor(
@@ -26,9 +28,10 @@ export class GetFederationPortUseCase {
 
     return {
       port: override?.port ?? this.envDefaultPort,
-      isOverridden: !!override,
+      isOverridden: override?.port !== undefined,
       listenerActive: listenerStatus.active,
       listenerPort: listenerStatus.port,
+      ownUrl: override?.ownUrl,
     };
   }
 }

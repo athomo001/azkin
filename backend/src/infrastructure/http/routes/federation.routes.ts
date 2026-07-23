@@ -8,10 +8,10 @@ import { makeAuthRateLimiter } from "../middlewares/rate-limit";
 import {
   acceptEnrollmentSchema,
   applyFederationPortSchema,
-  createEnrollmentTokenSchema,
   createFederatedMonitorLinkSchema,
   joinFederationSchema,
-  testEnrollmentConnectionSchema,
+  setFederationOwnUrlSchema,
+  testAddressConnectionSchema,
 } from "../schemas/federation.schema";
 
 /**
@@ -25,7 +25,7 @@ export function federationRoutes(controller: FederationController, authGuard: Re
   const router = Router();
   const enrollmentLimiter = makeAuthRateLimiter(10, 15);
 
-  router.post("/tokens", authGuard, requireRole("admin"), validateBody(createEnrollmentTokenSchema), asyncHandler(controller.createToken));
+  router.post("/tokens", authGuard, requireRole("admin"), asyncHandler(controller.createToken));
   router.post("/instances", authGuard, requireRole("admin"), validateBody(joinFederationSchema), asyncHandler(controller.join));
   router.get("/instances", authGuard, requireRole("admin"), asyncHandler(controller.list));
   router.delete("/instances/:id", authGuard, requireRole("admin"), asyncHandler(controller.revoke));
@@ -33,7 +33,8 @@ export function federationRoutes(controller: FederationController, authGuard: Re
 
   router.get("/port", authGuard, requireRole("admin"), asyncHandler(controller.getPort));
   router.put("/port", authGuard, requireRole("admin"), validateBody(applyFederationPortSchema), asyncHandler(controller.applyPort));
-  router.post("/test-connection", authGuard, requireRole("admin"), validateBody(testEnrollmentConnectionSchema), asyncHandler(controller.testConnection));
+  router.put("/own-url", authGuard, requireRole("admin"), validateBody(setFederationOwnUrlSchema), asyncHandler(controller.setOwnUrl));
+  router.post("/test-connection", authGuard, requireRole("admin"), validateBody(testAddressConnectionSchema), asyncHandler(controller.testConnection));
   router.post("/instances/:id/test-connection", authGuard, requireRole("admin"), asyncHandler(controller.testInstanceConnection));
 
   router.get("/instances/:id/remote-monitors", authGuard, requireRole("admin"), asyncHandler(controller.remoteMonitors));

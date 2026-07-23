@@ -26,6 +26,70 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="space-y-8">
+      <!-- ================= CONFIGURACIÓN DE RED PROPIA ================= -->
+      <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl p-6 space-y-4">
+        <div>
+          <h3 class="text-sm font-bold text-white tracking-tight">Configuración de red de esta instancia</h3>
+          <p class="text-[11px] text-zinc-500 mt-0.5 font-medium">Se configura una sola vez acá y se reutiliza automáticamente al invitar o unirte a una federación — no hace falta volver a escribirla.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Mi dirección pública</label>
+            <input type="text" [(ngModel)]="networkForm.ownUrl" placeholder="203.0.113.5 o mi-azkin.miempresa.cl"
+              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
+            <button (click)="onSaveOwnUrl()" [disabled]="isSavingOwnUrl()"
+              class="w-full px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-xs font-bold transition-all">
+              {{ isSavingOwnUrl() ? 'Guardando...' : 'Guardar dirección' }}
+            </button>
+          </div>
+          <div class="space-y-2">
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Puerto de federación (mTLS)</label>
+            <input type="number" [(ngModel)]="portForm.port" placeholder="8444"
+              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
+            <button (click)="onApplyPort()" [disabled]="isApplyingPort()"
+              class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:bg-orange-800 text-xs font-bold transition-all shadow-md">
+              {{ isApplyingPort() ? 'Aplicando...' : 'Aplicar puerto' }}
+            </button>
+          </div>
+        </div>
+        @if (portStatus(); as status) {
+          <p class="text-[10px] text-zinc-500">Puerto: {{ status.listenerActive ? ('activo en ' + status.listenerPort) : 'inactivo' }} · {{ status.isOverridden ? 'valor guardado desde este panel' : 'valor por defecto de AZKIN_FEDERATION_PORT' }}</p>
+        }
+        <p class="text-[10px] text-amber-500/80 font-medium">Advertencia: si cambias el puerto o la dirección con pares ya enrolados, ellos seguirán intentando contactarte con el valor anterior hasta que vuelvan a enrolarse — no hay re-anuncio automático.</p>
+      </div>
+
+      <!-- ================= PROBAR CONECTIVIDAD ================= -->
+      <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl p-6 space-y-4">
+        <div>
+          <h3 class="text-sm font-bold text-white tracking-tight">Probar conectividad</h3>
+          <p class="text-[11px] text-zinc-500 mt-0.5 font-medium">Antes de invitar o unirte, probá si tu servidor alcanza la dirección y el puerto que te haya pasado el otro Admin (por chat, etc.) — no necesitás ningún código para esto.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div class="md:col-span-2">
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Dirección (IP o dominio)</label>
+            <input type="text" [(ngModel)]="testForm.host" placeholder="203.0.113.9"
+              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Puerto</label>
+            <input type="number" [(ngModel)]="testForm.port" placeholder="8444"
+              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
+          </div>
+        </div>
+        <button (click)="onTestAddress()" [disabled]="isTestingAddress()"
+          class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:bg-orange-800 text-xs font-bold transition-all shadow-md">
+          {{ isTestingAddress() ? 'Probando...' : 'Probar' }}
+        </button>
+        @if (addressTestResult(); as tr) {
+          <div class="bg-zinc-950/60 border rounded-lg p-3"
+            [class.border-emerald-900/50]="tr.reachable" [class.border-rose-900/50]="!tr.reachable">
+            <p class="text-[10px] font-semibold" [class.text-emerald-400]="tr.reachable" [class.text-rose-400]="!tr.reachable">
+              {{ tr.reachable ? ('Alcanzable (' + tr.latencyMs + ' ms)') : ('No alcanzable — ' + tr.error) }}
+            </p>
+          </div>
+        }
+      </div>
+
       <!-- ================= ENROLLMENT ================= -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl p-6 space-y-4">
@@ -33,12 +97,12 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
             <h3 class="text-sm font-bold text-white tracking-tight">Invitar a otra instancia</h3>
             <p class="text-[11px] text-zinc-500 mt-0.5 font-medium">Genera un código de un solo uso (expira en 20 min) que el Admin de la otra instancia pega en su propio panel de Federación.</p>
           </div>
-          <div>
-            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">URL pública de esta instancia</label>
-            <input type="text" [(ngModel)]="tokenForm.ownUrl" placeholder="https://mi-azkin.miempresa.cl"
-              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
-          </div>
-          <button (click)="onCreateToken()" class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-xs font-bold transition-all shadow-md">
+          @if (portStatus()?.ownUrl) {
+            <p class="text-[10px] text-zinc-500">Se compartirá como tu dirección: <span class="font-mono text-zinc-300">{{ portStatus()?.ownUrl }}</span></p>
+          } @else {
+            <p class="text-[10px] text-amber-500/80 font-medium">Configura "Mi dirección pública" arriba antes de generar un código.</p>
+          }
+          <button (click)="onCreateToken()" [disabled]="!portStatus()?.ownUrl" class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-xs font-bold transition-all shadow-md">
             Generar código de enrollment
           </button>
           @if (generatedCode()) {
@@ -72,58 +136,15 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                 class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
             </div>
           </div>
-          <div>
-            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Tu propia URL pública</label>
-            <input type="text" [(ngModel)]="joinForm.ownUrl" placeholder="https://mi-azkin.miempresa.cl"
-              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <button (click)="onTestJoinConnection()" [disabled]="!joinForm.code.trim() || isTestingJoinConnection()"
-              class="w-full px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-xs font-bold transition-all">
-              {{ isTestingJoinConnection() ? 'Probando...' : 'Probar conexión' }}
-            </button>
-            <button (click)="onJoin()" class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-xs font-bold transition-all shadow-md">
-              Unirse a la federación
-            </button>
-          </div>
-          @if (joinTestResult(); as tr) {
-            <div class="bg-zinc-950/60 border rounded-lg p-3 space-y-1"
-              [class.border-emerald-900/50]="tr.urlReachable && tr.portReachable"
-              [class.border-rose-900/50]="!tr.urlReachable || !tr.portReachable">
-              <p class="text-[10px] font-semibold" [class.text-emerald-400]="tr.urlReachable" [class.text-rose-400]="!tr.urlReachable">
-                URL pública: {{ tr.urlReachable ? ('Alcanzable (' + tr.urlLatencyMs + ' ms)') : ('No alcanzable — ' + tr.urlError) }}
-              </p>
-              <p class="text-[10px] font-semibold" [class.text-emerald-400]="tr.portReachable" [class.text-rose-400]="!tr.portReachable">
-                Puerto de federación ({{ tr.federationPort }}): {{ tr.portReachable ? ('Alcanzable (' + tr.portLatencyMs + ' ms)') : ('No alcanzable — ' + tr.portError) }}
-              </p>
-            </div>
+          @if (portStatus()?.ownUrl) {
+            <p class="text-[10px] text-zinc-500">Te identificarás con tu dirección: <span class="font-mono text-zinc-300">{{ portStatus()?.ownUrl }}</span></p>
+          } @else {
+            <p class="text-[10px] text-amber-500/80 font-medium">Configura "Mi dirección pública" arriba antes de unirte.</p>
           }
+          <button (click)="onJoin()" [disabled]="!portStatus()?.ownUrl" class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-xs font-bold transition-all shadow-md">
+            Unirse a la federación
+          </button>
         </div>
-      </div>
-
-      <!-- ================= PUERTO DE FEDERACIÓN ================= -->
-      <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl p-6 space-y-4">
-        <div>
-          <h3 class="text-sm font-bold text-white tracking-tight">Puerto de federación (mTLS)</h3>
-          <p class="text-[11px] text-zinc-500 mt-0.5 font-medium">Puerto dedicado por el que esta instancia recibe el sondeo de sus pares, separado del puerto de la API/frontend.</p>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-          <div>
-            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Puerto</label>
-            <input type="number" [(ngModel)]="portForm.port" placeholder="8444"
-              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
-          </div>
-          <div class="md:col-span-2 text-[10px] text-zinc-500">
-            @if (portStatus(); as status) {
-              <p>Estado: {{ status.listenerActive ? ('Activo en el puerto ' + status.listenerPort) : 'Inactivo' }} · {{ status.isOverridden ? 'valor guardado desde este panel' : 'valor por defecto de AZKIN_FEDERATION_PORT' }}</p>
-            }
-          </div>
-        </div>
-        <button (click)="onApplyPort()" [disabled]="isApplyingPort()"
-          class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:bg-orange-800 text-xs font-bold transition-all shadow-md">
-          {{ isApplyingPort() ? 'Aplicando...' : 'Aplicar puerto' }}
-        </button>
-        <p class="text-[10px] text-amber-500/80 font-medium">Advertencia: si cambias este puerto con pares ya enrolados, ellos seguirán intentando contactarte por el puerto anterior hasta que vuelvan a enrolarse — no hay re-anuncio automático.</p>
       </div>
 
       <!-- ================= INSTANCIAS FEDERADAS ================= -->
@@ -237,13 +258,15 @@ export class FederationPanelComponent {
   readonly remoteMonitors = signal<IRemoteMonitorSummary[]>([]);
   readonly portStatus = signal<IFederationPortStatus | null>(null);
   readonly isApplyingPort = signal(false);
-  readonly joinTestResult = signal<ITestConnectionResult | null>(null);
-  readonly isTestingJoinConnection = signal(false);
+  readonly isSavingOwnUrl = signal(false);
+  readonly addressTestResult = signal<ITestConnectionResult | null>(null);
+  readonly isTestingAddress = signal(false);
 
-  tokenForm = { ownUrl: '' };
-  joinForm = { code: '', peerLabel: '', ownLabel: '', ownUrl: '' };
+  joinForm = { code: '', peerLabel: '', ownLabel: '' };
   linkForm = { localMonitorId: '', remoteMonitorId: '', remoteMonitorLabel: '' };
   portForm = { port: 8444 };
+  networkForm = { ownUrl: '' };
+  testForm = { host: '', port: 8444 };
 
   constructor() {
     this.federation.loadInstances().subscribe();
@@ -256,8 +279,9 @@ export class FederationPanelComponent {
       next: (status) => {
         this.portStatus.set(status);
         this.portForm.port = status.port;
+        this.networkForm.ownUrl = status.ownUrl ?? '';
       },
-      error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al consultar el puerto de federación.')),
+      error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al consultar la configuración de red.')),
     });
   }
 
@@ -280,16 +304,50 @@ export class FederationPanelComponent {
     });
   }
 
+  onSaveOwnUrl(): void {
+    if (!this.networkForm.ownUrl.trim()) {
+      this.toast.show('Indica una dirección o URL.');
+      return;
+    }
+    this.isSavingOwnUrl.set(true);
+    this.federation.setOwnUrl(this.networkForm.ownUrl).subscribe({
+      next: () => {
+        this.isSavingOwnUrl.set(false);
+        this.toast.show('Dirección pública guardada.');
+        this.loadPortStatus();
+      },
+      error: (err) => {
+        this.isSavingOwnUrl.set(false);
+        this.toast.show(extractApiErrorMessage(err, 'Error al guardar la dirección pública.'));
+      },
+    });
+  }
+
+  onTestAddress(): void {
+    if (!this.testForm.host.trim() || !this.testForm.port) {
+      this.toast.show('Indica una dirección y un puerto.');
+      return;
+    }
+    this.isTestingAddress.set(true);
+    this.federation.testAddress(this.testForm.host, this.testForm.port).subscribe({
+      next: (result) => {
+        this.isTestingAddress.set(false);
+        this.addressTestResult.set(result);
+      },
+      error: (err) => {
+        this.isTestingAddress.set(false);
+        this.addressTestResult.set(null);
+        this.toast.show(extractApiErrorMessage(err, 'Error al probar la conexión.'));
+      },
+    });
+  }
+
   monitorNameById(id: string): string {
     return this.monitorService.monitors().find((m) => m.id === id)?.name ?? id;
   }
 
   onCreateToken(): void {
-    if (!this.tokenForm.ownUrl.trim()) {
-      this.toast.show('Indica la URL pública de esta instancia.');
-      return;
-    }
-    this.federation.createEnrollmentToken(this.tokenForm.ownUrl).subscribe({
+    this.federation.createEnrollmentToken().subscribe({
       next: (result) => {
         this.generatedCode.set(result.code);
         this.codeExpiresAt.set(new Date(result.expiresAt).toLocaleTimeString());
@@ -306,44 +364,25 @@ export class FederationPanelComponent {
   }
 
   onJoin(): void {
-    if (!this.joinForm.code.trim() || !this.joinForm.peerLabel.trim() || !this.joinForm.ownLabel.trim() || !this.joinForm.ownUrl.trim()) {
+    if (!this.joinForm.code.trim() || !this.joinForm.peerLabel.trim() || !this.joinForm.ownLabel.trim()) {
       this.toast.show('Completa todos los campos para unirte a la federación.');
       return;
     }
     this.federation.join({ ...this.joinForm }).subscribe({
       next: () => {
         this.toast.show(`Federación con "${this.joinForm.peerLabel}" creada.`);
-        this.joinForm = { code: '', peerLabel: '', ownLabel: '', ownUrl: this.joinForm.ownUrl };
+        this.joinForm = { code: '', peerLabel: '', ownLabel: '' };
       },
       error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al unirse a la federación.')),
-    });
-  }
-
-  onTestJoinConnection(): void {
-    if (!this.joinForm.code.trim()) {
-      this.toast.show('Pega primero el código de enrollment.');
-      return;
-    }
-    this.isTestingJoinConnection.set(true);
-    this.federation.testEnrollmentConnection(this.joinForm.code).subscribe({
-      next: (result) => {
-        this.isTestingJoinConnection.set(false);
-        this.joinTestResult.set(result);
-      },
-      error: (err) => {
-        this.isTestingJoinConnection.set(false);
-        this.joinTestResult.set(null);
-        this.toast.show(extractApiErrorMessage(err, 'Error al probar la conexión.'));
-      },
     });
   }
 
   onTestInstanceConnection(instance: IFederatedInstance): void {
     this.federation.testInstanceConnection(instance.id).subscribe({
       next: (result) => {
-        const urlPart = `URL ${result.urlReachable ? 'OK' : 'FALLÓ'}`;
-        const portPart = `Puerto ${result.federationPort} ${result.portReachable ? 'OK' : 'FALLÓ'}`;
-        this.toast.show(`"${instance.label}": ${urlPart} · ${portPart}`);
+        this.toast.show(
+          `"${instance.label}": ${result.reachable ? `Alcanzable (${result.latencyMs} ms)` : `No alcanzable — ${result.error}`}`,
+        );
       },
       error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al probar la conexión.')),
     });
