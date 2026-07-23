@@ -86,7 +86,7 @@ function makeFakes(opts: { activeCount?: number; remoteCertPem?: string; remoteF
 
 test("JoinFederationUseCase rechaza un código con formato inválido", async () => {
   const { federatedInstances, identity, client, auditLog } = makeFakes();
-  const useCase = new JoinFederationUseCase(federatedInstances, identity, client, auditLog, OWN_FEDERATION_PORT);
+  const useCase = new JoinFederationUseCase(federatedInstances, identity, client, auditLog, async () => OWN_FEDERATION_PORT);
 
   await assert.rejects(
     () =>
@@ -103,7 +103,7 @@ test("JoinFederationUseCase rechaza un código con formato inválido", async () 
 
 test("JoinFederationUseCase rechaza al superar la cuota de instancias federadas", async () => {
   const { federatedInstances, identity, client, auditLog } = makeFakes({ activeCount: MAX_FEDERATED_INSTANCES });
-  const useCase = new JoinFederationUseCase(federatedInstances, identity, client, auditLog, OWN_FEDERATION_PORT);
+  const useCase = new JoinFederationUseCase(federatedInstances, identity, client, auditLog, async () => OWN_FEDERATION_PORT);
   const code = makeCode("https://chile.example.com", "raw-token");
 
   await assert.rejects(
@@ -121,7 +121,7 @@ test("JoinFederationUseCase rechaza al superar la cuota de instancias federadas"
 
 test("JoinFederationUseCase decodifica el código, llama a la instancia remota (con el puerto propio) y persiste el registro simétrico", async () => {
   const { federatedInstances, identity, client, auditLog, created, clientCalls } = makeFakes({ remoteFederationPort: 9001 });
-  const useCase = new JoinFederationUseCase(federatedInstances, identity, client, auditLog, OWN_FEDERATION_PORT);
+  const useCase = new JoinFederationUseCase(federatedInstances, identity, client, auditLog, async () => OWN_FEDERATION_PORT);
   const code = makeCode("https://chile.example.com", "raw-token-123");
 
   const result = await useCase.execute({

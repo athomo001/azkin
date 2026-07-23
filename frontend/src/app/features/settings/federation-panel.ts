@@ -6,7 +6,9 @@ import {
   FederationService,
   IFederatedInstance,
   IFederatedMonitorLink,
+  IFederationPortStatus,
   IRemoteMonitorSummary,
+  ITestConnectionResult,
 } from '../../core/services/federation.service';
 import { MonitorService } from '../../core/services/monitor.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -75,10 +77,53 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
             <input type="text" [(ngModel)]="joinForm.ownUrl" placeholder="https://mi-azkin.miempresa.cl"
               class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
           </div>
-          <button (click)="onJoin()" class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-xs font-bold transition-all shadow-md">
-            Unirse a la federación
-          </button>
+          <div class="grid grid-cols-2 gap-2">
+            <button (click)="onTestJoinConnection()" [disabled]="!joinForm.code.trim() || isTestingJoinConnection()"
+              class="w-full px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-xs font-bold transition-all">
+              {{ isTestingJoinConnection() ? 'Probando...' : 'Probar conexión' }}
+            </button>
+            <button (click)="onJoin()" class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-xs font-bold transition-all shadow-md">
+              Unirse a la federación
+            </button>
+          </div>
+          @if (joinTestResult(); as tr) {
+            <div class="bg-zinc-950/60 border rounded-lg p-3 space-y-1"
+              [class.border-emerald-900/50]="tr.urlReachable && tr.portReachable"
+              [class.border-rose-900/50]="!tr.urlReachable || !tr.portReachable">
+              <p class="text-[10px] font-semibold" [class.text-emerald-400]="tr.urlReachable" [class.text-rose-400]="!tr.urlReachable">
+                URL pública: {{ tr.urlReachable ? ('Alcanzable (' + tr.urlLatencyMs + ' ms)') : ('No alcanzable — ' + tr.urlError) }}
+              </p>
+              <p class="text-[10px] font-semibold" [class.text-emerald-400]="tr.portReachable" [class.text-rose-400]="!tr.portReachable">
+                Puerto de federación ({{ tr.federationPort }}): {{ tr.portReachable ? ('Alcanzable (' + tr.portLatencyMs + ' ms)') : ('No alcanzable — ' + tr.portError) }}
+              </p>
+            </div>
+          }
         </div>
+      </div>
+
+      <!-- ================= PUERTO DE FEDERACIÓN ================= -->
+      <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl p-6 space-y-4">
+        <div>
+          <h3 class="text-sm font-bold text-white tracking-tight">Puerto de federación (mTLS)</h3>
+          <p class="text-[11px] text-zinc-500 mt-0.5 font-medium">Puerto dedicado por el que esta instancia recibe el sondeo de sus pares, separado del puerto de la API/frontend.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div>
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Puerto</label>
+            <input type="number" [(ngModel)]="portForm.port" placeholder="8444"
+              class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
+          </div>
+          <div class="md:col-span-2 text-[10px] text-zinc-500">
+            @if (portStatus(); as status) {
+              <p>Estado: {{ status.listenerActive ? ('Activo en el puerto ' + status.listenerPort) : 'Inactivo' }} · {{ status.isOverridden ? 'valor guardado desde este panel' : 'valor por defecto de AZKIN_FEDERATION_PORT' }}</p>
+            }
+          </div>
+        </div>
+        <button (click)="onApplyPort()" [disabled]="isApplyingPort()"
+          class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:bg-orange-800 text-xs font-bold transition-all shadow-md">
+          {{ isApplyingPort() ? 'Aplicando...' : 'Aplicar puerto' }}
+        </button>
+        <p class="text-[10px] text-amber-500/80 font-medium">Advertencia: si cambias este puerto con pares ya enrolados, ellos seguirán intentando contactarte por el puerto anterior hasta que vuelvan a enrolarse — no hay re-anuncio automático.</p>
       </div>
 
       <!-- ================= INSTANCIAS FEDERADAS ================= -->
@@ -110,6 +155,7 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                 </p>
                 @if (i.status === 'enrolled') {
                   <div class="flex items-center justify-end gap-3 border-t border-zinc-900 pt-2 text-[10px] font-bold">
+                    <button (click)="onTestInstanceConnection(i)" class="text-zinc-400 hover:text-zinc-200 transition-colors">Probar conexión</button>
                     <button (click)="onExploreMonitors(i)" class="text-zinc-400 hover:text-zinc-200 transition-colors">Explorar monitores</button>
                     <button (click)="onRevoke(i)" class="text-rose-500 hover:text-rose-400 transition-colors">Revocar</button>
                   </div>
@@ -189,14 +235,49 @@ export class FederationPanelComponent {
   readonly codeExpiresAt = signal<string>('');
   readonly exploringInstance = signal<IFederatedInstance | null>(null);
   readonly remoteMonitors = signal<IRemoteMonitorSummary[]>([]);
+  readonly portStatus = signal<IFederationPortStatus | null>(null);
+  readonly isApplyingPort = signal(false);
+  readonly joinTestResult = signal<ITestConnectionResult | null>(null);
+  readonly isTestingJoinConnection = signal(false);
 
   tokenForm = { ownUrl: '' };
   joinForm = { code: '', peerLabel: '', ownLabel: '', ownUrl: '' };
   linkForm = { localMonitorId: '', remoteMonitorId: '', remoteMonitorLabel: '' };
+  portForm = { port: 8444 };
 
   constructor() {
     this.federation.loadInstances().subscribe();
     this.federation.loadLinks().subscribe();
+    this.loadPortStatus();
+  }
+
+  private loadPortStatus(): void {
+    this.federation.getPort().subscribe({
+      next: (status) => {
+        this.portStatus.set(status);
+        this.portForm.port = status.port;
+      },
+      error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al consultar el puerto de federación.')),
+    });
+  }
+
+  onApplyPort(): void {
+    if (!this.portForm.port) {
+      this.toast.show('Indica un puerto válido.');
+      return;
+    }
+    this.isApplyingPort.set(true);
+    this.federation.setPort(this.portForm.port).subscribe({
+      next: () => {
+        this.isApplyingPort.set(false);
+        this.toast.show('Puerto de federación actualizado.');
+        this.loadPortStatus();
+      },
+      error: (err) => {
+        this.isApplyingPort.set(false);
+        this.toast.show(extractApiErrorMessage(err, 'Error al aplicar el puerto de federación.'));
+      },
+    });
   }
 
   monitorNameById(id: string): string {
@@ -235,6 +316,36 @@ export class FederationPanelComponent {
         this.joinForm = { code: '', peerLabel: '', ownLabel: '', ownUrl: this.joinForm.ownUrl };
       },
       error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al unirse a la federación.')),
+    });
+  }
+
+  onTestJoinConnection(): void {
+    if (!this.joinForm.code.trim()) {
+      this.toast.show('Pega primero el código de enrollment.');
+      return;
+    }
+    this.isTestingJoinConnection.set(true);
+    this.federation.testEnrollmentConnection(this.joinForm.code).subscribe({
+      next: (result) => {
+        this.isTestingJoinConnection.set(false);
+        this.joinTestResult.set(result);
+      },
+      error: (err) => {
+        this.isTestingJoinConnection.set(false);
+        this.joinTestResult.set(null);
+        this.toast.show(extractApiErrorMessage(err, 'Error al probar la conexión.'));
+      },
+    });
+  }
+
+  onTestInstanceConnection(instance: IFederatedInstance): void {
+    this.federation.testInstanceConnection(instance.id).subscribe({
+      next: (result) => {
+        const urlPart = `URL ${result.urlReachable ? 'OK' : 'FALLÓ'}`;
+        const portPart = `Puerto ${result.federationPort} ${result.portReachable ? 'OK' : 'FALLÓ'}`;
+        this.toast.show(`"${instance.label}": ${urlPart} · ${portPart}`);
+      },
+      error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al probar la conexión.')),
     });
   }
 

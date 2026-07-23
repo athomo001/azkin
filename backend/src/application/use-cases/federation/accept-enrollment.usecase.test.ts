@@ -77,7 +77,7 @@ function makeFakes(opts: { activeCount?: number; validToken?: ConsumedFederation
 
 test("AcceptEnrollmentUseCase rechaza un token inválido/expirado/reusado con un error genérico", async () => {
   const { tokens, federatedInstances, identity, auditLog } = makeFakes({ validToken: null });
-  const useCase = new AcceptEnrollmentUseCase(tokens, federatedInstances, identity, auditLog, OWN_FEDERATION_PORT);
+  const useCase = new AcceptEnrollmentUseCase(tokens, federatedInstances, identity, auditLog, async () => OWN_FEDERATION_PORT);
 
   await assert.rejects(
     () =>
@@ -94,7 +94,7 @@ test("AcceptEnrollmentUseCase rechaza un token inválido/expirado/reusado con un
 
 test("AcceptEnrollmentUseCase rechaza al superar la cuota de instancias federadas", async () => {
   const { tokens, federatedInstances, identity, auditLog } = makeFakes({ activeCount: MAX_FEDERATED_INSTANCES });
-  const useCase = new AcceptEnrollmentUseCase(tokens, federatedInstances, identity, auditLog, OWN_FEDERATION_PORT);
+  const useCase = new AcceptEnrollmentUseCase(tokens, federatedInstances, identity, auditLog, async () => OWN_FEDERATION_PORT);
 
   await assert.rejects(
     () =>
@@ -111,7 +111,7 @@ test("AcceptEnrollmentUseCase rechaza al superar la cuota de instancias federada
 
 test("AcceptEnrollmentUseCase rechaza un certificado con formato inválido", async () => {
   const { tokens, federatedInstances, identity, auditLog } = makeFakes();
-  const useCase = new AcceptEnrollmentUseCase(tokens, federatedInstances, identity, auditLog, OWN_FEDERATION_PORT);
+  const useCase = new AcceptEnrollmentUseCase(tokens, federatedInstances, identity, auditLog, async () => OWN_FEDERATION_PORT);
 
   await assert.rejects(
     () =>
@@ -128,7 +128,7 @@ test("AcceptEnrollmentUseCase rechaza un certificado con formato inválido", asy
 
 test("AcceptEnrollmentUseCase crea la instancia federada y devuelve el certificado + puerto propio", async () => {
   const { tokens, federatedInstances, identity, auditLog, created } = makeFakes();
-  const useCase = new AcceptEnrollmentUseCase(tokens, federatedInstances, identity, auditLog, OWN_FEDERATION_PORT);
+  const useCase = new AcceptEnrollmentUseCase(tokens, federatedInstances, identity, auditLog, async () => OWN_FEDERATION_PORT);
 
   const result = await useCase.execute({
     token: "token-valido",

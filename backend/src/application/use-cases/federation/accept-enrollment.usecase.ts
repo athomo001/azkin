@@ -38,7 +38,7 @@ export class AcceptEnrollmentUseCase {
     private readonly federatedInstances: IFederatedInstanceRepository,
     private readonly identity: IFederationIdentityService,
     private readonly auditLog: IAuditLogRepository,
-    private readonly ownFederationPort: number,
+    private readonly resolveOwnFederationPort: () => Promise<number>,
   ) {}
 
   async execute(input: AcceptEnrollmentInput): Promise<AcceptEnrollmentOutput> {
@@ -78,6 +78,6 @@ export class AcceptEnrollmentUseCase {
       targetIds: [instance.id],
     });
 
-    return { ownCertPem: ownIdentity.certPem, ownFederationPort: this.ownFederationPort };
+    return { ownCertPem: ownIdentity.certPem, ownFederationPort: await this.resolveOwnFederationPort() };
   }
 }

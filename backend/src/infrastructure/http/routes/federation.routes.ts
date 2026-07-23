@@ -7,9 +7,11 @@ import { validateBody } from "../middlewares/validate";
 import { makeAuthRateLimiter } from "../middlewares/rate-limit";
 import {
   acceptEnrollmentSchema,
+  applyFederationPortSchema,
   createEnrollmentTokenSchema,
   createFederatedMonitorLinkSchema,
   joinFederationSchema,
+  testEnrollmentConnectionSchema,
 } from "../schemas/federation.schema";
 
 /**
@@ -28,6 +30,11 @@ export function federationRoutes(controller: FederationController, authGuard: Re
   router.get("/instances", authGuard, requireRole("admin"), asyncHandler(controller.list));
   router.delete("/instances/:id", authGuard, requireRole("admin"), asyncHandler(controller.revoke));
   router.post("/enrollments", enrollmentLimiter, validateBody(acceptEnrollmentSchema), asyncHandler(controller.accept));
+
+  router.get("/port", authGuard, requireRole("admin"), asyncHandler(controller.getPort));
+  router.put("/port", authGuard, requireRole("admin"), validateBody(applyFederationPortSchema), asyncHandler(controller.applyPort));
+  router.post("/test-connection", authGuard, requireRole("admin"), validateBody(testEnrollmentConnectionSchema), asyncHandler(controller.testConnection));
+  router.post("/instances/:id/test-connection", authGuard, requireRole("admin"), asyncHandler(controller.testInstanceConnection));
 
   router.get("/instances/:id/remote-monitors", authGuard, requireRole("admin"), asyncHandler(controller.remoteMonitors));
   router.post("/links", authGuard, requireRole("admin"), validateBody(createFederatedMonitorLinkSchema), asyncHandler(controller.createLink));
