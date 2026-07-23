@@ -413,6 +413,16 @@ clave que ya cifra la llave privada TLS (`AZKIN_TLS_ENCRYPTION_KEY`,
 (fingerprint SHA-256)**, no cadena de CA: cada `FederatedInstance` guarda la huella exacta del
 certificado que el par presentó al enrolarse.
 
+**La clave de cifrado se deriva sola, sin configuración manual por nodo:** `AZKIN_TLS_ENCRYPTION_KEY`
+no necesita fijarse a mano — si no está configurada, `resolve-tls-encryption-key.ts` deriva una
+clave de 32 bytes vía HKDF-SHA256 a partir de `AZKIN_JWT_SECRET` (obligatorio y único por
+instancia). Esto era un requisito operativo real para la federación multi-nodo: sin la derivación,
+habría que generar y pegar a mano un secreto adicional en el `.env` de **cada** instancia antes de
+poder enrolarla, justo lo que la federación busca evitar. Cada nodo deriva su propia clave
+localmente — no se comparte ni se sincroniza entre pares — y quien prefiera un secreto
+independiente del JWT puede seguir fijando `AZKIN_TLS_ENCRYPTION_KEY` explícitamente (ese valor
+manual siempre gana sobre la derivación).
+
 ```mermaid
 sequenceDiagram
     participant A as Instancia A (ej. Chile)

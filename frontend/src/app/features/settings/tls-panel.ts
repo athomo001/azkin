@@ -61,11 +61,11 @@ interface MonitoringEngineSettings {
 
         <div class="bg-zinc-950/60 border border-zinc-900 rounded-lg p-3 flex items-center justify-between gap-3">
           <p class="text-[10px] text-zinc-500">
-            El cifrado en reposo requiere <code class="font-mono text-zinc-400">AZKIN_TLS_ENCRYPTION_KEY</code> en el <code class="font-mono text-zinc-400">.env</code> del servidor (no se configura desde aquí).
+            El cifrado en reposo se deriva automáticamente de <code class="font-mono text-zinc-400">AZKIN_JWT_SECRET</code> — no requiere ningún paso adicional. Opcional: si preferís una clave independiente, podés fijar <code class="font-mono text-zinc-400">AZKIN_TLS_ENCRYPTION_KEY</code> a mano en el <code class="font-mono text-zinc-400">.env</code> del servidor.
           </p>
           <button (click)="generateTlsEncryptionKey()"
             class="shrink-0 text-[10px] text-orange-500 hover:text-orange-400 font-bold px-2.5 py-1.5 rounded-lg border border-zinc-800 hover:border-orange-500/40 transition-colors uppercase tracking-wider">
-            Generar clave
+            Generar clave independiente
           </button>
         </div>
 
@@ -255,9 +255,9 @@ interface MonitoringEngineSettings {
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" (click)="generatedTlsKey.set(null)"></div>
         <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl max-w-md w-full shadow-2xl relative z-10 animate-fade-in space-y-4">
-          <h4 class="text-sm font-bold text-white font-black">Clave generada para AZKIN_TLS_ENCRYPTION_KEY</h4>
+          <h4 class="text-sm font-bold text-white font-black">Clave independiente para AZKIN_TLS_ENCRYPTION_KEY</h4>
           <p class="text-[11px] text-zinc-400">
-            Cópiala a la variable <code class="font-mono text-zinc-300">AZKIN_TLS_ENCRYPTION_KEY</code> en el <code class="font-mono text-zinc-300">.env</code> del servidor y reinicia el backend (<code class="font-mono text-zinc-300">docker compose up -d backend</code>) para aplicarla.
+            Esto es opcional: sin hacer nada, el cifrado en reposo ya funciona derivado de <code class="font-mono text-zinc-300">AZKIN_JWT_SECRET</code>. Solo si querés una clave independiente, cópiala a <code class="font-mono text-zinc-300">AZKIN_TLS_ENCRYPTION_KEY</code> en el <code class="font-mono text-zinc-300">.env</code> del servidor y reinicia el backend (<code class="font-mono text-zinc-300">docker compose up -d backend</code>) para aplicarla.
           </p>
           <div class="bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-orange-400 break-all select-all">{{ key }}</div>
           <p class="text-[10px] text-zinc-600">

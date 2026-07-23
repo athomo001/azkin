@@ -32,9 +32,10 @@ async function bootstrap(): Promise<void> {
     logger.info(`Azkin backend listening on port ${env.port}`);
   });
 
-  // Listener mTLS de federación (AZ-049, slice 2): requiere AZKIN_TLS_ENCRYPTION_KEY (mismo
-  // requisito que el certificado de identidad de federación) — si no está configurado, se omite
-  // sin tumbar el arranque (mismo criterio no-fatal de AZ-041).
+  // Listener mTLS de federación (AZ-049, slice 2): requiere una clave de cifrado en reposo, que
+  // por defecto se deriva sola de AZKIN_JWT_SECRET (ver resolve-tls-encryption-key.ts) — este
+  // `if` en la práctica solo queda en `false` si se fijó AZKIN_TLS_ENCRYPTION_KEY a mano con un
+  // valor mal formado, en cuyo caso se omite sin tumbar el arranque (criterio no-fatal de AZ-041).
   if (tlsEncryptionKey) {
     try {
       const credentials = await federationIdentityService.getOwnServerCredentials();
@@ -51,7 +52,7 @@ async function bootstrap(): Promise<void> {
     }
   } else {
     logger.warn(
-      "AZKIN_TLS_ENCRYPTION_KEY no está configurado: el listener mTLS de federación no arrancará.",
+      "AZKIN_TLS_ENCRYPTION_KEY tiene un valor inválido: el listener mTLS de federación no arrancará hasta corregirlo o quitarlo.",
     );
   }
 

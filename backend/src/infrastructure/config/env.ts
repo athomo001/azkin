@@ -38,15 +38,16 @@ const schema = z.object({
   AZKIN_FIRST_ADMIN_NAME: z.string().optional(),
   AZKIN_FIRST_ADMIN_EMAIL: z.preprocess(emptyToUndefined, z.string().email().optional()),
   AZKIN_FIRST_ADMIN_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(8).optional()),
-  // Clave de 32 bytes en hex (64 caracteres) para cifrar la clave privada TLS en reposo.
-  // Sin restricción de formato aquí a propósito (AZ-041): es la única variable que alimenta una
-  // función opcional y secundaria (subir certificado desde /settings), así que un valor mal
-  // formado no debe poder tumbar el arranque completo del backend — se valida por separado más
-  // abajo, con una advertencia en vez de `process.exit(1)`.
+  // Clave de 32 bytes en hex (64 caracteres) para cifrar la clave privada TLS en reposo. Opcional:
+  // si se deja vacía, se deriva automáticamente de AZKIN_JWT_SECRET (ver resolve-tls-encryption-key.ts)
+  // para que el cifrado en reposo funcione en cada nodo sin ningún paso manual. Fijarla solo si
+  // se quiere una clave independiente del JWT secret. Sin restricción de formato aquí a propósito
+  // (AZ-041): un valor explícito mal formado no debe poder tumbar el arranque completo del
+  // backend — se valida por separado más abajo, con una advertencia en vez de `process.exit(1)`.
   AZKIN_TLS_ENCRYPTION_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   // Puerto dedicado del listener mTLS de federación (AZ-049, slice 2) — separado del puerto de la
-  // API principal. Sin efecto si AZKIN_TLS_ENCRYPTION_KEY no está configurado (el listener no
-  // arranca, ver AZ-041: no debe tumbar el proceso por una función opcional).
+  // API principal. Arranca automáticamente ya que la clave de cifrado ahora siempre tiene un
+  // valor (explícito o derivado) salvo que AZKIN_TLS_ENCRYPTION_KEY esté mal formada.
   AZKIN_FEDERATION_PORT: z.coerce.number().int().positive().default(8444),
   // SMTP a nivel de aplicación para correos transaccionales (recuperación de contraseña).
   AZKIN_SMTP_HOST: z.string().optional(),
@@ -69,8 +70,10 @@ if (!parsed.success) {
 const raw = parsed.data;
 
 // AZ-041: validación no fatal de AZKIN_TLS_ENCRYPTION_KEY — ver resolve-tls-encryption-key.ts.
+// Si no está configurada, se deriva de AZKIN_JWT_SECRET (siempre presente, ver schema arriba).
 const { value: tlsEncryptionKey, warning: tlsEncryptionKeyWarning } = resolveTlsEncryptionKey(
   raw.AZKIN_TLS_ENCRYPTION_KEY,
+  raw.AZKIN_JWT_SECRET,
 );
 if (tlsEncryptionKeyWarning) {
   console.warn(tlsEncryptionKeyWarning);

@@ -51,7 +51,7 @@ para el listado completo y comentado):
 | `AZKIN_MONGO_USER` / `AZKIN_MONGO_PASSWORD` | Credenciales root de MongoDB. El compose construye `AZKIN_MONGO_URI` automáticamente a partir de estas dos — no se define a mano en `.env`. La URI se arma por interpolación directa de texto (sin URL-encoding), así que una contraseña con caracteres especiales (`@ : / % ? #`) rompe el parseo de forma silenciosa; genera una solo alfanumérica con `openssl rand -hex 24`. | credenciales de ejemplo — **cámbialas** |
 | `AZKIN_JWT_SECRET` | Firma los tokens de sesión. | placeholder — **obligatorio cambiar** |
 | `AZKIN_FIRST_ADMIN_NAME` / `_EMAIL` / `_PASSWORD` | Cuenta Admin creada automáticamente al primer arranque (seeder), si no existe ningún Admin aún. | credenciales de ejemplo — **cámbialas** |
-| `AZKIN_TLS_ENCRYPTION_KEY` | Cifra en reposo la clave privada TLS si activas HTTPS nativo desde la UI. Vacío = HTTPS nativo deshabilitado. | vacío |
+| `AZKIN_TLS_ENCRYPTION_KEY` | Cifra en reposo la clave privada TLS y la identidad de federación. Opcional: vacío = se deriva automáticamente de `AZKIN_JWT_SECRET` (ambas funciones quedan disponibles sin configurar nada). Fijarla solo si querés una clave independiente. | vacío (se deriva sola) |
 | `AZKIN_CORS_ORIGIN` | Orígenes permitidos para HTTP/Socket.io. `*` es válido en desarrollo, pero como decisión consciente. | `*` |
 | `AZKIN_BACK_PORT` / `AZKIN_FRONTEND_PORT` / `AZKIN_HTTPS_PORT` | Puertos publicados en el host. Cambia estos valores si ya usas `3000`/`80`/`8443`. | `3000` / `80` / `8443` |
 | `AZKIN_MONGO_PORT` | Puerto de MongoDB en el host, solo para depuración/administración directa (Compass, mongosh, migraciones). Enlazado únicamente a `127.0.0.1` — no queda alcanzable desde la red externa (ver §4). El backend nunca usa esta variable, siempre se conecta internamente vía `azkin-db:27017`. | `27017` |
@@ -166,10 +166,12 @@ El backend puede servir HTTPS directamente (sin terminar TLS en un proxy externo
 desde la UI de administración (`/settings` → pestaña **TLS**), no por variables de entorno de
 certificado:
 
-1. Define `AZKIN_TLS_ENCRYPTION_KEY` en `.env` **antes** de configurar TLS desde la UI. La forma
-   más simple: botón "Generar clave" en `/settings` → **TLS/Sistema** — genera un valor de 64
-   caracteres hex enteramente en el navegador (no llama al backend ni lo persiste en Mongo) y lo
-   muestra en un modal con botón de copiar, listo para pegar en `.env`. Alternativa manual:
+1. No hace falta ningún paso previo: el cifrado en reposo de la clave privada ya funciona solo,
+   derivado automáticamente de `AZKIN_JWT_SECRET` (que ya es obligatorio). Opcional: si preferís
+   una clave independiente del JWT secret, usa el botón "Generar clave independiente" en
+   `/settings` → **TLS/Sistema** — genera un valor de 64 caracteres hex enteramente en el
+   navegador (no llama al backend ni lo persiste en Mongo) y lo muestra en un modal con botón de
+   copiar, para pegarlo en `AZKIN_TLS_ENCRYPTION_KEY` en `.env`. Alternativa manual:
    ```bash
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```
@@ -182,12 +184,12 @@ certificado:
    diseño de esta función.
 4. El listener HTTPS se activa sin reiniciar el contenedor.
 
-Si `AZKIN_TLS_ENCRYPTION_KEY` queda vacío o mal formado (no son 64 caracteres hex), la pestaña TLS
-sigue visible pero la configuración no puede cifrarse en reposo — el backend arranca con
-normalidad (imprime una advertencia clara en el log) y solo rechaza guardar certificados hasta que
-la variable tenga un valor válido. Un valor mal formado **no** tumba el resto del backend (antes sí
-lo hacía — un typo en esta variable secundaria bastaba para que login, monitoreo y todo lo demás
-dejaran de arrancar).
+Si fijaste `AZKIN_TLS_ENCRYPTION_KEY` a mano y queda mal formada (no son 64 caracteres hex), la
+pestaña TLS sigue visible pero la configuración no puede cifrarse en reposo — el backend arranca
+con normalidad (imprime una advertencia clara en el log) y solo rechaza guardar certificados hasta
+que corrijas o quites la variable (al quitarla, vuelve a derivarse sola de `AZKIN_JWT_SECRET`). Un
+valor mal formado **no** tumba el resto del backend (antes sí lo hacía — un typo en esta variable
+secundaria bastaba para que login, monitoreo y todo lo demás dejaran de arrancar).
 
 ---
 
