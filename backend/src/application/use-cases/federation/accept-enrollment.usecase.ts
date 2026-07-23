@@ -13,10 +13,12 @@ export interface AcceptEnrollmentInput {
   callerCertPem: string;
   callerLabel: string;
   callerUrl: string;
+  callerFederationPort: number;
 }
 
 export interface AcceptEnrollmentOutput {
   ownCertPem: string;
+  ownFederationPort: number;
 }
 
 function hashToken(token: string): string {
@@ -36,6 +38,7 @@ export class AcceptEnrollmentUseCase {
     private readonly federatedInstances: IFederatedInstanceRepository,
     private readonly identity: IFederationIdentityService,
     private readonly auditLog: IAuditLogRepository,
+    private readonly ownFederationPort: number,
   ) {}
 
   async execute(input: AcceptEnrollmentInput): Promise<AcceptEnrollmentOutput> {
@@ -63,6 +66,7 @@ export class AcceptEnrollmentUseCase {
     const instance = await this.federatedInstances.create({
       label: input.callerLabel,
       remoteUrl: input.callerUrl,
+      remoteFederationPort: input.callerFederationPort,
       peerCertFingerprint: fingerprint,
       createdById: consumed.createdById,
     });
@@ -74,6 +78,6 @@ export class AcceptEnrollmentUseCase {
       targetIds: [instance.id],
     });
 
-    return { ownCertPem: ownIdentity.certPem };
+    return { ownCertPem: ownIdentity.certPem, ownFederationPort: this.ownFederationPort };
   }
 }

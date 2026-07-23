@@ -27,6 +27,9 @@ export interface IHeartbeatRepository {
   findLast24h(monitorId: string): Promise<IHeartbeat[]>;
   /** Obtener el historial filtrado por una duración de tiempo en milisegundos. */
   findHistory(monitorId: string, durationMs: number): Promise<IHeartbeat[]>;
+  /** Heartbeats desde un cursor absoluto (AZ-049: responder de `/federation/sync`), orden
+   * ascendente. `since: null` trae todo el historial disponible dentro del TTL. */
+  findSince(monitorId: string, since: Date | null): Promise<IHeartbeat[]>;
   /**
    * Igual que `findHistory` pero para varios monitores a la vez (ej. todos los de un Monitor
    * Group) — orden descendente por timestamp (más reciente primero), pensado para una tabla de

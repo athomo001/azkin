@@ -26,6 +26,7 @@ import { ToastComponent } from '../../shared/components/toast';
 import { DashboardNavbarComponent } from './dashboard-navbar';
 import { MonitorFormComponent } from './monitor-form';
 import { BadgeStatusComponent } from '../../shared/components/badge-status';
+import { FederatedComparisonComponent } from '../../shared/components/federated-comparison';
 
 type HistoryRangeOption = {
   label: string;
@@ -35,7 +36,7 @@ type HistoryRangeOption = {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, SkeletonLoaderComponent, QuickStatsPanelComponent, ConfirmModalComponent, ToastComponent, DashboardNavbarComponent, MonitorFormComponent, BadgeStatusComponent],
+  imports: [CommonModule, RouterModule, FormsModule, SkeletonLoaderComponent, QuickStatsPanelComponent, ConfirmModalComponent, ToastComponent, DashboardNavbarComponent, MonitorFormComponent, BadgeStatusComponent, FederatedComparisonComponent],
   template: `
     <div class="min-h-screen bg-zinc-950 text-white flex flex-col font-sans transition-colors duration-300">
       <app-dashboard-navbar [isNyanCatMode]="isNyanCatMode()" (logoClick)="resetSelection()" (toggleNyanCat)="toggleNyanCat()" />
@@ -383,6 +384,11 @@ type HistoryRangeOption = {
                   </span>
                 </div>
               </div>
+
+              <!-- Federación (AZ-049): solo se renderiza si el monitor tiene vínculos -->
+              @if (selectedMonitorId()) {
+                <app-federated-comparison [monitorId]="selectedMonitorId()!" />
+              }
 
               <!-- SSL y Dominio — solo si aplica, integrados limpiamente -->
               @if (selectedMonitor()?.target?.toLowerCase()?.startsWith('https://')) {

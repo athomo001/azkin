@@ -2152,9 +2152,74 @@ servidor — dos referencias horarias distintas conviviendo en el mismo informe.
 
 ## AZ-049) Federacion de instancias Azkin independientes en distintas regiones geograficas, con vista de monitoreo combinada y comunicacion cifrada por enrollment
 - Codigo: AZ-049
-- Estado: [ ] Abierto
+- Estado: [~] En progreso — slices 1 y 2 resueltas (enrollment, mTLS, sondeo, vinculos, UI); pendiente solo Informes (AZ-045)
 - Prioridad: Alta
 - Reportado: 2026-07-22
+
+### Progreso (slice 1 — enrollment)
+Implementado y verificado end-to-end (dos instancias locales reales, no solo tests unitarios):
+token de un solo uso (`CreateEnrollmentTokenUseCase`), aceptacion del lado remoto
+(`AcceptEnrollmentUseCase`), union desde el lado que inicia (`JoinFederationUseCase`), listado y
+revocacion (`ListFederatedInstancesUseCase`/`RevokeFederatedInstanceUseCase`), todo bajo
+`application/use-cases/federation/` y expuesto en `infrastructure/http/routes/federation.routes.ts`.
+
+**Ajuste de diseño respecto al planteamiento original de esta issue:** en vez de una CA propia que
+firma certificados de terceros (ver items mas abajo que aun mencionan "CA"), cada instancia genera
+un unico certificado autofirmado (`infrastructure/security/federation-certificate-generator.ts`,
+`node-forge`) y la confianza se resuelve por **pinning de huella (fingerprint)**, no por cadena de
+CA — mas simple para un maximo de 5 pares y sin perder ninguna garantia de seguridad real.
+
+### Progreso (slice 2 — puerto dedicado, sondeo, vinculos y UI)
+Implementado y verificado end-to-end (dos instancias locales reales, incluyendo un tick real del
+cron de sondeo y una revocacion en caliente):
+
+- **Listener mTLS dedicado** (`infrastructure/http/federation-server-manager.ts`,
+  `AZKIN_FEDERATION_PORT`, default 8444): app Express separada de la principal, `requestCert: true`
+  sin cadena de CA. Middleware `verify-peer-certificate.ts` valida la huella contra
+  `FederatedInstance.findEnrolledByFingerprint` en **cada request** (no solo en el handshake TLS) —
+  confirmado manualmente que revocar corta el acceso de inmediato, con `401` limpio.
+- El enrollment (slice 1) ahora tambien intercambia el puerto de federacion de cada lado
+  (`remoteFederationPort`), para que las llamadas mTLS posteriores sepan a que puerto apuntar.
+- **Cliente mTLS saliente** (`infrastructure/security/federation-fetch-client.ts`) usa
+  `undici.Agent` con el certificado propio como client cert (ya era dependencia directa del
+  backend) — separado del `fetch()` plano que sigue usando el bootstrap de enrollment (sin cert).
+- **Vinculos de monitoreo — modelado como pares, no como "grupo" con id sincronizado**:
+  `FederatedMonitorLink` ancla cada vinculo en el monitor LOCAL (`{localMonitorId,
+  federatedInstanceId, remoteMonitorId}`); un monitor local puede tener N vinculos (uno por peer).
+  Esto reemplaza al `FederatedMonitorGroup` planteado originalmente mas abajo en esta issue —
+  sincronizar un id de grupo entre instancias sin autoridad compartida no aportaba nada que los
+  pares no resolvieran ya de forma mas simple.
+- **Modelo de confianza deliberadamente simple**: una vez federadas, cualquiera de las dos
+  instancias puede pedir el catalogo de monitores del otro (`GET /federation/monitors`) o
+  heartbeats de cualquier monitor por id (`GET /federation/sync`) — sin una ACL granular adicional
+  por monitor, mismo nivel "todo o nada" que ya usa el modelo multi-admin de este proyecto.
+- **Sondeo periodico**: `RunFederationSyncUseCase` (mirror de `RunScheduledReportsUseCase`, cron
+  cada 2 min) persiste en `FederatedHeartbeat` (Time-Series, TTL 30 dias, igual que los heartbeats
+  locales) y actualiza `lastSyncedAt` por vinculo. "Federacion sin reportar" (umbral fijo, 3x el
+  intervalo del tick) envia un correo via el mismo mecanismo que ya usan los Informes
+  (`ResolveDefaultAlertRecipients` + `IMailer`), con flag `notifiedDown` para no repetir en cada tick.
+- **Severidad combinada compartida**: se extrajo el `combineStatus` que ya usaba
+  `GetGroupOverviewUseCase` a `application/services/combine-monitor-status.ts`
+  (`DOWN > DEGRADED > PENDING > MAINTENANCE > UP`) y se reutiliza tal cual en
+  `GetFederatedComparisonUseCase` — una sola regla de severidad en todo el sistema, no dos.
+- **UI**: pestaña "Federacion" en `/settings` (enrollment, listado/revocacion, explorar monitores
+  del par, crear/eliminar vinculos) y un componente compartido
+  (`shared/components/federated-comparison.ts`) con el selector "Por region/Combinado" en el
+  detalle de monitor del dashboard — el combinado siempre queda etiquetado como valor derivado
+  (AZ-012), nunca reemplaza la vista por-region.
+
+**Bug encontrado y corregido durante la verificacion manual:** el listener mTLS no tenia montado
+el `errorHandler` compartido (solo estaba en la app principal) — un rechazo de
+`verifyPeerCertificate` caia en el manejador de error por defecto de Express y devolvia `500`
+generico en vez de `401` JSON. Corregido montando el mismo `errorHandler` en la app de federacion.
+
+**Pendiente:** la extension opcional de Informes Periodicos (AZ-045) para incluir desglose
+federado — deliberadamente fuera de esta ronda (ver Descripcion de esa issue), es la unica pieza
+que sigue sin construir del diseño completo de AZ-049. El resto de esta issue (Comportamiento
+esperado/Criterios de aceptacion/Pistas de investigacion mas abajo) sigue describiendo el diseño
+completo original, incluyendo terminologia ("CA", "FederatedMonitorGroup") ya superada por los
+ajustes de diseño de arriba — estos dos recuadros de Progreso son la fuente de verdad de que hay
+hecho realmente.
 
 ### Descripcion
 Hoy Azkin corre como una unica instancia (sus 3 contenedores: `azkin-db`, `azkin-back`, `azkin-front`) con una
