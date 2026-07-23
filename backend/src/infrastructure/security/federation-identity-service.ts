@@ -41,12 +41,13 @@ export class FederationIdentityService implements IFederationIdentityService {
       return existing;
     }
 
-    // Falla solo al usarse (no al arrancar el backend) si falta la clave de cifrado — mismo
-    // criterio que AZ-041 aplicó para AZKIN_TLS_ENCRYPTION_KEY: no tumbar todo el proceso por
-    // una variable que solo hace falta para una función opcional.
+    // En la práctica esto solo se alcanza si AZKIN_TLS_ENCRYPTION_KEY fue fijada a mano con un
+    // valor mal formado (por defecto se deriva sola de AZKIN_JWT_SECRET, ver
+    // resolve-tls-encryption-key.ts) — falla solo al usarse, no al arrancar el backend, mismo
+    // criterio que AZ-041: no tumbar todo el proceso por una función opcional.
     if (!this.encryptionKey) {
       throw new ValidationError(
-        "Debes configurar AZKIN_TLS_ENCRYPTION_KEY para poder usar la federación de instancias",
+        "AZKIN_TLS_ENCRYPTION_KEY tiene un valor inválido (64 caracteres hexadecimales) — corrígelo o quítalo del .env para volver a la clave derivada automáticamente",
       );
     }
 
