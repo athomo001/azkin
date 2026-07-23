@@ -8,6 +8,7 @@ import { IMonitor } from "../../../domain/entities/monitor";
 import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
 import { NotFoundError } from "../../../domain/errors/domain-error";
 import { filterMonitorsByPermission } from "../../services/monitor-access-policy";
+import { combineMonitorStatus } from "../../services/combine-monitor-status";
 
 export interface MonitorHistoryPoints {
   monitorId: string;
@@ -91,27 +92,11 @@ export class GetGroupOverviewUseCase {
 
     return {
       group: groupName,
-      overallStatus: this.combineStatus(monitorsWithStatus),
+      overallStatus: combineMonitorStatus(monitorsWithStatus.map((m) => m.lastStatus)),
       avgPing: this.averagePing(monitorsWithStatus),
       monitors: monitorsWithStatus,
       history,
     };
-  }
-
-  private combineStatus(monitors: (IMonitor & HeartbeatSummary)[]): MonitorStatus {
-    const statuses = monitors
-      .map((m) => m.lastStatus)
-      .filter((s): s is MonitorStatus => s !== null);
-    if (statuses.length === 0) return MonitorStatus.PENDING;
-    if (statuses.includes(MonitorStatus.DOWN)) return MonitorStatus.DOWN;
-    // Un monitor degradado (responde pero lento/sobrecargado) pesa más que uno simplemente
-    // "chequeando", pero menos que uno realmente caído.
-    if (statuses.includes(MonitorStatus.DEGRADED)) return MonitorStatus.DEGRADED;
-    if (statuses.includes(MonitorStatus.PENDING)) return MonitorStatus.PENDING;
-    // Un mantenimiento vigente no debe opacar una caída/pendiente/degradación real de otro
-    // monitor del grupo (AZ-040), pero sí distinguirse de un grupo genuinamente "todo arriba".
-    if (statuses.includes(MonitorStatus.MAINTENANCE)) return MonitorStatus.MAINTENANCE;
-    return MonitorStatus.UP;
   }
 
   private averagePing(monitors: (IMonitor & HeartbeatSummary)[]): number | null {

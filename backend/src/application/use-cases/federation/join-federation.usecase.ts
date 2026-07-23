@@ -38,6 +38,7 @@ export class JoinFederationUseCase {
     private readonly identity: IFederationIdentityService,
     private readonly client: IFederationClient,
     private readonly auditLog: IAuditLogRepository,
+    private readonly ownFederationPort: number,
   ) {}
 
   async execute(input: JoinFederationInput): Promise<JoinFederationOutput> {
@@ -58,6 +59,7 @@ export class JoinFederationUseCase {
       callerCertPem: ownIdentity.certPem,
       callerLabel: input.ownLabel,
       callerUrl: input.ownUrl,
+      callerFederationPort: this.ownFederationPort,
     });
 
     let fingerprint: string;
@@ -70,6 +72,7 @@ export class JoinFederationUseCase {
     const instance = await this.federatedInstances.create({
       label: input.peerLabel,
       remoteUrl: decoded.url,
+      remoteFederationPort: result.ownFederationPort,
       peerCertFingerprint: fingerprint,
       createdById: input.actorId,
     });

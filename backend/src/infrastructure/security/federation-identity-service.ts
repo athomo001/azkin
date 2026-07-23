@@ -1,9 +1,16 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
-import { IFederationIdentityRepository } from "../../application/ports/repositories/federation-identity-repository";
-import { FederationIdentity, IFederationIdentityService } from "../../application/ports/services/federation-identity";
+import {
+  FederationIdentityData,
+  IFederationIdentityRepository,
+} from "../../application/ports/repositories/federation-identity-repository";
+import {
+  FederationIdentity,
+  FederationServerCredentials,
+  IFederationIdentityService,
+} from "../../application/ports/services/federation-identity";
 import { getCertificateFingerprint } from "../../application/services/get-certificate-fingerprint";
 import { ValidationError } from "../../domain/errors/domain-error";
-import { encryptPrivateKey } from "./tls-key-cipher";
+import { decryptPrivateKey, encryptPrivateKey } from "./tls-key-cipher";
 import { generateSelfSignedCertificate } from "./federation-certificate-generator";
 
 /**
@@ -18,9 +25,20 @@ export class FederationIdentityService implements IFederationIdentityService {
   ) {}
 
   async getOrCreateOwnCertificate(): Promise<FederationIdentity> {
+    const data = await this.ensureIdentity();
+    return { certPem: data.certPem, fingerprint: data.fingerprint };
+  }
+
+  async getOwnServerCredentials(): Promise<FederationServerCredentials> {
+    const data = await this.ensureIdentity();
+    const keyPem = decryptPrivateKey(data.keyPemEncrypted, this.encryptionKey);
+    return { certPem: data.certPem, keyPem, fingerprint: data.fingerprint };
+  }
+
+  private async ensureIdentity(): Promise<FederationIdentityData> {
     const existing = await this.identity.get();
     if (existing) {
-      return { certPem: existing.certPem, fingerprint: existing.fingerprint };
+      return existing;
     }
 
     // Falla solo al usarse (no al arrancar el backend) si falta la clave de cifrado — mismo
@@ -35,8 +53,6 @@ export class FederationIdentityService implements IFederationIdentityService {
     const { certPem, keyPem } = generateSelfSignedCertificate("azkin-federation");
     const fingerprint = getCertificateFingerprint(certPem);
     const keyPemEncrypted = encryptPrivateKey(keyPem, this.encryptionKey);
-    await this.identity.create({ certPem, keyPemEncrypted, fingerprint });
-
-    return { certPem, fingerprint };
+    return this.identity.create({ certPem, keyPemEncrypted, fingerprint });
   }
 }

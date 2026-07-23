@@ -5,7 +5,12 @@ import { asyncHandler } from "../middlewares/async-handler";
 import { requireRole } from "../middlewares/require-role";
 import { validateBody } from "../middlewares/validate";
 import { makeAuthRateLimiter } from "../middlewares/rate-limit";
-import { acceptEnrollmentSchema, createEnrollmentTokenSchema, joinFederationSchema } from "../schemas/federation.schema";
+import {
+  acceptEnrollmentSchema,
+  createEnrollmentTokenSchema,
+  createFederatedMonitorLinkSchema,
+  joinFederationSchema,
+} from "../schemas/federation.schema";
 
 /**
  * `/tokens` e `/instances` son administración (requieren sesión de Admin, como el resto de
@@ -23,6 +28,14 @@ export function federationRoutes(controller: FederationController, authGuard: Re
   router.get("/instances", authGuard, requireRole("admin"), asyncHandler(controller.list));
   router.delete("/instances/:id", authGuard, requireRole("admin"), asyncHandler(controller.revoke));
   router.post("/enrollments", enrollmentLimiter, validateBody(acceptEnrollmentSchema), asyncHandler(controller.accept));
+
+  router.get("/instances/:id/remote-monitors", authGuard, requireRole("admin"), asyncHandler(controller.remoteMonitors));
+  router.post("/links", authGuard, requireRole("admin"), validateBody(createFederatedMonitorLinkSchema), asyncHandler(controller.createLink));
+  router.get("/links", authGuard, requireRole("admin"), asyncHandler(controller.listLinks));
+  router.delete("/links/:id", authGuard, requireRole("admin"), asyncHandler(controller.deleteLink));
+  // Sin requireRole("admin"): un Viewer con permiso sobre el monitor tambien debe poder ver la
+  // comparacion Por region/Combinado (el use case aplica filterMonitorsByPermission internamente).
+  router.get("/comparison/:monitorId", authGuard, asyncHandler(controller.comparison));
 
   return router;
 }

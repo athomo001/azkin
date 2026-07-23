@@ -13,10 +13,13 @@ export class MongooseFederatedInstanceRepository implements IFederatedInstanceRe
     const doc = await FederatedInstanceModel.create({
       label: data.label,
       remoteUrl: data.remoteUrl,
+      remoteFederationPort: data.remoteFederationPort,
       peerCertFingerprint: data.peerCertFingerprint,
       status: "enrolled",
       createdById: new Types.ObjectId(data.createdById),
       revokedAt: null,
+      lastSuccessfulSyncAt: null,
+      notifiedDown: false,
     });
     return this.toDomain(doc);
   }
@@ -46,16 +49,39 @@ export class MongooseFederatedInstanceRepository implements IFederatedInstanceRe
     return doc ? this.toDomain(doc) : null;
   }
 
+  async findEnrolledByFingerprint(fingerprint: string): Promise<IFederatedInstance | null> {
+    const doc = await FederatedInstanceModel.findOne({ peerCertFingerprint: fingerprint, status: "enrolled" });
+    return doc ? this.toDomain(doc) : null;
+  }
+
+  async findAllActive(): Promise<IFederatedInstance[]> {
+    const docs = await FederatedInstanceModel.find({ status: "enrolled" });
+    return docs.map((doc) => this.toDomain(doc));
+  }
+
+  async markSyncSuccess(id: string, at: Date): Promise<void> {
+    if (!Types.ObjectId.isValid(id)) return;
+    await FederatedInstanceModel.findByIdAndUpdate(id, { lastSuccessfulSyncAt: at });
+  }
+
+  async setNotifiedDown(id: string, notifiedDown: boolean): Promise<void> {
+    if (!Types.ObjectId.isValid(id)) return;
+    await FederatedInstanceModel.findByIdAndUpdate(id, { notifiedDown });
+  }
+
   private toDomain(doc: HydratedDocument<FederatedInstanceDoc>): IFederatedInstance {
     return {
       id: toDomainId(doc._id),
       label: doc.label,
       remoteUrl: doc.remoteUrl,
+      remoteFederationPort: doc.remoteFederationPort,
       peerCertFingerprint: doc.peerCertFingerprint,
       status: doc.status as FederatedInstanceStatus,
       createdById: String(doc.createdById),
       createdAt: doc.createdAt,
       revokedAt: doc.revokedAt,
+      lastSuccessfulSyncAt: doc.lastSuccessfulSyncAt,
+      notifiedDown: doc.notifiedDown,
     };
   }
 }

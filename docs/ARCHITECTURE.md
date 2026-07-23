@@ -362,11 +362,13 @@ resolviendo un override guardado en Mongo por encima del valor de `.env`. UI en 
 
 ## 14. Federación de instancias (multi-región)
 
-> 🚧 **Planeado, no implementado.** Esta sección documenta una decisión de arquitectura ya
-> tomada y su diseño, para que quede registrada antes de construirla — no describe código
-> existente. Ningún archivo, entidad o endpoint mencionado aquí existe todavía en el repo.
-> Especificación completa (comportamiento esperado, criterios de aceptación, pistas de
-> investigación) en [`ISSUES.md`](../ISSUES.md), **AZ-049**.
+> 🚧 **Casi completo (AZ-049, slices 1 y 2).** Enrollment, listener mTLS dedicado, sondeo
+> periódico, vínculos de monitoreo y la vista "Por región/Combinado" del dashboard ya existen en
+> el código (`application/use-cases/federation/*`,
+> `infrastructure/http/routes/federation.routes.ts` y `federation-peer.routes.ts`) y fueron
+> verificados end-to-end con dos instancias reales. Solo falta la extensión opcional de Informes
+> Periódicos (AZ-045) para incluir desglose federado — ver el detalle en
+> [`ISSUES.md`](../ISSUES.md), **AZ-049**.
 
 **Por qué existe esta decisión:** Azkin corre hoy como una única instancia con una única ubicación
 geográfica de origen para sus checks activos. Eso impide distinguir "el sitio está realmente
@@ -386,23 +388,44 @@ descartadas explícitamente:
 
 **Modelo elegido — federación de instancias completas e independientes:** cada región corre un
 Azkin normal y autosuficiente (su propia base de datos, dashboard, monitores y alertas). Dos
-instancias se **enrolan** entre sí (mTLS, con un token de enrollment de un solo uso — mismo
-concepto que el enrollment token de Elasticsearch/Kibana) y a partir de ahí intercambian
-resultados de monitores que el Admin agrupó explícitamente como "el mismo objetivo". Si una
-instancia cae, las demás no pierden ninguna funcionalidad propia; solo dejan de recibir datos
-frescos de esa instancia para la vista combinada.
+instancias se **enrolan** entre sí con un token de enrollment de un solo uso (mismo concepto que
+el enrollment token de Elasticsearch/Kibana) y a partir de ahí intercambian resultados de
+monitores vinculados explícitamente por el Admin como "el mismo objetivo". Si una instancia cae,
+las demás no pierden ninguna funcionalidad propia; solo dejan de recibir datos frescos de esa
+instancia para la vista combinada.
+
+**Vínculos por pares, no un "grupo" con id sincronizado:** el vínculo entre un monitor local y su
+equivalente remoto (`domain/entities/federated-monitor-link.ts`, `FederatedMonitorLink`) se ancla
+en el monitor LOCAL — un monitor puede tener N vínculos, uno por cada peer con el que se comparó.
+Esto logra combinar 3+ regiones sin necesitar sincronizar un identificador de grupo entre
+instancias que no comparten autoridad. La confianza entre dos instancias ya federadas es "todo o
+nada" (cualquiera puede listar los monitores del otro o pedir heartbeats de cualquiera por id, sin
+ACL granular adicional) — mismo criterio que el modelo multi-admin sin aislamiento por tenant que
+ya usa el resto de Azkin.
+
+**Enrollment implementado (slice 1) — sin CA, por pinning de huella:** al diseñar la
+implementación se descartó una CA propia que firma certificados de terceros (innecesaria para un
+máximo de 5 pares). En su lugar, cada instancia genera **un único certificado autofirmado propio**
+(`infrastructure/security/federation-certificate-generator.ts`, con `node-forge` — Node no firma
+certificados en su `crypto` nativo, solo los lee), persistido cifrado en reposo con la misma
+clave que ya cifra la llave privada TLS (`AZKIN_TLS_ENCRYPTION_KEY`,
+`infrastructure/security/federation-identity-service.ts`). La confianza es **pinning por huella
+(fingerprint SHA-256)**, no cadena de CA: cada `FederatedInstance` guarda la huella exacta del
+certificado que el par presentó al enrolarse.
 
 ```mermaid
 sequenceDiagram
     participant A as Instancia A (ej. Chile)
     participant B as Instancia B (ej. China)
 
-    A->>A: Admin genera token de enrollment (un solo uso, expira en 15-30 min)
-    A-->>B: Admin de B pega el token en su /settings
-    B->>A: Solicita enrollment con el token
-    A->>A: Valida token, lo invalida de inmediato
-    A-->>B: Emite certificados mTLS específicos para el par A-B
-    Note over A,B: Desde aquí, toda comunicación se autentica por certificado, no por el token
+    A->>A: Admin genera token (POST /federation/tokens) — un solo uso, expira en 20 min
+    Note over A: El token se empaqueta junto a la URL de A en un código base64url
+    A-->>B: Admin de B pega ese código en /federation/instances
+    B->>A: POST /federation/enrollments { token, certificado propio de B, label, url }
+    A->>A: Consume el token atómicamente (AcceptEnrollmentUseCase), valida cuota (máx. 5)
+    A-->>B: Responde con el certificado autofirmado propio de A
+    B->>B: Persiste FederatedInstance (huella de A) — A ya persistió la huella de B
+    Note over A,B: Desde aquí, la confianza es pinning por huella, no un canal seguido abierto
 ```
 
 ```mermaid
@@ -410,12 +433,21 @@ sequenceDiagram
     participant A as Instancia A
     participant B as Instancia B
 
-    Note over A,B: Sondeo periódico autenticado por mTLS (no conexión persistente)
-    A->>B: GET /federation/sync?since=<último_timestamp_utc_recibido>
-    B-->>A: Heartbeats de monitores del grupo, generados desde ese cursor (UTC, en lote)
-    A->>A: Persiste localmente (colección FederatedHeartbeat, TTL 30 días)
-    Note over A: Si B no responde por más del umbral configurado,<br/>A marca la federación como "sin reportar" y notifica
+    Note over A,B: Tick del cron cada 2 min (RunFederationSyncUseCase), mTLS con cert propio (undici.Agent)
+    A->>B: GET /federation/sync?monitorId=<remoteMonitorId>&since=<último_timestamp_utc_recibido>
+    Note over B: verify-peer-certificate.ts valida la huella en Mongo en CADA request<br/>(no solo en el handshake TLS) — revocar corta el acceso de inmediato
+    B-->>A: Heartbeats del monitor vinculado, generados desde ese cursor (UTC, en lote)
+    A->>A: Persiste en FederatedHeartbeat (Time-Series, TTL 30 días) y actualiza lastSyncedAt
+    Note over A: Si B no responde por más del umbral (3x el intervalo del tick),<br/>A marca notifiedDown y envía un correo (mismo mecanismo que los Informes)
 ```
+
+**Puerto dedicado y cliente mTLS:** el sondeo y la exploración de monitores del par
+(`GET /federation/monitors`) corren sobre un listener separado del API principal
+(`infrastructure/http/federation-server-manager.ts`, puerto `AZKIN_FEDERATION_PORT`, default
+`8444`, app Express propia) que exige certificado de cliente (`requestCert: true`) sin cadena de
+CA. El cliente saliente (`infrastructure/security/federation-fetch-client.ts`) usa `undici.Agent`
+para presentar el certificado propio — a diferencia del bootstrap de enrollment, que sigue usando
+`fetch()` plano sin certificado (protegido solo por el token de un solo uso).
 
 **Límites deliberados de esta decisión (no técnicos, de alcance):**
 
@@ -425,5 +457,6 @@ sequenceDiagram
 * **Alertas siempre independientes por instancia**: cada Azkin notifica según lo que ve
   localmente, sin esperar confirmación de sus pares.
 * **La vista "Combinado" nunca reemplaza la vista por-región**, y reutiliza la misma jerarquía de
-  severidad que ya usa `combineStatus()` en `get-group-overview.usecase.ts`
-  (`DOWN > DEGRADED > PENDING > MAINTENANCE > UP`) en vez de inventar una regla nueva.
+  severidad que ya usa `combineStatus()` en `get-group-overview.usecase.ts` — extraída a
+  `application/services/combine-monitor-status.ts` para que ambos casos de uso compartan una
+  única regla (`DOWN > DEGRADED > PENDING > MAINTENANCE > UP`) en vez de mantener dos.

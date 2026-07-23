@@ -12,11 +12,14 @@ function makeInstance(overrides: Partial<IFederatedInstance> = {}): IFederatedIn
     id: "instance-1",
     label: "China-VPS1",
     remoteUrl: "https://china.example.com",
+    remoteFederationPort: 8444,
     peerCertFingerprint: "aa:bb",
     status: "revoked",
     createdById: "admin-1",
     createdAt: new Date(),
     revokedAt: new Date(),
+    lastSuccessfulSyncAt: null,
+    notifiedDown: false,
     ...overrides,
   };
 }
@@ -28,6 +31,10 @@ test("RevokeFederatedInstanceUseCase lanza NotFoundError si la instancia no exis
     findById: async () => null,
     countActive: async () => 0,
     revoke: async () => null,
+    findEnrolledByFingerprint: async () => null,
+    findAllActive: async () => [],
+    markSyncSuccess: async () => undefined,
+    setNotifiedDown: async () => undefined,
   };
   const auditLog: IAuditLogRepository = {
     record: async (data) => ({ id: "audit-1", createdAt: new Date(), ...data }),
@@ -48,6 +55,10 @@ test("RevokeFederatedInstanceUseCase revoca y registra auditoría", async () => 
     findById: async () => null,
     countActive: async () => 0,
     revoke: async (id) => makeInstance({ id }),
+    findEnrolledByFingerprint: async () => null,
+    findAllActive: async () => [],
+    markSyncSuccess: async () => undefined,
+    setNotifiedDown: async () => undefined,
   };
   const auditLog: IAuditLogRepository = {
     record: async (data) => {

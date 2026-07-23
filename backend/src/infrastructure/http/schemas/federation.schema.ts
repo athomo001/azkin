@@ -19,4 +19,12 @@ export const acceptEnrollmentSchema = z.object({
   callerCertPem: z.string().min(1),
   callerLabel: z.string().min(1).max(100),
   callerUrl: z.string().url(),
+  callerFederationPort: z.coerce.number().int().positive(),
+});
+
+export const createFederatedMonitorLinkSchema = z.object({
+  localMonitorId: z.string().min(1),
+  federatedInstanceId: z.string().min(1),
+  remoteMonitorId: z.string().min(1),
+  remoteMonitorLabel: z.string().min(1).max(255),
 });
