@@ -19,12 +19,15 @@ export class MongooseFederationPortSettingsRepository implements IFederationPort
   }
 
   async upsert(data: UpsertFederationPortSettingsData): Promise<IFederationPortSettings> {
+    // $set explícito y parcial: un objeto plano sin operadores reemplazaría el documento entero
+    // (borrando, ej., un `port` ya guardado al solo actualizar `ownUrl`), ver nota en el puerto.
+    const set: Partial<FederationPortSettingsDoc> = { updatedById: new Types.ObjectId(data.updatedById) };
+    if (data.port !== undefined) set.port = data.port;
+    if (data.ownUrl !== undefined) set.ownUrl = data.ownUrl;
+
     const doc = await FederationPortSettingsModel.findByIdAndUpdate(
       FEDERATION_PORT_SETTINGS_SINGLETON_ID,
-      {
-        port: data.port,
-        updatedById: new Types.ObjectId(data.updatedById),
-      },
+      { $set: set },
       { new: true, upsert: true },
     );
     return this.toDomain(doc!);
@@ -34,6 +37,7 @@ export class MongooseFederationPortSettingsRepository implements IFederationPort
     return {
       id: toDomainId(doc._id),
       port: doc.port,
+      ownUrl: doc.ownUrl,
       updatedAt: doc.updatedAt,
       updatedById: String(doc.updatedById),
     };

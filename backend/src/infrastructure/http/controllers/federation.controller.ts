@@ -12,7 +12,8 @@ import { DeleteFederatedMonitorLinkUseCase } from "../../../application/use-case
 import { GetFederatedComparisonUseCase } from "../../../application/use-cases/federation/get-federated-comparison.usecase";
 import { GetFederationPortUseCase } from "../../../application/use-cases/federation/get-federation-port.usecase";
 import { ApplyFederationPortUseCase } from "../../../application/use-cases/federation/apply-federation-port.usecase";
-import { TestEnrollmentConnectionUseCase } from "../../../application/use-cases/federation/test-enrollment-connection.usecase";
+import { SetFederationOwnUrlUseCase } from "../../../application/use-cases/federation/set-federation-own-url.usecase";
+import { TestAddressConnectionUseCase } from "../../../application/use-cases/federation/test-address-connection.usecase";
 import { TestFederatedInstanceConnectionUseCase } from "../../../application/use-cases/federation/test-federated-instance-connection.usecase";
 import { toFederatedInstanceResponse } from "../presenters/federation.presenter";
 import { toFederatedMonitorLinkResponse } from "../presenters/federated-monitor-link.presenter";
@@ -31,15 +32,13 @@ export class FederationController {
     private readonly getFederatedComparisonUseCase: GetFederatedComparisonUseCase,
     private readonly getFederationPortUseCase: GetFederationPortUseCase,
     private readonly applyFederationPortUseCase: ApplyFederationPortUseCase,
-    private readonly testEnrollmentConnectionUseCase: TestEnrollmentConnectionUseCase,
+    private readonly setFederationOwnUrlUseCase: SetFederationOwnUrlUseCase,
+    private readonly testAddressConnectionUseCase: TestAddressConnectionUseCase,
     private readonly testFederatedInstanceConnectionUseCase: TestFederatedInstanceConnectionUseCase,
   ) {}
 
   createToken = async (req: Request, res: Response): Promise<void> => {
-    const result = await this.createEnrollmentTokenUseCase.execute({
-      actorId: req.userId!,
-      ownUrl: req.body.ownUrl,
-    });
+    const result = await this.createEnrollmentTokenUseCase.execute({ actorId: req.userId! });
     res.status(201).json({ code: result.code, expiresAt: result.expiresAt.toISOString() });
   };
 
@@ -49,7 +48,6 @@ export class FederationController {
       code: req.body.code,
       peerLabel: req.body.peerLabel,
       ownLabel: req.body.ownLabel,
-      ownUrl: req.body.ownUrl,
     });
     res.status(201).json(toFederatedInstanceResponse(instance));
   };
@@ -125,8 +123,16 @@ export class FederationController {
     res.status(200).json({ port: settings.port, updatedAt: settings.updatedAt });
   };
 
+  setOwnUrl = async (req: Request, res: Response): Promise<void> => {
+    const settings = await this.setFederationOwnUrlUseCase.execute({
+      actorId: req.userId!,
+      ownUrl: req.body.ownUrl,
+    });
+    res.status(200).json({ ownUrl: settings.ownUrl, updatedAt: settings.updatedAt });
+  };
+
   testConnection = async (req: Request, res: Response): Promise<void> => {
-    const result = await this.testEnrollmentConnectionUseCase.execute({ code: req.body.code });
+    const result = await this.testAddressConnectionUseCase.execute({ host: req.body.host, port: req.body.port });
     res.status(200).json(result);
   };
 

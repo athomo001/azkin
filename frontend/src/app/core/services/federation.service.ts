@@ -27,7 +27,6 @@ export interface IJoinFederation {
   code: string;
   peerLabel: string;
   ownLabel: string;
-  ownUrl: string;
 }
 
 export interface IRemoteMonitorSummary {
@@ -76,17 +75,13 @@ export interface IFederationPortStatus {
   isOverridden: boolean;
   listenerActive: boolean;
   listenerPort?: number;
+  ownUrl?: string;
 }
 
 export interface ITestConnectionResult {
-  url: string;
-  urlReachable: boolean;
-  urlError?: string;
-  urlLatencyMs?: number;
-  federationPort: number;
-  portReachable: boolean;
-  portError?: string;
-  portLatencyMs?: number;
+  reachable: boolean;
+  error?: string;
+  latencyMs?: number;
 }
 
 /**
@@ -101,8 +96,8 @@ export class FederationService {
   readonly instances = signal<IFederatedInstance[]>([]);
   readonly links = signal<IFederatedMonitorLink[]>([]);
 
-  createEnrollmentToken(ownUrl: string): Observable<ICreateEnrollmentTokenResult> {
-    return this.http.post<ICreateEnrollmentTokenResult>(`${this.apiUrl}/tokens`, { ownUrl });
+  createEnrollmentToken(): Observable<ICreateEnrollmentTokenResult> {
+    return this.http.post<ICreateEnrollmentTokenResult>(`${this.apiUrl}/tokens`, {});
   }
 
   join(data: IJoinFederation): Observable<IFederatedInstance> {
@@ -158,8 +153,12 @@ export class FederationService {
     return this.http.put<{ port: number; updatedAt: string }>(`${this.apiUrl}/port`, { port });
   }
 
-  testEnrollmentConnection(code: string): Observable<ITestConnectionResult> {
-    return this.http.post<ITestConnectionResult>(`${this.apiUrl}/test-connection`, { code });
+  setOwnUrl(ownUrl: string): Observable<{ ownUrl: string; updatedAt: string }> {
+    return this.http.put<{ ownUrl: string; updatedAt: string }>(`${this.apiUrl}/own-url`, { ownUrl });
+  }
+
+  testAddress(host: string, port: number): Observable<ITestConnectionResult> {
+    return this.http.post<ITestConnectionResult>(`${this.apiUrl}/test-connection`, { host, port });
   }
 
   testInstanceConnection(instanceId: string): Observable<ITestConnectionResult> {

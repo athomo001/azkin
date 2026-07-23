@@ -17,8 +17,6 @@ export interface JoinFederationInput {
   peerLabel: string;
   /** Cómo esta instancia se identifica a sí misma frente al par. */
   ownLabel: string;
-  /** URL pública por la que esta instancia es alcanzable. */
-  ownUrl: string;
 }
 
 export interface JoinFederationOutput {
@@ -39,6 +37,7 @@ export class JoinFederationUseCase {
     private readonly client: IFederationClient,
     private readonly auditLog: IAuditLogRepository,
     private readonly resolveOwnFederationPort: () => Promise<number>,
+    private readonly resolveOwnUrl: () => Promise<string | null>,
   ) {}
 
   async execute(input: JoinFederationInput): Promise<JoinFederationOutput> {
@@ -46,6 +45,13 @@ export class JoinFederationUseCase {
     if (activeCount >= MAX_FEDERATED_INSTANCES) {
       throw new QuotaExceededError(
         `Se ha superado el límite máximo de ${MAX_FEDERATED_INSTANCES} instancias federadas`,
+      );
+    }
+
+    const ownUrl = await this.resolveOwnUrl();
+    if (!ownUrl) {
+      throw new ValidationError(
+        "Configura la dirección pública de esta instancia en /settings → Multi-Región antes de unirte a una federación",
       );
     }
 
@@ -59,7 +65,7 @@ export class JoinFederationUseCase {
       token: decoded.token,
       callerCertPem: ownIdentity.certPem,
       callerLabel: input.ownLabel,
-      callerUrl: input.ownUrl,
+      callerUrl: ownUrl,
       callerFederationPort: ownFederationPort,
     });
 

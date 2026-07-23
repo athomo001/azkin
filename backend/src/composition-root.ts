@@ -145,7 +145,8 @@ import { JoinFederationUseCase } from "./application/use-cases/federation/join-f
 import { AcceptEnrollmentUseCase } from "./application/use-cases/federation/accept-enrollment.usecase";
 import { GetFederationPortUseCase } from "./application/use-cases/federation/get-federation-port.usecase";
 import { ApplyFederationPortUseCase } from "./application/use-cases/federation/apply-federation-port.usecase";
-import { TestEnrollmentConnectionUseCase } from "./application/use-cases/federation/test-enrollment-connection.usecase";
+import { SetFederationOwnUrlUseCase } from "./application/use-cases/federation/set-federation-own-url.usecase";
+import { TestAddressConnectionUseCase } from "./application/use-cases/federation/test-address-connection.usecase";
 import { TestFederatedInstanceConnectionUseCase } from "./application/use-cases/federation/test-federated-instance-connection.usecase";
 import { ListFederatedInstancesUseCase } from "./application/use-cases/federation/list-federated-instances.usecase";
 import { RevokeFederatedInstanceUseCase } from "./application/use-cases/federation/revoke-federated-instance.usecase";
@@ -278,6 +279,10 @@ export function buildContainer(env: Env): AppContainer {
   // construir el contenedor, para que un cambio hecho en caliente se refleje de inmediato.
   const resolveOwnFederationPort = async (): Promise<number> =>
     (await federationPortSettingsRepo.getActive())?.port ?? env.federationPort;
+  // Dirección pública guardada una sola vez por el Admin (ver SetFederationOwnUrlUseCase) — se
+  // reutiliza al invitar y al unirse, en vez de pedirla a mano en cada una. `null` si todavía no
+  // se configuró (los use-cases que la necesitan lanzan un error claro pidiendo configurarla).
+  const resolveOwnUrl = async (): Promise<string | null> => (await federationPortSettingsRepo.getActive())?.ownUrl ?? null;
   // Federación de instancias (AZ-049, slice 1): reutiliza el mismo cifrado en reposo que la
   // clave privada TLS (AZKIN_TLS_ENCRYPTION_KEY) en vez de introducir una clave nueva.
   const federationIdentityService = new FederationIdentityService(federationIdentityRepo, env.tlsEncryptionKey ?? "");
@@ -487,12 +492,13 @@ export function buildContainer(env: Env): AppContainer {
   const auditLogController = new AuditLogController(listAuditLog);
 
   // Instanciación de Use cases de Federación de instancias (AZ-049, slice 1: enrollment)
-  const createEnrollmentToken = new CreateEnrollmentTokenUseCase(federationTokensRepo, auditLog, resolveOwnFederationPort);
-  const joinFederation = new JoinFederationUseCase(federatedInstancesRepo, federationIdentityService, federationClient, auditLog, resolveOwnFederationPort);
+  const createEnrollmentToken = new CreateEnrollmentTokenUseCase(federationTokensRepo, auditLog, resolveOwnUrl);
+  const joinFederation = new JoinFederationUseCase(federatedInstancesRepo, federationIdentityService, federationClient, auditLog, resolveOwnFederationPort, resolveOwnUrl);
   const acceptEnrollment = new AcceptEnrollmentUseCase(federationTokensRepo, federatedInstancesRepo, federationIdentityService, auditLog, resolveOwnFederationPort);
   const getFederationPort = new GetFederationPortUseCase(federationPortSettingsRepo, federationServerManager, env.federationPort);
   const applyFederationPort = new ApplyFederationPortUseCase(federationPortSettingsRepo, auditLog, federationServerManager, federationIdentityService);
-  const testEnrollmentConnection = new TestEnrollmentConnectionUseCase();
+  const setFederationOwnUrl = new SetFederationOwnUrlUseCase(federationPortSettingsRepo, auditLog);
+  const testAddressConnection = new TestAddressConnectionUseCase();
   const testFederatedInstanceConnection = new TestFederatedInstanceConnectionUseCase(federatedInstancesRepo);
   const listFederatedInstances = new ListFederatedInstancesUseCase(federatedInstancesRepo);
   const revokeFederatedInstance = new RevokeFederatedInstanceUseCase(federatedInstancesRepo, auditLog);
@@ -534,7 +540,8 @@ export function buildContainer(env: Env): AppContainer {
     getFederatedComparison,
     getFederationPort,
     applyFederationPort,
-    testEnrollmentConnection,
+    setFederationOwnUrl,
+    testAddressConnection,
     testFederatedInstanceConnection,
   );
   const respondToSyncRequest = new RespondToSyncRequestUseCase(heartbeats);

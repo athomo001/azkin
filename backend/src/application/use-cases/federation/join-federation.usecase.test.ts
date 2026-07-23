@@ -16,6 +16,7 @@ import { MAX_FEDERATED_INSTANCES } from "./federation-limits";
 
 const VALID_CERT_PEM = generateSelfSignedCertificate("remote-test").certPem;
 const OWN_FEDERATION_PORT = 8444;
+const OWN_URL = "https://china.example.com";
 
 function makeCode(url: string, token: string): string {
   return Buffer.from(JSON.stringify({ url, token })).toString("base64url");
@@ -84,9 +85,34 @@ function makeFakes(opts: { activeCount?: number; remoteCertPem?: string; remoteF
   return { federatedInstances, identity, client, auditLog, created, clientCalls };
 }
 
+function makeUseCase(
+  fakes: ReturnType<typeof makeFakes>,
+  resolveOwnUrl: () => Promise<string | null> = async () => OWN_URL,
+): JoinFederationUseCase {
+  return new JoinFederationUseCase(
+    fakes.federatedInstances,
+    fakes.identity,
+    fakes.client,
+    fakes.auditLog,
+    async () => OWN_FEDERATION_PORT,
+    resolveOwnUrl,
+  );
+}
+
+test("JoinFederationUseCase rechaza unirse si no hay dirección propia guardada", async () => {
+  const fakes = makeFakes();
+  const useCase = makeUseCase(fakes, async () => null);
+
+  await assert.rejects(
+    () => useCase.execute({ actorId: "admin-1", code: "cualquiera", peerLabel: "Chile-VPS1", ownLabel: "China-VPS1" }),
+    ValidationError,
+  );
+  assert.equal(fakes.clientCalls.length, 0); // no llama a la remota si falta la dirección propia
+});
+
 test("JoinFederationUseCase rechaza un código con formato inválido", async () => {
-  const { federatedInstances, identity, client, auditLog } = makeFakes();
-  const useCase = new JoinFederationUseCase(federatedInstances, identity, client, auditLog, async () => OWN_FEDERATION_PORT);
+  const fakes = makeFakes();
+  const useCase = makeUseCase(fakes);
 
   await assert.rejects(
     () =>
@@ -95,33 +121,25 @@ test("JoinFederationUseCase rechaza un código con formato inválido", async () 
         code: "no-es-base64url-valido-!!!",
         peerLabel: "Chile-VPS1",
         ownLabel: "China-VPS1",
-        ownUrl: "https://china.example.com",
       }),
     ValidationError,
   );
 });
 
 test("JoinFederationUseCase rechaza al superar la cuota de instancias federadas", async () => {
-  const { federatedInstances, identity, client, auditLog } = makeFakes({ activeCount: MAX_FEDERATED_INSTANCES });
-  const useCase = new JoinFederationUseCase(federatedInstances, identity, client, auditLog, async () => OWN_FEDERATION_PORT);
+  const fakes = makeFakes({ activeCount: MAX_FEDERATED_INSTANCES });
+  const useCase = makeUseCase(fakes);
   const code = makeCode("https://chile.example.com", "raw-token");
 
   await assert.rejects(
-    () =>
-      useCase.execute({
-        actorId: "admin-1",
-        code,
-        peerLabel: "Chile-VPS1",
-        ownLabel: "China-VPS1",
-        ownUrl: "https://china.example.com",
-      }),
+    () => useCase.execute({ actorId: "admin-1", code, peerLabel: "Chile-VPS1", ownLabel: "China-VPS1" }),
     QuotaExceededError,
   );
 });
 
-test("JoinFederationUseCase decodifica el código, llama a la instancia remota (con el puerto propio) y persiste el registro simétrico", async () => {
-  const { federatedInstances, identity, client, auditLog, created, clientCalls } = makeFakes({ remoteFederationPort: 9001 });
-  const useCase = new JoinFederationUseCase(federatedInstances, identity, client, auditLog, async () => OWN_FEDERATION_PORT);
+test("JoinFederationUseCase decodifica el código, llama a la instancia remota (con la dirección y el puerto propios) y persiste el registro simétrico", async () => {
+  const fakes = makeFakes({ remoteFederationPort: 9001 });
+  const useCase = makeUseCase(fakes);
   const code = makeCode("https://chile.example.com", "raw-token-123");
 
   const result = await useCase.execute({
@@ -129,19 +147,19 @@ test("JoinFederationUseCase decodifica el código, llama a la instancia remota (
     code,
     peerLabel: "Chile-VPS1",
     ownLabel: "China-VPS1",
-    ownUrl: "https://china.example.com",
   });
 
-  assert.equal(clientCalls.length, 1);
-  assert.equal(clientCalls[0].remoteUrl, "https://chile.example.com");
-  assert.equal(clientCalls[0].token, "raw-token-123");
-  assert.equal(clientCalls[0].callerCertPem, "own-cert-pem");
-  assert.equal(clientCalls[0].callerLabel, "China-VPS1");
-  assert.equal(clientCalls[0].callerFederationPort, OWN_FEDERATION_PORT);
+  assert.equal(fakes.clientCalls.length, 1);
+  assert.equal(fakes.clientCalls[0].remoteUrl, "https://chile.example.com");
+  assert.equal(fakes.clientCalls[0].token, "raw-token-123");
+  assert.equal(fakes.clientCalls[0].callerCertPem, "own-cert-pem");
+  assert.equal(fakes.clientCalls[0].callerLabel, "China-VPS1");
+  assert.equal(fakes.clientCalls[0].callerUrl, OWN_URL);
+  assert.equal(fakes.clientCalls[0].callerFederationPort, OWN_FEDERATION_PORT);
 
-  assert.equal(created.length, 1);
-  assert.equal(created[0].label, "Chile-VPS1");
-  assert.equal(created[0].remoteUrl, "https://chile.example.com");
-  assert.equal(created[0].remoteFederationPort, 9001);
+  assert.equal(fakes.created.length, 1);
+  assert.equal(fakes.created[0].label, "Chile-VPS1");
+  assert.equal(fakes.created[0].remoteUrl, "https://chile.example.com");
+  assert.equal(fakes.created[0].remoteFederationPort, 9001);
   assert.equal(result.instance.label, "Chile-VPS1");
 });
