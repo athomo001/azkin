@@ -12,8 +12,10 @@ export interface CreateEnrollmentTokenInput {
 }
 
 export interface CreateEnrollmentTokenOutput {
-  /** Código opaco (base64url de `{ url, token }`) que el Admin de la otra instancia pega una
-   * sola vez para unirse — el Admin solo copia "un código", no dos datos separados. */
+  /** Código opaco (base64url de `{ url, port, token }`) que el Admin de la otra instancia pega
+   * una sola vez para unirse — el Admin solo copia "un código", no varios datos separados. El
+   * puerto de federación viaja en el código para que `TestEnrollmentConnectionUseCase` pueda
+   * probar la conectividad real antes de consumir el token. */
   code: string;
   expiresAt: Date;
 }
@@ -31,6 +33,7 @@ export class CreateEnrollmentTokenUseCase {
   constructor(
     private readonly tokens: IFederationEnrollmentTokenRepository,
     private readonly auditLog: IAuditLogRepository,
+    private readonly resolveOwnFederationPort: () => Promise<number>,
   ) {}
 
   async execute(input: CreateEnrollmentTokenInput): Promise<CreateEnrollmentTokenOutput> {
@@ -40,7 +43,8 @@ export class CreateEnrollmentTokenUseCase {
 
     await this.tokens.create({ tokenHash, createdById: input.actorId, expiresAt });
 
-    const code = Buffer.from(JSON.stringify({ url: input.ownUrl, token })).toString("base64url");
+    const port = await this.resolveOwnFederationPort();
+    const code = Buffer.from(JSON.stringify({ url: input.ownUrl, port, token })).toString("base64url");
 
     await this.auditLog.record({
       actorId: input.actorId,

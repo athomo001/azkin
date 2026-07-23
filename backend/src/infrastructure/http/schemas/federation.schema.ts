@@ -28,3 +28,11 @@ export const createFederatedMonitorLinkSchema = z.object({
   remoteMonitorId: z.string().min(1),
   remoteMonitorLabel: z.string().min(1).max(255),
 });
+
+export const applyFederationPortSchema = z.object({
+  port: z.coerce.number().int().min(1).max(65535),
+});
+
+export const testEnrollmentConnectionSchema = z.object({
+  code: z.string().min(1, "Falta el código de enrollment"),
+});

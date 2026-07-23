@@ -15,6 +15,7 @@ import { ITlsServerManager } from "./application/ports/services/tls-server-manag
 import { ITlsConfigRepository } from "./application/ports/repositories/tls-config-repository";
 import { IFederationServerManager } from "./application/ports/services/federation-server-manager";
 import { IFederationIdentityService } from "./application/ports/services/federation-identity";
+import { IFederationPortSettingsRepository } from "./application/ports/repositories/federation-port-settings-repository";
 
 // Repositories
 import { MongooseUserRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-user.repository";
@@ -34,6 +35,7 @@ import { MongooseFederationEnrollmentTokenRepository } from "./infrastructure/pe
 import { MongooseFederationIdentityRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federation-identity.repository";
 import { MongooseFederatedMonitorLinkRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federated-monitor-link.repository";
 import { MongooseFederatedHeartbeatRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federated-heartbeat.repository";
+import { MongooseFederationPortSettingsRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federation-port-settings.repository";
 
 // Services
 import { JwtTokenService } from "./infrastructure/security/jwt-token-service";
@@ -141,6 +143,10 @@ import { ListAuditLogUseCase } from "./application/use-cases/audit-log/list-audi
 import { CreateEnrollmentTokenUseCase } from "./application/use-cases/federation/create-enrollment-token.usecase";
 import { JoinFederationUseCase } from "./application/use-cases/federation/join-federation.usecase";
 import { AcceptEnrollmentUseCase } from "./application/use-cases/federation/accept-enrollment.usecase";
+import { GetFederationPortUseCase } from "./application/use-cases/federation/get-federation-port.usecase";
+import { ApplyFederationPortUseCase } from "./application/use-cases/federation/apply-federation-port.usecase";
+import { TestEnrollmentConnectionUseCase } from "./application/use-cases/federation/test-enrollment-connection.usecase";
+import { TestFederatedInstanceConnectionUseCase } from "./application/use-cases/federation/test-federated-instance-connection.usecase";
 import { ListFederatedInstancesUseCase } from "./application/use-cases/federation/list-federated-instances.usecase";
 import { RevokeFederatedInstanceUseCase } from "./application/use-cases/federation/revoke-federated-instance.usecase";
 import { ListLocalMonitorsForPeerUseCase } from "./application/use-cases/federation/list-local-monitors-for-peer.usecase";
@@ -202,7 +208,8 @@ export interface AppContainer {
   tlsEncryptionKey?: string;
   federationServerManager: IFederationServerManager;
   federationIdentityService: IFederationIdentityService;
-  federationPort: number;
+  federationPortSettings: IFederationPortSettingsRepository;
+  federationPortDefault: number;
 }
 
 /**
@@ -265,6 +272,12 @@ export function buildContainer(env: Env): AppContainer {
   const federationIdentityRepo = new MongooseFederationIdentityRepository();
   const federatedMonitorLinksRepo = new MongooseFederatedMonitorLinkRepository();
   const federatedHeartbeatsRepo = new MongooseFederatedHeartbeatRepository();
+  const federationPortSettingsRepo = new MongooseFederationPortSettingsRepository();
+  // Override persistido del puerto de federación, o el default de .env si el admin no fijó ninguno
+  // (AZ-049, "puerto configurable" — ver ISSUES.md). Se resuelve en cada uso, no una sola vez al
+  // construir el contenedor, para que un cambio hecho en caliente se refleje de inmediato.
+  const resolveOwnFederationPort = async (): Promise<number> =>
+    (await federationPortSettingsRepo.getActive())?.port ?? env.federationPort;
   // Federación de instancias (AZ-049, slice 1): reutiliza el mismo cifrado en reposo que la
   // clave privada TLS (AZKIN_TLS_ENCRYPTION_KEY) en vez de introducir una clave nueva.
   const federationIdentityService = new FederationIdentityService(federationIdentityRepo, env.tlsEncryptionKey ?? "");
@@ -474,9 +487,13 @@ export function buildContainer(env: Env): AppContainer {
   const auditLogController = new AuditLogController(listAuditLog);
 
   // Instanciación de Use cases de Federación de instancias (AZ-049, slice 1: enrollment)
-  const createEnrollmentToken = new CreateEnrollmentTokenUseCase(federationTokensRepo, auditLog);
-  const joinFederation = new JoinFederationUseCase(federatedInstancesRepo, federationIdentityService, federationClient, auditLog, env.federationPort);
-  const acceptEnrollment = new AcceptEnrollmentUseCase(federationTokensRepo, federatedInstancesRepo, federationIdentityService, auditLog, env.federationPort);
+  const createEnrollmentToken = new CreateEnrollmentTokenUseCase(federationTokensRepo, auditLog, resolveOwnFederationPort);
+  const joinFederation = new JoinFederationUseCase(federatedInstancesRepo, federationIdentityService, federationClient, auditLog, resolveOwnFederationPort);
+  const acceptEnrollment = new AcceptEnrollmentUseCase(federationTokensRepo, federatedInstancesRepo, federationIdentityService, auditLog, resolveOwnFederationPort);
+  const getFederationPort = new GetFederationPortUseCase(federationPortSettingsRepo, federationServerManager, env.federationPort);
+  const applyFederationPort = new ApplyFederationPortUseCase(federationPortSettingsRepo, auditLog, federationServerManager, federationIdentityService);
+  const testEnrollmentConnection = new TestEnrollmentConnectionUseCase();
+  const testFederatedInstanceConnection = new TestFederatedInstanceConnectionUseCase(federatedInstancesRepo);
   const listFederatedInstances = new ListFederatedInstancesUseCase(federatedInstancesRepo);
   const revokeFederatedInstance = new RevokeFederatedInstanceUseCase(federatedInstancesRepo, auditLog);
   const listLocalMonitorsForPeer = new ListLocalMonitorsForPeerUseCase(monitors);
@@ -515,6 +532,10 @@ export function buildContainer(env: Env): AppContainer {
     listFederatedMonitorLinks,
     deleteFederatedMonitorLink,
     getFederatedComparison,
+    getFederationPort,
+    applyFederationPort,
+    testEnrollmentConnection,
+    testFederatedInstanceConnection,
   );
   const respondToSyncRequest = new RespondToSyncRequestUseCase(heartbeats);
   const federationPeerController = new FederationPeerController(listLocalMonitorsForPeer, respondToSyncRequest);
@@ -601,7 +622,8 @@ export function buildContainer(env: Env): AppContainer {
     tlsEncryptionKey: env.tlsEncryptionKey,
     federationServerManager,
     federationIdentityService,
-    federationPort: env.federationPort,
+    federationPortSettings: federationPortSettingsRepo,
+    federationPortDefault: env.federationPort,
   };
 }
 

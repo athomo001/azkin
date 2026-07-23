@@ -449,6 +449,17 @@ CA. El cliente saliente (`infrastructure/security/federation-fetch-client.ts`) u
 para presentar el certificado propio — a diferencia del bootstrap de enrollment, que sigue usando
 `fetch()` plano sin certificado (protegido solo por el token de un solo uso).
 
+**Puerto configurable en caliente desde el admin:** además del default de `.env`, el puerto acepta
+un override persistido (`FederationPortSettings`, singleton Mongo — mismo patrón que `TlsConfig`)
+que un Admin puede fijar desde `/settings` → **Multi-Región**, análogo a como AZ-006 permite
+configurar `AZKIN_HTTPS_PORT`. Aplicar un puerto nuevo recarga `FederationServerManager` en
+caliente (crea el listener nuevo, confirma que escucha, recién ahí cierra el anterior — no hay
+ventana sin servicio); si el puerto nuevo no puede abrirse, el listener anterior queda intacto y
+no se persiste nada. **Límite conocido:** cambiar el puerto propio no reanuncia el cambio a los
+pares ya enrolados — cada uno guardó el `remoteFederationPort` de esta instancia al enrolarse, y
+seguirá usando ese valor viejo hasta que se vuelva a enrolar (no existe protocolo de re-anuncio;
+fuera de alcance de AZ-049 por el mismo criterio de "herramienta simple" del resto de esta sección).
+
 **Límites deliberados de esta decisión (no técnicos, de alcance):**
 
 * **Máximo 5 instancias federadas simultáneas.** El modelo de malla completa (cada par se enrola

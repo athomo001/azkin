@@ -10,6 +10,10 @@ import { CreateFederatedMonitorLinkUseCase } from "../../../application/use-case
 import { ListFederatedMonitorLinksUseCase } from "../../../application/use-cases/federation/list-federated-monitor-links.usecase";
 import { DeleteFederatedMonitorLinkUseCase } from "../../../application/use-cases/federation/delete-federated-monitor-link.usecase";
 import { GetFederatedComparisonUseCase } from "../../../application/use-cases/federation/get-federated-comparison.usecase";
+import { GetFederationPortUseCase } from "../../../application/use-cases/federation/get-federation-port.usecase";
+import { ApplyFederationPortUseCase } from "../../../application/use-cases/federation/apply-federation-port.usecase";
+import { TestEnrollmentConnectionUseCase } from "../../../application/use-cases/federation/test-enrollment-connection.usecase";
+import { TestFederatedInstanceConnectionUseCase } from "../../../application/use-cases/federation/test-federated-instance-connection.usecase";
 import { toFederatedInstanceResponse } from "../presenters/federation.presenter";
 import { toFederatedMonitorLinkResponse } from "../presenters/federated-monitor-link.presenter";
 
@@ -25,6 +29,10 @@ export class FederationController {
     private readonly listFederatedMonitorLinksUseCase: ListFederatedMonitorLinksUseCase,
     private readonly deleteFederatedMonitorLinkUseCase: DeleteFederatedMonitorLinkUseCase,
     private readonly getFederatedComparisonUseCase: GetFederatedComparisonUseCase,
+    private readonly getFederationPortUseCase: GetFederationPortUseCase,
+    private readonly applyFederationPortUseCase: ApplyFederationPortUseCase,
+    private readonly testEnrollmentConnectionUseCase: TestEnrollmentConnectionUseCase,
+    private readonly testFederatedInstanceConnectionUseCase: TestFederatedInstanceConnectionUseCase,
   ) {}
 
   createToken = async (req: Request, res: Response): Promise<void> => {
@@ -101,6 +109,29 @@ export class FederationController {
       req.permissions ?? [],
       req.params.monitorId as string,
     );
+    res.status(200).json(result);
+  };
+
+  getPort = async (_req: Request, res: Response): Promise<void> => {
+    const status = await this.getFederationPortUseCase.execute();
+    res.status(200).json(status);
+  };
+
+  applyPort = async (req: Request, res: Response): Promise<void> => {
+    const { settings } = await this.applyFederationPortUseCase.execute({
+      actorId: req.userId!,
+      port: req.body.port,
+    });
+    res.status(200).json({ port: settings.port, updatedAt: settings.updatedAt });
+  };
+
+  testConnection = async (req: Request, res: Response): Promise<void> => {
+    const result = await this.testEnrollmentConnectionUseCase.execute({ code: req.body.code });
+    res.status(200).json(result);
+  };
+
+  testInstanceConnection = async (req: Request, res: Response): Promise<void> => {
+    const result = await this.testFederatedInstanceConnectionUseCase.execute(req.params.id as string);
     res.status(200).json(result);
   };
 }

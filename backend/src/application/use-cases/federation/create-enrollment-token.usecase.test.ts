@@ -26,9 +26,9 @@ function makeFakes() {
   return { tokens, created, auditLog };
 }
 
-test("CreateEnrollmentTokenUseCase persiste solo el hash (no el token crudo) y devuelve un código base64url", async () => {
+test("CreateEnrollmentTokenUseCase persiste solo el hash (no el token crudo) y devuelve un código base64url con url+puerto+token", async () => {
   const { tokens, created, auditLog } = makeFakes();
-  const useCase = new CreateEnrollmentTokenUseCase(tokens, auditLog);
+  const useCase = new CreateEnrollmentTokenUseCase(tokens, auditLog, async () => 8444);
 
   const result = await useCase.execute({ actorId: "admin-1", ownUrl: "https://chile.example.com" });
 
@@ -38,6 +38,7 @@ test("CreateEnrollmentTokenUseCase persiste solo el hash (no el token crudo) y d
 
   const decoded = JSON.parse(Buffer.from(result.code, "base64url").toString("utf8"));
   assert.equal(decoded.url, "https://chile.example.com");
+  assert.equal(decoded.port, 8444);
   assert.match(decoded.token, /^[0-9a-f]{64}$/); // token crudo, distinto del hash guardado
   assert.notEqual(decoded.token, created[0].tokenHash);
 });

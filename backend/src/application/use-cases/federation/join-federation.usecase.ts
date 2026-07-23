@@ -38,7 +38,7 @@ export class JoinFederationUseCase {
     private readonly identity: IFederationIdentityService,
     private readonly client: IFederationClient,
     private readonly auditLog: IAuditLogRepository,
-    private readonly ownFederationPort: number,
+    private readonly resolveOwnFederationPort: () => Promise<number>,
   ) {}
 
   async execute(input: JoinFederationInput): Promise<JoinFederationOutput> {
@@ -52,6 +52,7 @@ export class JoinFederationUseCase {
     const decoded = this.decodeCode(input.code);
 
     const ownIdentity = await this.identity.getOrCreateOwnCertificate();
+    const ownFederationPort = await this.resolveOwnFederationPort();
 
     const result = await this.client.requestEnrollment({
       remoteUrl: decoded.url,
@@ -59,7 +60,7 @@ export class JoinFederationUseCase {
       callerCertPem: ownIdentity.certPem,
       callerLabel: input.ownLabel,
       callerUrl: input.ownUrl,
-      callerFederationPort: this.ownFederationPort,
+      callerFederationPort: ownFederationPort,
     });
 
     let fingerprint: string;

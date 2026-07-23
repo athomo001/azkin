@@ -71,6 +71,24 @@ export interface IFederatedComparisonResult {
   combinedStatus: number;
 }
 
+export interface IFederationPortStatus {
+  port: number;
+  isOverridden: boolean;
+  listenerActive: boolean;
+  listenerPort?: number;
+}
+
+export interface ITestConnectionResult {
+  url: string;
+  urlReachable: boolean;
+  urlError?: string;
+  urlLatencyMs?: number;
+  federationPort: number;
+  portReachable: boolean;
+  portError?: string;
+  portLatencyMs?: number;
+}
+
 /**
  * Federación de instancias (AZ-049): enrollment, listado/revocación de instancias, exploración de
  * monitores remotos, vínculos de monitoreo y la comparación Por región/Combinado.
@@ -130,5 +148,21 @@ export class FederationService {
 
   getComparison(localMonitorId: string): Observable<IFederatedComparisonResult> {
     return this.http.get<IFederatedComparisonResult>(`${this.apiUrl}/comparison/${localMonitorId}`);
+  }
+
+  getPort(): Observable<IFederationPortStatus> {
+    return this.http.get<IFederationPortStatus>(`${this.apiUrl}/port`);
+  }
+
+  setPort(port: number): Observable<{ port: number; updatedAt: string }> {
+    return this.http.put<{ port: number; updatedAt: string }>(`${this.apiUrl}/port`, { port });
+  }
+
+  testEnrollmentConnection(code: string): Observable<ITestConnectionResult> {
+    return this.http.post<ITestConnectionResult>(`${this.apiUrl}/test-connection`, { code });
+  }
+
+  testInstanceConnection(instanceId: string): Observable<ITestConnectionResult> {
+    return this.http.post<ITestConnectionResult>(`${this.apiUrl}/instances/${instanceId}/test-connection`, {});
   }
 }

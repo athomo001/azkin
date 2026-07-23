@@ -23,7 +23,8 @@ async function bootstrap(): Promise<void> {
     tlsEncryptionKey,
     federationServerManager,
     federationIdentityService,
-    federationPort,
+    federationPortSettings,
+    federationPortDefault,
   } = buildContainer(env);
   await scheduler.start();
 
@@ -37,6 +38,8 @@ async function bootstrap(): Promise<void> {
   if (tlsEncryptionKey) {
     try {
       const credentials = await federationIdentityService.getOwnServerCredentials();
+      const portOverride = await federationPortSettings.getActive();
+      const federationPort = portOverride?.port ?? federationPortDefault;
       await federationServerManager.reload({
         certPem: credentials.certPem,
         keyPem: credentials.keyPem,
