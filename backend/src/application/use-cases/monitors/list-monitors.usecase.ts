@@ -14,6 +14,7 @@ const EMPTY_SUMMARY: HeartbeatSummary = {
   lastPing: null,
   uptime24h: null,
   lastErrorMsg: null,
+  lastCheckedAt: null,
   isLocalNetworkDown: false,
 };
 
