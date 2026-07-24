@@ -198,9 +198,7 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                   @if (i.status === 'pending_approval') {
                     <button (click)="onApproveInstance(i)" class="text-emerald-400 hover:text-emerald-300 transition-colors">Aceptar</button>
                   } @else if (i.status === 'enrolled') {
-                    <button (click)="onAutoLink(i)" class="text-orange-400 hover:text-orange-300 transition-colors">Auto-vincular</button>
                     <button (click)="onTestInstanceConnection(i)" class="text-zinc-400 hover:text-zinc-200 transition-colors">Probar conexión</button>
-                    <button (click)="onExploreMonitors(i)" class="text-zinc-400 hover:text-zinc-200 transition-colors">Explorar monitores</button>
                     <button (click)="onRevoke(i)" class="text-amber-500 hover:text-amber-400 transition-colors">Revocar</button>
                   } @else {
                     <button (click)="onReactivate(i)" class="text-emerald-400 hover:text-emerald-300 transition-colors">Reactivar</button>
@@ -212,39 +210,6 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
           </div>
         }
       </div>
-
-      <!-- ================= VINCULAR MONITORES ================= -->
-      @if (exploringInstance()) {
-        <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl p-6 space-y-4">
-          <h3 class="text-sm font-bold text-white tracking-tight">Vincular monitor con "{{ exploringInstance()!.label }}"</h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Mi monitor local</label>
-              <select [(ngModel)]="linkForm.localMonitorId" class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500">
-                <option value="">Selecciona...</option>
-                @for (m of monitorService.monitors(); track m.id) {
-                  <option [value]="m.id">{{ m.name }}</option>
-                }
-              </select>
-            </div>
-            <div>
-              <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Monitor remoto equivalente</label>
-              <select [(ngModel)]="linkForm.remoteMonitorId" (change)="onRemoteMonitorSelected()" class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500">
-                <option value="">Selecciona...</option>
-                @for (m of remoteMonitors(); track m.id) {
-                  <option [value]="m.id">{{ m.name }} ({{ m.type }})</option>
-                }
-              </select>
-            </div>
-            <div class="flex items-end">
-              <button (click)="onCreateLink()" class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-xs font-bold transition-all shadow-md">
-                Crear vínculo
-              </button>
-            </div>
-          </div>
-          <button (click)="exploringInstance.set(null)" class="text-[10px] text-zinc-500 hover:text-zinc-300 font-bold">Cerrar</button>
-        </div>
-      }
 
       <!-- ================= VÍNCULOS EXISTENTES ================= -->
       <div class="space-y-3">

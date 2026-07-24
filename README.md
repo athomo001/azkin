@@ -13,8 +13,8 @@
 **Azkin** es una solución para el monitoreo de disponibilidad, integridad y rendimiento de servicios web y redes en tiempo real.
 
 > 📚 **Explicacion Coloquial**
-Esta wea está pensada para cachar al tiro el uptime de varias páginas, servicios y redes, ver cuándo algo se cae (downtime), cuánto se demora en responder (latency) y recibir alerts en tiempo real para reaccionar rápido sin andar adivinando qué wea pasó.
---
+
+## Esta wea está pensada para cachar al tiro el uptime de varias páginas, servicios y redes, ver cuándo algo se cae (downtime), cuánto se demora en responder (latency) y recibir alerts en tiempo real para reaccionar rápido sin andar adivinando qué wea pasó.
 
 La plataforma soporta múltiples tipos de verificación:
 
@@ -63,15 +63,15 @@ Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión d
 
 Calculados a partir de la arquitectura real del proyecto (3 contenedores: `azkin-db`, `azkin-back`, `azkin-front`), no son valores genéricos.
 
-| Recurso | Mínimo | Recomendado |
-| --- | --- | --- |
-| Sistema Operativo | Linux x86-64/ARM64 64 bits, o Windows/macOS con Docker Desktop | Linux 64 bits (Ubuntu 22.04+/Debian 12+), x86-64-v2 o ARM64 |
-| CPU | 2 vCPU | 4 vCPU |
-| RAM | 2 GB | 4-8 GB |
-| Almacenamiento | 5 GB libres | 20 GB+ en SSD |
-| Red | Salida a internet para HTTP/ICMP/TCP/DNS/SNMP y notificaciones; entrada solo por el puerto del frontend (ver detalle abajo) | Ídem + baja latencia interna (ya cubierta por `azkin-network`) |
-| Software | Docker Engine 24+ y Docker Compose v2 | Docker Engine 24+ y Docker Compose v2 |
-| Escala soportada | ~20-30 monitores, intervalo ≥ 60 s, un Admin | Decenas-cientos de monitores, concurrencia por defecto (`AZKIN_CHECK_CONCURRENCY=50`) |
+| Recurso           | Mínimo                                                                                                                      | Recomendado                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Sistema Operativo | Linux x86-64/ARM64 64 bits, o Windows/macOS con Docker Desktop                                                              | Linux 64 bits (Ubuntu 22.04+/Debian 12+), x86-64-v2 o ARM64                           |
+| CPU               | 2 vCPU                                                                                                                      | 4 vCPU                                                                                |
+| RAM               | 2 GB                                                                                                                        | 4-8 GB                                                                                |
+| Almacenamiento    | 5 GB libres                                                                                                                 | 20 GB+ en SSD                                                                         |
+| Red               | Salida a internet para HTTP/ICMP/TCP/DNS/SNMP y notificaciones; entrada solo por el puerto del frontend (ver detalle abajo) | Ídem + baja latencia interna (ya cubierta por `azkin-network`)                        |
+| Software          | Docker Engine 24+ y Docker Compose v2                                                                                       | Docker Engine 24+ y Docker Compose v2                                                 |
+| Escala soportada  | ~20-30 monitores, intervalo ≥ 60 s, un Admin                                                                                | Decenas-cientos de monitores, concurrencia por defecto (`AZKIN_CHECK_CONCURRENCY=50`) |
 
 **Notas técnicas** (medido directamente en este repo con `docker build` / `docker image inspect`):
 
@@ -93,15 +93,15 @@ Calculados a partir de la arquitectura real del proyecto (3 contenedores: `azkin
 
 ## 📚 Documentación
 
-| Documento | Contenido |
-|---|---|
+| Documento                                                  | Contenido                                                                                                                                     |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | [docs/instalacion-docker.md](./docs/instalacion-docker.md) | Manual de instalación con Docker: variables de entorno, producción, desarrollo con hot-reload, HTTPS nativo, respaldos, problemas frecuentes. |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Clean Architecture, bypass de Cloudflare WAF, modo Nyan Cat, autenticación, API pública, auditoría. |
-| [docs/api-publica.md](./docs/api-publica.md) | Autenticación por `X-API-Key`, endpoints disponibles, gestión de keys, ejemplos `curl`. |
-| `spec/` (local, no versionado en git) | Especificaciones funcionales por fase (Spec-Driven Development): modelo de datos, contratos de API, arquitectura. |
-| [CHANGELOG.md](./CHANGELOG.md) | Historial de versiones (Keep a Changelog + SemVer). |
-| [ISSUES.md](./ISSUES.md) | Backlog de bugs, deuda técnica y hallazgos de auditoría, con su resolución documentada. |
-| `.env.example` / `backend/.env.example` | Referencia completa de variables de entorno soportadas. |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)             | Clean Architecture, bypass de Cloudflare WAF, modo Nyan Cat, autenticación, API pública, auditoría.                                           |
+| [docs/api-publica.md](./docs/api-publica.md)               | Autenticación por `X-API-Key`, endpoints disponibles, gestión de keys, ejemplos `curl`.                                                       |
+| `spec/` (local, no versionado en git)                      | Especificaciones funcionales por fase (Spec-Driven Development): modelo de datos, contratos de API, arquitectura.                             |
+| [CHANGELOG.md](./CHANGELOG.md)                             | Historial de versiones (Keep a Changelog + SemVer).                                                                                           |
+| [ISSUES.md](./ISSUES.md)                                   | Backlog de bugs, deuda técnica y hallazgos de auditoría, con su resolución documentada.                                                       |
+| `.env.example` / `backend/.env.example`                    | Referencia completa de variables de entorno soportadas.                                                                                       |
 
 ---
 
@@ -111,6 +111,9 @@ La plataforma está completamente containerizada. Los nombres de los contenedore
 
 ```bash
 cp .env.example .env        # ajusta credenciales antes de levantar el entorno
+
+#Todo en un comando
+git pull origin main && docker compose build --no-cache && docker compose up -d
 
 # Producción: Web en :80, API en :3000 (MongoDB solo interno + 127.0.0.1:27017 para debug)
 docker compose build --no-cache && docker compose up -d

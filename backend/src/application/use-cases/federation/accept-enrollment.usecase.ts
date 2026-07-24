@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { IFederationEnrollmentTokenRepository } from "../../ports/repositories/federation-enrollment-token-repository";
 import { IFederatedInstanceRepository } from "../../ports/repositories/federated-instance-repository";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
+import { IRealtimePublisher } from "../../ports/services/realtime-publisher";
 import { QuotaExceededError, ValidationError } from "../../../domain/errors/domain-error";
 import { MAX_FEDERATED_INSTANCES } from "./federation-limits";
 
@@ -33,6 +34,7 @@ export class AcceptEnrollmentUseCase {
     private readonly auditLog: IAuditLogRepository,
     private readonly encryptSecret: (secret: string, key: string) => string,
     private readonly encryptionKey: string,
+    private readonly realtimePublisher?: IRealtimePublisher,
   ) {}
 
   async execute(input: AcceptEnrollmentInput): Promise<void> {
@@ -62,5 +64,21 @@ export class AcceptEnrollmentUseCase {
       targetType: "federated-instance",
       targetIds: [instance.id],
     });
+
+    // Notificar en tiempo real por WebSocket al Admin del Nodo 1 de que el Nodo 2 se ha conectado
+    if (this.realtimePublisher) {
+      this.realtimePublisher.publishFederationEnrolled(consumed.createdById, input.callerLabel);
+    }
+
+    // Ejecutar el callback de auto-vinculación en segundo plano
+    if (this.onEnrolledCallback) {
+      this.onEnrolledCallback(instance.id, consumed.createdById).catch(() => {});
+    }
+  }
+
+  private onEnrolledCallback?: (instanceId: string, createdById: string) => Promise<void>;
+
+  setOnEnrolledCallback(fn: (instanceId: string, createdById: string) => Promise<void>): void {
+    this.onEnrolledCallback = fn;
   }
 }

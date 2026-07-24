@@ -1,13 +1,16 @@
-// Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Injectable, inject, OnDestroy } from '@angular/core';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
-import { MonitorService, IHeartbeat } from './monitor.service';
+import { MonitorService } from './monitor.service';
+import { FederationService } from './federation.service';
+import { ToastService } from './toast.service';
 
 @Injectable({ providedIn: 'root' })
 export class RealtimeService implements OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly monitorService = inject(MonitorService);
+  private readonly federationService = inject(FederationService);
+  private readonly toastService = inject(ToastService);
 
   // Instancia activa del socket; null si no hay conexión establecida
   private socket: Socket | null = null;
@@ -26,8 +29,6 @@ export class RealtimeService implements OnDestroy {
 
     this.socket = io('/', {
       path: '/socket.io',
-      // El token solo va en `auth` (payload del handshake), nunca en `query`
-      // (los query strings quedan en logs de acceso/proxy).
       auth: { token: token ?? '' },
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
@@ -49,6 +50,15 @@ export class RealtimeService implements OnDestroy {
           console.error('[Realtime] Error en callback de heartbeat:', e);
         }
       });
+    });
+
+    // Escucha la notificación en tiempo real cuando un par completa el enrolamiento
+    this.socket.on('federation:enrolled', (data: { label?: string }) => {
+      const label = data?.label ?? 'remota';
+      this.toastService.show(`¡Instancia federada "${label}" lista y conectada!`);
+      this.federationService.loadInstances().subscribe();
+      this.federationService.loadLinks().subscribe();
+      this.monitorService.loadMonitors().subscribe();
     });
 
     this.socket.on('disconnect', (reason: string) => {

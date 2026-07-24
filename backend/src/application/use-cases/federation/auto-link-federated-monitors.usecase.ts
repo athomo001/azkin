@@ -42,43 +42,58 @@ export class AutoLinkFederatedMonitorsUseCase {
 
     const createdLinks: IFederatedMonitorLink[] = [];
 
-    for (const local of localMonitors) {
-      // Buscar coincidencia por nombre exacto (case insensitive) o por target idéntico
-      const match = remoteMonitors.find((remote) => {
-        const nameMatch = local.name.trim().toLowerCase() === remote.name.trim().toLowerCase();
-        const targetMatch = local.target.trim().toLowerCase() === remote.target.trim().toLowerCase();
+    for (const remote of remoteMonitors) {
+      // Buscar coincidencia en monitores locales por nombre o target
+      let local = localMonitors.find((m) => {
+        const nameMatch = m.name.trim().toLowerCase() === remote.name.trim().toLowerCase();
+        const targetMatch = m.target.trim().toLowerCase() === remote.target.trim().toLowerCase();
         return nameMatch || targetMatch;
       });
 
-      if (match) {
-        // Verificar si ya existe un vínculo para este monitor local y remoto
-        const alreadyLinked = existingLinks.some(
-          (l) => l.localMonitorId === local.id && l.remoteMonitorId === match.id,
-        );
+      // Si el monitor del nodo remoto no existe en el nodo local, crearlo automáticamente para reflejarlo en ambas instancias
+      if (!local) {
+        local = await this.monitors.create({
+          name: `${remote.name} (${instance.label})`,
+          type: (remote.type as any) || "http",
+          target: remote.target,
+          userId: actorId,
+          interval: 60,
+          retryInterval: 30,
+          retries: 2,
+          group: null,
+          tags: [],
+          notificationIds: [],
+        });
+        localMonitors.push(local);
+      }
 
-        if (!alreadyLinked) {
-          const link = await this.links.create({
-            localMonitorId: local.id,
-            federatedInstanceId,
-            remoteMonitorId: match.id,
-            remoteMonitorLabel: `${match.name} (${instance.label})`,
-            createdById: actorId,
-          });
+      // Verificar si ya existe un vínculo activo para este monitor local y el remoto
+      const alreadyLinked = existingLinks.some(
+        (l) => l.localMonitorId === local!.id && l.remoteMonitorId === remote.id,
+      );
 
-          createdLinks.push(link);
+      if (!alreadyLinked) {
+        const link = await this.links.create({
+          localMonitorId: local.id,
+          federatedInstanceId,
+          remoteMonitorId: remote.id,
+          remoteMonitorLabel: `${remote.name} (${instance.label})`,
+          createdById: actorId,
+        });
 
-          await this.auditLog.record({
-            actorId,
-            action: "FEDERATION_MONITOR_LINK_CREATED",
-            targetType: "federated-monitor-link",
-            targetIds: [link.id],
-            metadata: { localMonitorId: local.id, federatedInstanceId, autoLinked: true },
-          });
-        }
+        createdLinks.push(link);
+
+        await this.auditLog.record({
+          actorId,
+          action: "FEDERATION_MONITOR_LINK_CREATED",
+          targetType: "federated-monitor-link",
+          targetIds: [link.id],
+          metadata: { localMonitorId: local.id, federatedInstanceId, autoLinked: true },
+        });
       }
     }
 
-    // Si se crearon vínculos nuevos y existe función de sincronización, disparar sync asíncrono
+    // Si se crearon o vincularon monitores y existe función de sincronización, disparar sync asíncrono
     if (createdLinks.length > 0 && this.triggerSync) {
       this.triggerSync().catch(() => {
         // Silenciar errores asíncronos en segundo plano
