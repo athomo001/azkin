@@ -3,8 +3,8 @@ import { z } from "zod";
 
 export const joinFederationSchema = z.object({
   code: z.string().min(1, "Falta el código de enrollment"),
-  peerLabel: z.string().min(1).max(100),
-  ownLabel: z.string().min(1).max(100),
+  peerLabel: z.string().max(100).optional().or(z.literal("")),
+  ownLabel: z.string().max(100).optional().or(z.literal("")),
 });
 
 // Llamada por el backend de la instancia remota (sin sesión) — validar con la misma exigencia

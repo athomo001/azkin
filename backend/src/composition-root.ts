@@ -489,6 +489,7 @@ export function buildContainer(env: Env): AppContainer {
     auditLog,
     encryptPrivateKey,
     federationEncryptionKey,
+    publisher,
   );
   const approveFederatedInstance = new ApproveFederatedInstanceUseCase(federatedInstancesRepo, auditLog);
   const getFederationOwnUrl = new GetFederationOwnUrlUseCase(federationSettingsRepo);
@@ -545,6 +546,9 @@ export function buildContainer(env: Env): AppContainer {
   );
   autoLinkFederatedMonitors.setSyncTrigger(() => runFederationSync.execute());
   createFederatedMonitorLink.setSyncTrigger(() => runFederationSync.execute());
+  acceptEnrollment.setOnEnrolledCallback(async (instanceId, createdById) => {
+    await autoLinkFederatedMonitors.execute(createdById, instanceId);
+  });
 
   const federationController = new FederationController(
     createEnrollmentToken,

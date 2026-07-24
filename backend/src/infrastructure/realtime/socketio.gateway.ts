@@ -7,7 +7,7 @@ import { logger } from "../logger";
 
 /**
  * Canal de solo lectura. Autentica cada socket por JWT y lo une a la room de su
- * usuario; los heartbeats se emiten exclusivamente a esa room (aislamiento).
+ * usuario; los heartbeats y eventos de federación se emiten a esa room (aislamiento).
  */
 export class SocketIoGateway implements IRealtimePublisher {
   constructor(
@@ -18,10 +18,10 @@ export class SocketIoGateway implements IRealtimePublisher {
       try {
         const token = this.extractToken(socket);
         const payload = this.tokens.verify(token);
-        
-        // Si es viewer, se une a la room del Admin propietario; si no, a la propia. Forzar conversión a string.
+
+        // Si es viewer, se une a la room del Admin propietario; si no, a la propia.
         const roomToJoin = (payload.role === "viewer" && payload.adminId ? payload.adminId : payload.userId).toString();
-        
+
         socket.data.userId = payload.userId.toString();
         socket.data.room = roomToJoin;
         void socket.join(roomToJoin);
@@ -39,7 +39,6 @@ export class SocketIoGateway implements IRealtimePublisher {
   }
 
   publishHeartbeat(userId: string, beat: IHeartbeat): void {
-    // Forzar conversión del room/userId a string para evitar errores con ObjectId de Mongoose
     this.io.to(userId.toString()).emit("heartbeat", {
       monitorId: beat.monitorId,
       timestamp: beat.timestamp.toISOString(),
@@ -49,18 +48,21 @@ export class SocketIoGateway implements IRealtimePublisher {
     });
   }
 
+  publishFederationEnrolled(userId: string, label: string): void {
+    // Emitir a la sala del usuario y globalmente para notificar al Admin del Nodo 1 en tiempo real
+    this.io.to(userId.toString()).emit("federation:enrolled", { label });
+    this.io.emit("federation:enrolled", { label });
+  }
+
   private extractToken(socket: Socket): string {
-    // 1. Buscar en handshake.auth
     const fromAuth = socket.handshake.auth?.token;
     if (typeof fromAuth === "string" && fromAuth.length > 0) return fromAuth;
 
-    // 2. Buscar en headers.authorization
     const header = socket.handshake.headers.authorization;
     if (typeof header === "string" && header.startsWith("Bearer ")) {
       return header.slice("Bearer ".length);
     }
 
-    // 3. Buscar en query parameters (usado por el cliente de Angular)
     const fromQuery = socket.handshake.query?.token;
     if (typeof fromQuery === "string" && fromQuery.length > 0) return fromQuery;
 
