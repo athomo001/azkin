@@ -26,6 +26,7 @@ export class ListLocalMonitorsForPeerUseCase {
         name: m.name,
         type: m.type,
         target: m.target,
+        port: m.port ?? null,
         lastStatus: summary?.lastStatus ?? null,
         lastPing: summary?.lastPing ?? null,
       };

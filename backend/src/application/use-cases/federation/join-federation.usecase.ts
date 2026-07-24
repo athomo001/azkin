@@ -4,6 +4,7 @@ import { IFederatedInstanceRepository } from "../../ports/repositories/federated
 import { IFederationClient } from "../../ports/services/federation-client";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { getErrorMessage } from "../../services/get-error-message";
+import { logger } from "../../../infrastructure/logger";
 import { IFederatedInstance } from "../../../domain/entities/federated-instance";
 import { QuotaExceededError, ValidationError } from "../../../domain/errors/domain-error";
 import { MAX_FEDERATED_INSTANCES } from "./federation-limits";
@@ -83,7 +84,9 @@ export class JoinFederationUseCase {
     });
 
     if (this.onEnrolledCallback) {
-      this.onEnrolledCallback(instance.id, input.actorId).catch(() => {});
+      this.onEnrolledCallback(instance.id, input.actorId).catch((err) => {
+        logger.error(`[Federation] Fallo en auto-vinculación en segundo plano tras unirse: ${getErrorMessage(err)}`);
+      });
     }
 
     return { instance };
