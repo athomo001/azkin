@@ -10,6 +10,7 @@ import { getErrorMessage } from "../../services/get-error-message";
 import { logger } from "../../../infrastructure/logger";
 import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
 import { IFederationClient } from "../../ports/services/federation-client";
+import { IRealtimePublisher } from "../../ports/services/realtime-publisher";
 
 import { IHeartbeatRepository } from "../../ports/repositories/heartbeat-repository";
 
@@ -62,6 +63,10 @@ export class AutoLinkFederatedMonitorsUseCase {
     private readonly client?: IFederationClient,
     private readonly decryptSecret?: (encrypted: string, key: string) => string,
     private readonly encryptionKey?: string,
+    // Avisa por Socket.IO cuando terminan de crearse monitores/vínculos reales, para que el
+    // dashboard se refresque solo sin F5 (ver AZ-050) — necesario sobre todo del lado que auto-
+    // vincula en segundo plano (el callback silencioso tras aceptar un enrollment).
+    private readonly realtimePublisher?: IRealtimePublisher,
   ) {}
 
   async execute(actorId: string, federatedInstanceId: string): Promise<AutoLinkResult> {
@@ -203,6 +208,13 @@ export class AutoLinkFederatedMonitorsUseCase {
         this.triggerSync().catch(() => {
           // Silenciar errores asíncronos en segundo plano
         });
+      }
+
+      // Avisar al dashboard de ESTE lado (sin F5 — ver AZ-050): imprescindible cuando este método
+      // corre en segundo plano tras aceptar un enrollment (el admin nunca hizo un request HTTP que
+      // pudiera refrescar su propia UI al responder).
+      if (createdLinks.length > 0 && this.realtimePublisher) {
+        this.realtimePublisher.publishFederationLinksUpdated(actorId);
       }
 
       return {

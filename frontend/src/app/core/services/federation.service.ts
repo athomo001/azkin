@@ -171,8 +171,10 @@ export class FederationService {
     );
   }
 
-  getComparison(localMonitorId: string): Observable<IFederatedComparisonResult> {
-    return this.http.get<IFederatedComparisonResult>(`${this.apiUrl}/comparison/${localMonitorId}`);
+  getComparison(localMonitorId: string, rangeMs?: number): Observable<IFederatedComparisonResult> {
+    const params: Record<string, string> = {};
+    if (rangeMs) params['rangeMs'] = String(rangeMs);
+    return this.http.get<IFederatedComparisonResult>(`${this.apiUrl}/comparison/${localMonitorId}`, { params });
   }
 
   getOwnUrl(): Observable<IFederationOwnUrlStatus> {

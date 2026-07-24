@@ -28,13 +28,13 @@ export class MongooseFederatedHeartbeatRepository implements IFederatedHeartbeat
     return doc ? { timestamp: doc.timestamp, status: doc.status, ping: doc.ping } : null;
   }
 
-  async findHistory(federatedMonitorLinkId: string, limit = 20): Promise<FederatedHeartbeatSummary[]> {
+  async findHistory(federatedMonitorLinkId: string, durationMs = 30 * 60 * 1000): Promise<FederatedHeartbeatSummary[]> {
     if (!Types.ObjectId.isValid(federatedMonitorLinkId)) return [];
+    const since = new Date(Date.now() - Math.max(0, durationMs));
     const docs = await FederatedHeartbeatModel.find({
       federatedMonitorLinkId: new Types.ObjectId(federatedMonitorLinkId),
-    })
-      .sort({ timestamp: -1 })
-      .limit(limit);
-    return docs.map((doc) => ({ timestamp: doc.timestamp, status: doc.status, ping: doc.ping })).reverse();
+      timestamp: { $gte: since },
+    }).sort({ timestamp: 1 });
+    return docs.map((doc) => ({ timestamp: doc.timestamp, status: doc.status, ping: doc.ping }));
   }
 }

@@ -20,5 +20,9 @@ export interface FederatedHeartbeatSummary {
 export interface IFederatedHeartbeatRepository {
   insertMany(data: CreateFederatedHeartbeatData[]): Promise<void>;
   findLatest(federatedMonitorLinkId: string): Promise<FederatedHeartbeatSummary | null>;
-  findHistory(federatedMonitorLinkId: string, limit?: number): Promise<FederatedHeartbeatSummary[]>;
+  /** Historial dentro de una ventana de tiempo (ms), orden ascendente — mismo criterio que
+   * `IHeartbeatRepository.findHistory` para el monitor local, así el selector de rango
+   * (5m/30m/1h/.../30d) de la vista "Por región/Combinado" puede pedir la misma ventana a ambos
+   * lados (ver AZ-050: antes era un límite fijo de 20 registros, sin selector posible). */
+  findHistory(federatedMonitorLinkId: string, durationMs?: number): Promise<FederatedHeartbeatSummary[]>;
 }

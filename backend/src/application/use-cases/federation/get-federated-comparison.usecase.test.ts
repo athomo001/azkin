@@ -164,6 +164,54 @@ test("GetFederatedComparisonUseCase sin vinculos: combinado igual al estado loca
   assert.equal(result.combinedStatus, MonitorStatus.UP);
 });
 
+test("GetFederatedComparisonUseCase reenvia el rango seleccionado (5m/30m/1h/...) a ambos repositorios de historial", async () => {
+  const localCalls: number[] = [];
+  const regionCalls: number[] = [];
+
+  const links: IFederatedMonitorLinkRepository = {
+    create: async () => makeLink(),
+    findAll: async () => [],
+    findByLocalMonitorId: async () => [makeLink()],
+    findById: async () => makeLink(),
+    findByFederatedInstanceId: async () => [],
+    delete: async () => true,
+    markSynced: async () => undefined,
+  };
+  const federatedInstances: IFederatedInstanceRepository = {
+    create: async () => makeInstance(),
+    findAll: async () => [],
+    findById: async () => makeInstance(),
+    countActive: async () => 0,
+    revoke: async () => null,
+    findAllActive: async () => [],
+    markSyncSuccess: async () => undefined,
+    setNotifiedDown: async () => undefined,
+  };
+  const federatedHeartbeats: IFederatedHeartbeatRepository = {
+    insertMany: async () => undefined,
+    findLatest: async () => ({ timestamp: new Date(), status: MonitorStatus.UP, ping: 10 }),
+    findHistory: async (_linkId, durationMs) => {
+      regionCalls.push(durationMs ?? -1);
+      return [];
+    },
+  };
+  const heartbeats: IHeartbeatRepository = {
+    ...makeHeartbeatsRepo({ lastStatus: MonitorStatus.UP, lastPing: 20, uptime24h: 1, lastErrorMsg: null }),
+    findHistory: async (_id, durationMs) => {
+      localCalls.push(durationMs);
+      return [];
+    },
+  };
+  const monitors = makeMonitorsRepo();
+
+  const useCase = new GetFederatedComparisonUseCase(links, federatedInstances, federatedHeartbeats, heartbeats, monitors);
+  const oneHourMs = 60 * 60 * 1000;
+  await useCase.execute("admin", [], "monitor-1", oneHourMs);
+
+  assert.deepEqual(localCalls, [oneHourMs]);
+  assert.deepEqual(regionCalls, [oneHourMs]);
+});
+
 test("GetFederatedComparisonUseCase lanza NotFoundError si el monitor no existe o el viewer no tiene permiso", async () => {
   const links: IFederatedMonitorLinkRepository = {
     create: async () => makeLink(),

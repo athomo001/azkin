@@ -329,6 +329,134 @@ test("AutoLinkFederatedMonitorsUseCase propaga el puerto remoto para poder crear
   assert.equal(createdMonitors[0].port, 3306);
 });
 
+test("AutoLinkFederatedMonitorsUseCase avisa por Socket.IO cuando crea vínculos nuevos, para refrescar el dashboard sin F5 (AZ-050)", async () => {
+  const federatedInstances: IFederatedInstanceRepository = {
+    findById: async () => makeInstance(),
+    findAll: async () => [],
+    countActive: async () => 1,
+    revoke: async () => null,
+    findAllActive: async () => [],
+    markSyncSuccess: async () => undefined,
+    setNotifiedDown: async () => undefined,
+    create: async () => makeInstance(),
+  };
+  const monitors: IMonitorRepository = {
+    findAll: async () => [],
+    create: async (data) => ({ id: "local-1", ...data, isActive: true } as IMonitor),
+    findById: async () => null,
+    update: async () => null,
+    delete: async () => true,
+    bulkDelete: async () => 0,
+  };
+  const links: IFederatedMonitorLinkRepository = {
+    create: async (data) => ({ id: `link-${data.localMonitorId}`, ...data } as IFederatedMonitorLink),
+    findByFederatedInstanceId: async () => [],
+    findByLocalMonitorId: async () => [],
+    markSynced: async () => undefined,
+    delete: async () => true,
+    deleteByFederatedInstanceId: async () => 0,
+  };
+  const listRemoteMonitors = {
+    execute: async () => [{ id: "remote-1", name: "sitio", type: "http", target: "https://sitio.com", lastStatus: 1, lastPing: 10 }],
+  } as unknown as ListRemoteMonitorsUseCase;
+  const auditLog: IAuditLogRepository = {
+    record: async (data) => ({ id: "audit-1", createdAt: new Date(), ...data }),
+    listRecent: async () => [],
+    listAll: async () => [],
+    deleteAll: async () => 0,
+  };
+  const publishCalls: string[] = [];
+  const realtimePublisher = {
+    publishHeartbeat: () => {},
+    publishFederationEnrolled: () => {},
+    publishFederationLinksUpdated: (userId: string) => {
+      publishCalls.push(userId);
+    },
+  };
+
+  const useCase = new AutoLinkFederatedMonitorsUseCase(
+    federatedInstances,
+    links,
+    monitors,
+    listRemoteMonitors,
+    auditLog,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    realtimePublisher,
+  );
+
+  await useCase.execute("admin-1", "instance-1");
+
+  assert.deepEqual(publishCalls, ["admin-1"]);
+});
+
+test("AutoLinkFederatedMonitorsUseCase no avisa por Socket.IO si no se creó ningún vínculo nuevo", async () => {
+  const federatedInstances: IFederatedInstanceRepository = {
+    findById: async () => makeInstance(),
+    findAll: async () => [],
+    countActive: async () => 1,
+    revoke: async () => null,
+    findAllActive: async () => [],
+    markSyncSuccess: async () => undefined,
+    setNotifiedDown: async () => undefined,
+    create: async () => makeInstance(),
+  };
+  const monitors: IMonitorRepository = {
+    findAll: async () => [],
+    create: async () => {
+      throw new Error("no debería crear nada, no hay monitores remotos");
+    },
+    findById: async () => null,
+    update: async () => null,
+    delete: async () => true,
+    bulkDelete: async () => 0,
+  };
+  const links: IFederatedMonitorLinkRepository = {
+    create: async () => {
+      throw new Error("no debería crear vínculos");
+    },
+    findByFederatedInstanceId: async () => [],
+    findByLocalMonitorId: async () => [],
+    markSynced: async () => undefined,
+    delete: async () => true,
+    deleteByFederatedInstanceId: async () => 0,
+  };
+  const listRemoteMonitors = { execute: async () => [] } as unknown as ListRemoteMonitorsUseCase;
+  const auditLog: IAuditLogRepository = {
+    record: async (data) => ({ id: "audit-1", createdAt: new Date(), ...data }),
+    listRecent: async () => [],
+    listAll: async () => [],
+    deleteAll: async () => 0,
+  };
+  const publishCalls: string[] = [];
+  const realtimePublisher = {
+    publishHeartbeat: () => {},
+    publishFederationEnrolled: () => {},
+    publishFederationLinksUpdated: (userId: string) => {
+      publishCalls.push(userId);
+    },
+  };
+
+  const useCase = new AutoLinkFederatedMonitorsUseCase(
+    federatedInstances,
+    links,
+    monitors,
+    listRemoteMonitors,
+    auditLog,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    realtimePublisher,
+  );
+
+  await useCase.execute("admin-1", "instance-1");
+
+  assert.deepEqual(publishCalls, []);
+});
+
 test("AutoLinkFederatedMonitorsUseCase registra el vínculo recíproco en el par (AZ-050: sin esto el gráfico Multi-Nodo solo aparecía del lado que importó)", async () => {
   const federatedInstances: IFederatedInstanceRepository = {
     findById: async () => makeInstance(),

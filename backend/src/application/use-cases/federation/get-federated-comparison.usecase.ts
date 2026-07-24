@@ -49,6 +49,9 @@ export class GetFederatedComparisonUseCase {
     role: string,
     permissions: { type: string; value?: string }[],
     localMonitorId: string,
+    /** Ventana del historial (ms) — mismo selector 5m/30m/1h/.../30d que ya usa el gráfico
+     * principal de latencia (AZ-050: antes era una ventana fija de 30 min sin selector). */
+    rangeMs: number = 30 * 60 * 1000,
   ): Promise<FederatedComparisonResult> {
     const monitor = await this.monitors.findById(localMonitorId);
     if (!monitor || filterMonitorsByPermission([monitor], role, permissions).length === 0) {
@@ -59,8 +62,7 @@ export class GetFederatedComparisonUseCase {
     const localSummary = summaries[localMonitorId];
     const local = { status: localSummary?.lastStatus ?? null, ping: localSummary?.lastPing ?? null };
 
-    // Obtener últimos heartbeats locales (últimos 30 min)
-    const localBeats = await this.heartbeats.findHistory(localMonitorId, 30 * 60 * 1000);
+    const localBeats = await this.heartbeats.findHistory(localMonitorId, rangeMs);
     const localHistory = localBeats.map((b) => ({ timestamp: b.timestamp.toISOString(), ping: b.ping }));
 
     const links = await this.links.findByLocalMonitorId(localMonitorId);
@@ -72,7 +74,7 @@ export class GetFederatedComparisonUseCase {
       // con datos que ya dejaron de refrescarse (ver AZ-050, observación adjunta al punto 4).
       if (!instance || instance.status !== "enrolled") continue;
       const latest = await this.federatedHeartbeats.findLatest(link.id);
-      const historyBeats = await this.federatedHeartbeats.findHistory(link.id, 20);
+      const historyBeats = await this.federatedHeartbeats.findHistory(link.id, rangeMs);
       const history = historyBeats.map((b) => ({ timestamp: b.timestamp.toISOString(), ping: b.ping }));
 
       regions.push({

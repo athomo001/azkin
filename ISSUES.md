@@ -426,10 +426,12 @@ una recomendacion) y queda advertido tanto en `docs/` como en la UI de `/setting
 
 ## AZ-050) Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049)
 - Codigo: AZ-050
-- Estado: [~] En progreso — 2 rondas de bugs criticos de QA en vivo diagnosticados y corregidos
-  (2026-07-24): auto-vinculacion parcial/PENDING, asimetria del grafico Multi-Nodo, y borrado de
-  instancia sin cascada ni aviso al par. No se marca "Resuelto" hasta que el usuario confirme en un
-  despliegue real con 2+ instancias (ver notas mas abajo).
+- Estado: [~] En progreso — 5 rondas de bugs criticos de QA en vivo diagnosticados y corregidos
+  (2026-07-24): auto-vinculacion parcial/PENDING, asimetria del grafico Multi-Nodo, borrado de
+  instancia sin cascada ni aviso al par (+ gap de mesh 3+ nodos), grafico de la comparativa
+  federada congelado/sin selector de rango, y necesidad de F5 para ver el resultado del enrolamiento.
+  No se marca "Resuelto" hasta que el usuario confirme en
+  un despliegue real con 2+ instancias (ver notas mas abajo).
 - Prioridad: Alta-CRITICA
 - Reportado: 2026-07-23
 
@@ -579,3 +581,73 @@ borraba el monitor pero dejaba huerfano el `FederatedMonitorLink` hacia el Nodo 
 cada monitor auto-importado, se limpian primero todos sus vinculos con cualquier otra instancia
 federada, no solo con la que se esta eliminando. Cubierto con test nuevo en
 `delete-federated-instance.usecase.test.ts`. Suite completa: 235/235.
+
+### Nota (2026-07-24, cuarta ronda) — grafico de la comparativa federada "congelado" + sin selector de rango
+
+Reporte del usuario (con capturas): el mismo monitor "anime" se ve con un historial rico en el Nodo
+1 (donde es el monitor original) pero con el grafico colapsado (una sola marca de tiempo en el eje
+X, linea vertical en vez de una curva) en el Nodo 2 (donde se auto-importo). Causa raiz doble:
+
+1. **El panel `federated-comparison.ts` solo pedia datos una vez al abrir el monitor** (`effect()`
+   sobre `monitorId()`, sin ninguna actualizacion periodica ni suscripcion en vivo) — a diferencia
+   del grafico principal de latencia, que si se actualiza con cada heartbeat nuevo por Socket.IO. Si
+   en ese primer pedido el monitor recien importado en el Nodo 2 todavia tenia 1 o 2 heartbeats
+   reales propios, el panel quedaba congelado con ese snapshot escaso para siempre mientras siguiera
+   montado, sin importar cuanto tiempo pasara ni cuantos checks nuevos se acumularan.
+2. **No existia forma de pedir una ventana de tiempo mas amplia u otra** — a diferencia del grafico
+   principal (`historyRangeOptions`: 5m/30m/1h/3h/6h/12h/24h/48h/7d/30d), la comparativa federada
+   tenia el historial local fijo en 30 min y el historial remoto fijo en los ultimos 20 registros
+   (un limite de cantidad, no de tiempo), sin selector ni forma de cambiarlo desde la UI.
+
+Corregido: (a) el panel ahora se refresca automaticamente cada 30s mientras esta montado (ademas de
+al abrir el monitor o cambiar el rango), asi el grafico deja de quedar congelado y va reflejando el
+historial real a medida que se acumula; (b) se agrego el mismo selector de rango 5m/30m/.../30d que
+ya usa el grafico principal, tanto en el backend (`GetFederatedComparisonUseCase` y
+`GET /federation/comparison/:monitorId?rangeMs=<ms>` aceptan la ventana; `IFederatedHeartbeatRepository.findHistory`
+paso de "ultimos N registros" a "ultima ventana de tiempo", igual criterio que el historial local)
+como en el frontend (`federated-comparison.ts`). Cubierto con test nuevo en
+`get-federated-comparison.usecase.test.ts` que verifica que el rango se reenvia a ambos
+repositorios de historial (local y federado). Suite completa: 236/236, `ng build` limpio.
+
+**Sobre "borré la federación del Nodo 2 y en el Nodo 1 no pasó literalmente nada":** se re-revisó
+todo el flujo (`DeleteFederatedInstanceUseCase` → `IFederationClient.notifyRevocation` →
+`POST /federation/peer/notify-revocation` → `verifyPeerSecret` → `federatedInstancesRepository.revoke`)
+y esta correctamente encadenado y con el mismo cableado que ya usa "Revocar" (que sí se confirmó
+funcionando). No se encontró ningún bug adicional en el código en esta revisión. Este fix se agregó
+recién en la ronda anterior de esta misma sesión — lo más probable es que la prueba se haya hecho
+contra un `azkin-back` que todavía no se había reconstruido con este cambio en alguno de los dos
+nodos, o contra una instancia que ya estaba "Revocada" de una prueba anterior (revocar dos veces no
+cambia nada visible). Pendiente: reconstruir **ambos** contenedores `azkin-back` y repetir la prueba
+con un par de instancias que no se haya tocado antes con "Revocar"; si sigue sin funcionar, revisar
+el log del Nodo 1 al momento del borrado (debería aparecer `FEDERATION_INSTANCE_REVOKED` en la
+auditoría, o el mensaje de error `[Federation] No se pudo avisar la eliminación...` en el Nodo 2 si
+la llamada de red falló).
+
+### Nota (2026-07-24, quinta ronda) — había que hacer F5 en los dos nodos para ver el resultado del enrolamiento
+
+Reporte del usuario: después de enrolar y auto-vincular, para confirmar que todo quedó bien había
+que recargar la página (F5) en ambos nodos — los monitores importados y los vínculos nuevos no
+aparecían solos. Causa raíz con 3 gaps distintos, ninguno cubierto por el evento
+`federation:enrolled` que ya existía (AZ-050 punto 9 original):
+
+1. **Se dispara demasiado temprano.** `federation:enrolled` se emite en el momento en que se crea el
+   registro de la instancia federada, pero la auto-vinculación real (que crea los monitores y
+   vínculos) corre *después*, en segundo plano — para cuando el toast aparece y refresca la UI, típicamente
+   todavía no hay nada que mostrar. No existía ningún evento posterior que avisara cuando la
+   auto-vinculación de verdad terminaba.
+2. **La llamada HTTP de "Auto-vincular" no refrescaba los monitores.** `FederationService.autoLinkMonitors()`
+   solo recargaba `links`, nunca `monitorService.monitors()` — un monitor recién importado quedaba
+   invisible en el sidebar aunque el vínculo ya se viera.
+3. **El nuevo registro recíproco de vínculo (ver ronda anterior) es 100% invisible para el otro
+   lado.** Cuando un nodo le avisa al otro para que cree su vínculo de vuelta
+   (`POST /federation/peer/links`), esa creación ocurre enteramente backend-a-backend, sin ningún
+   aviso al navegador del Admin del lado receptor.
+
+Corregido: se agregó un evento nuevo, `federation:links-updated` (`IRealtimePublisher.publishFederationLinksUpdated`),
+emitido desde `AutoLinkFederatedMonitorsUseCase` (solo cuando efectivamente se creó algún vínculo
+nuevo) y desde `RegisterPeerMonitorLinkUseCase` (hacia el Admin del lado que recibe el registro
+recíproco); el frontend (`realtime.service.ts`) lo escucha y refresca instancias, vínculos y
+monitores sin toast adicional (el toast de "instancia lista" ya lo dio `federation:enrolled`).
+Además, `onAutoLink()` en `federation-panel.ts` ahora también recarga `monitorService` directamente
+tras su propia respuesta HTTP, sin depender del socket. Cubierto con 3 tests nuevos. Suite completa:
+239/239, `tsc --noEmit` y `ng build` limpios en ambos lados.
