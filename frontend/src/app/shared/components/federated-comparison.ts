@@ -1,5 +1,5 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
-import { Component, OnInit, inject, input, signal } from '@angular/core';
+import { Component, effect, inject, input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FederationService, IFederatedComparisonResult } from '../../core/services/federation.service';
 import { BadgeStatusComponent } from './badge-status';
@@ -73,17 +73,25 @@ function statusLabel(status: number | null): MonitorStatusLabel {
     }
   `,
 })
-export class FederatedComparisonComponent implements OnInit {
+export class FederatedComparisonComponent {
   readonly monitorId = input.required<string>();
 
   private readonly federation = inject(FederationService);
   readonly view = signal<'region' | 'combined'>('region');
   readonly result = signal<IFederatedComparisonResult | null>(null);
 
-  ngOnInit(): void {
-    this.federation.getComparison(this.monitorId()).subscribe({
-      next: (data) => this.result.set(data),
-      error: () => this.result.set(null), // sin vínculos u otro error silencioso — no bloquea el detalle del monitor
+  constructor() {
+    // Escuchar reactivamente los cambios del input monitorId para recargar la comparación al cambiar de monitor seleccionado
+    effect(() => {
+      const id = this.monitorId();
+      if (!id) {
+        this.result.set(null);
+        return;
+      }
+      this.federation.getComparison(id).subscribe({
+        next: (data) => this.result.set(data),
+        error: () => this.result.set(null), // Sin vínculos u otro error silencioso — no bloquea la vista
+      });
     });
   }
 

@@ -8,5 +8,17 @@
  */
 export function normalizeInstanceUrl(input: string): string {
   const trimmed = input.trim();
-  return trimmed.includes("://") ? trimmed : `https://${trimmed}`;
+  if (trimmed.includes("://")) {
+    return trimmed;
+  }
+
+  // Detectar si especifica un puerto de desarrollo/HTTP (como :3000, :8080, :80) o localhost
+  const hasHttpPort = /:(3000|8000|8080|80|5000|8001|8081)\b/.test(trimmed);
+  const isLocalHost = /^localhost\b/i.test(trimmed);
+
+  if (hasHttpPort || isLocalHost) {
+    return `http://${trimmed}`;
+  }
+
+  return `https://${trimmed}`;
 }

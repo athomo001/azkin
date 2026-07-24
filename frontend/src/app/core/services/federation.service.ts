@@ -107,8 +107,20 @@ export class FederationService {
   }
 
   revokeInstance(id: string): Observable<IFederatedInstance> {
-    return this.http.delete<IFederatedInstance>(`${this.apiUrl}/instances/${id}`).pipe(
+    return this.http.post<IFederatedInstance>(`${this.apiUrl}/instances/${id}/revoke`, {}).pipe(
       tap((updated) => this.instances.update((list) => list.map((i) => (i.id === id ? updated : i)))),
+    );
+  }
+
+  reactivateInstance(id: string): Observable<IFederatedInstance> {
+    return this.http.post<IFederatedInstance>(`${this.apiUrl}/instances/${id}/reactivate`, {}).pipe(
+      tap((updated) => this.instances.update((list) => list.map((i) => (i.id === id ? updated : i)))),
+    );
+  }
+
+  deleteInstance(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/instances/${id}`).pipe(
+      tap(() => this.instances.update((list) => list.filter((i) => i.id !== id))),
     );
   }
 

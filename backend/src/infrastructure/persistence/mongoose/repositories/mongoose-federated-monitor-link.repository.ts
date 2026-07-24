@@ -50,6 +50,12 @@ export class MongooseFederatedMonitorLinkRepository implements IFederatedMonitor
     return result.deletedCount > 0;
   }
 
+  async deleteByFederatedInstanceId(federatedInstanceId: string): Promise<number> {
+    if (!Types.ObjectId.isValid(federatedInstanceId)) return 0;
+    const result = await FederatedMonitorLinkModel.deleteMany({ federatedInstanceId: new Types.ObjectId(federatedInstanceId) });
+    return result.deletedCount ?? 0;
+  }
+
   async markSynced(id: string, at: Date): Promise<void> {
     if (!Types.ObjectId.isValid(id)) return;
     await FederatedMonitorLinkModel.findByIdAndUpdate(id, { lastSyncedAt: at });

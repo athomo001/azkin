@@ -51,6 +51,18 @@ export class FederationFetchClient implements IFederationClient {
     return this.peerGet(peer, `/sync?${qs.toString()}`);
   }
 
+  async notifyRevocation(peer: RemotePeerAddress): Promise<void> {
+    const url = `${peer.remoteUrl.replace(/\/$/, "")}/api/v1/federation/peer/notify-revocation`;
+    try {
+      await fetch(url, {
+        method: "POST",
+        headers: { "X-Federation-Secret": peer.secret },
+      });
+    } catch {
+      // Ignorar fallos de red en el aviso saliente de revocación; el par lo detectará al recibir HTTP 401
+    }
+  }
+
   private async peerGet<T>(peer: RemotePeerAddress, path: string): Promise<T> {
     const url = `${peer.remoteUrl.replace(/\/$/, "")}/api/v1/federation/peer${path}`;
 

@@ -27,7 +27,9 @@ export function federationRoutes(controller: FederationController, authGuard: Re
   router.post("/tokens", authGuard, requireRole("admin"), asyncHandler(controller.createToken));
   router.post("/instances", authGuard, requireRole("admin"), validateBody(joinFederationSchema), asyncHandler(controller.join));
   router.get("/instances", authGuard, requireRole("admin"), asyncHandler(controller.list));
-  router.delete("/instances/:id", authGuard, requireRole("admin"), asyncHandler(controller.revoke));
+  router.post("/instances/:id/revoke", authGuard, requireRole("admin"), asyncHandler(controller.revoke));
+  router.post("/instances/:id/reactivate", authGuard, requireRole("admin"), asyncHandler(controller.reactivate));
+  router.delete("/instances/:id", authGuard, requireRole("admin"), asyncHandler(controller.deleteInstance));
   router.post("/enrollments", enrollmentLimiter, validateBody(acceptEnrollmentSchema), asyncHandler(controller.accept));
 
   router.get("/own-url", authGuard, requireRole("admin"), asyncHandler(controller.getOwnUrl));

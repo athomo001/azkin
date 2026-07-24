@@ -67,9 +67,14 @@ export class RunFederationSyncUseCase {
         }
         await this.links.markSynced(link.id, new Date());
       } catch (err) {
+        const msg = getErrorMessage(err);
         logger.error(
-          `[Federation] Fallo al sincronizar el vínculo ${link.id} ("${instance.label}"): ${getErrorMessage(err)}`,
+          `[Federation] Fallo al sincronizar el vínculo ${link.id} ("${instance.label}"): ${msg}`,
         );
+        // Si el par remoto rechazó la petición (401 / revocación), actualizar el estado local a revocada
+        if (msg.includes("401") || msg.toLowerCase().includes("revoca")) {
+          await this.federatedInstances.revoke(instance.id);
+        }
       }
     }
 

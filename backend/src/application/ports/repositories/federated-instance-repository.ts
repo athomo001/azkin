@@ -18,6 +18,8 @@ export interface IFederatedInstanceRepository {
   /** Cuenta instancias con status "enrolled" (excluye revocadas) para aplicar la cuota máxima. */
   countActive(): Promise<number>;
   revoke(id: string): Promise<IFederatedInstance | null>;
+  reactivate(id: string): Promise<IFederatedInstance | null>;
+  delete(id: string): Promise<boolean>;
   /** Todas las instancias "enrolled" (para el tick de sondeo periódico, y para verificar el
    * secreto de un pedido entrante — ver `verify-peer-secret.ts`, máximo 5 por decisión de alcance,
    * así que descifrar y comparar cada una en memoria es más simple que mantener un índice). */
