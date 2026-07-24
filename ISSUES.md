@@ -13,7 +13,8 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | Codigo | Titulo | Prioridad | Estado |
 |---|---|---|---|
 | [AZ-049](#az-049-federacion-de-instancias-azkin-independientes-en-distintas-regiones-geograficas-con-vista-de-monitoreo-combinada-y-comunicacion-cifrada-por-enrollment) | Federacion de instancias Azkin independientes en distintas regiones, con vista combinada y comunicacion cifrada por enrollment | Alta | [ ] Abierto |
-| [AZ-050](#az-050-bugs-y-brechas-de-ux-encontrados-en-qa-de-la-federacion-de-instancias-az-049) | Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049) | Alta | [ ] Abierto |
+| [AZ-050](#az-050-bugs-y-brechas-de-ux-encontrados-en-qa-de-la-federacion-de-instancias-az-049) | Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049) | Alta | [~] En progreso |
+| [AZ-051](#az-051-datos-inconsistentes-en-el-detalle-de-monitor-ultimo-chequeo-nunca-uptime-real-y-100-operativo-fijo-sobre-bloques-caidos) | Datos inconsistentes en el detalle de monitor: "Ultimo chequeo: Nunca" pese a tener historial real, y "100% Operativo" fijo sobre bloques caidos | Alta | [x] Resuelto |
 
 ### UX / Funcionalidad (batch post-auditoria de seguridad)
 
@@ -651,3 +652,91 @@ monitores sin toast adicional (el toast de "instancia lista" ya lo dio `federati
 Además, `onAutoLink()` en `federation-panel.ts` ahora también recarga `monitorService` directamente
 tras su propia respuesta HTTP, sin depender del socket. Cubierto con 3 tests nuevos. Suite completa:
 239/239, `tsc --noEmit` y `ng build` limpios en ambos lados.
+
+---
+
+## AZ-051) Datos inconsistentes en el detalle de monitor: "Ultimo chequeo: Nunca" pese a tener historial real, y "100% Operativo" fijo sobre bloques caidos
+
+- Codigo: AZ-051
+- Estado: [x] Resuelto (2026-07-24)
+- Prioridad: Alta
+- Reportado: 2026-07-24
+
+### Descripcion
+
+Reporte del usuario (con captura) sobre el monitor "Certvault" (`https://certvault.netics.corp/`,
+dominio corporativo interno, no federado — no relacionado con AZ-049/AZ-050): el detalle mostraba
+`CAÍDO`, `Latencia actual`/`Latencia promedio` en `--`, `Uptime 24h: 63.96%` (un numero real y no
+redondo) y `Último chequeo: Nunca` al mismo tiempo — y mas abajo, "Historial de Disponibilidad"
+mostraba 30 bloques color rosa (= DOWN) bajo una etiqueta fija "100% Operativo" en verde. El usuario
+ademas verifico en su navegador que el sitio esta vivo y responde normalmente.
+
+Se investigo el codigo (no solo se asumio) y se encontraron 2 bugs de UI/datos concretos,
+independientes entre si, ademas de una explicacion probable para el falso-DOWN:
+
+1. **`lastCheckedAt` nunca existia en el contrato del backend.** `HeartbeatSummary` (el objeto que
+   arma `GET /api/v1/monitors` con el resumen de cada monitor) tenia `lastStatus`, `lastPing`,
+   `uptime24h`, `lastErrorMsg` — pero ningun campo de "ultima vez chequeado". El frontend ya leia
+   `monitor.lastCheckedAt` y mostraba "Nunca" cuando venia `undefined`, que era **siempre**, sin
+   importar cuanto historial real tuviera el monitor — la unica vez que se poblaba era si llegaba un
+   heartbeat en vivo por Socket.io mientras la pestaña estaba abierta (dato que se perdia al
+   recargar). Por eso `Uptime 24h: 63.96%` (dato real, agregado de los ultimos 24h) convivia con
+   `Último chequeo: Nunca` (campo que ni siquiera viajaba por HTTP).
+2. **La etiqueta "100% Operativo" era texto estatico**, sin ninguna relacion con los bloques de
+   `uptimeBlocks()` dibujados debajo — por eso decia 100% con los 30 bloques en rosa (DOWN real, no
+   "sin datos": ese color solo lo usa el sistema para DOWN, `zinc-800` es el gris de "sin datos").
+   Ademas, la carga del historial (`getHistory()`) no tenia manejador de error: si esa request
+   fallaba, `historyPoints` quedaba vacio para siempre en silencio, y `uptimeBlocks()` interpreta
+   "sin puntos" como "repetir el status actual del monitor en los 30 bloques" — fabricando un
+   heatmap que parece datos reales pero podria no serlo.
+3. **Posible causa del falso-DOWN en si (no un bug de codigo, a confirmar por el usuario):** el
+   checker HTTP (`http.checker.ts`) no tiene ningun manejo especial de DNS interno/corporativo — usa
+   `fetch()` directo, sin resolver custom. Un dominio `*.netics.corp` (zona interna, no resoluble por
+   DNS publico) fallaria dentro del contenedor `azkin-back` con `getaddrinfo ENOTFOUND
+   certvault.netics.corp`, que el checker guarda tal cual en `lastErrorMsg`/`msg` y trata como un
+   DOWN mas — indistinguible de una caida real. El fallback de reintento por `host.docker.internal`
+   (`same-host-fallback.ts`) no cubre este caso: solo reacciona a
+   `ECONNREFUSED`/`ETIMEDOUT`/`ENETUNREACH`/`EHOSTUNREACH`, nunca a `ENOTFOUND`. Esto explicaria que
+   el sitio se vea "vivo" desde el navegador del usuario (con DNS/VPN corporativo) pero "caido" desde
+   el contenedor (sin acceso a esa zona DNS interna) — a confirmar revisando el mensaje real en la
+   tabla de "revisiones recientes" del detalle del monitor (mas abajo en la pagina); si dice
+   `getaddrinfo ENOTFOUND ...`, es un tema de red/DNS del contenedor, no un bug de Azkin ni una caida
+   real del sitio. Ver "Pistas de investigacion" para la mitigacion (agregar el DNS corporativo al
+   contenedor).
+
+### Comportamiento esperado
+
+1. "Último chequeo" muestra la fecha/hora real del ultimo heartbeat registrado (de cualquier estado),
+   no "Nunca", para todo monitor con historial existente — persistente entre recargas, no solo
+   mientras llegan heartbeats en vivo por socket.
+2. La etiqueta junto a "Historial de Disponibilidad" refleja el porcentaje real de los 30 bloques
+   mostrados (excluyendo bloques sin dato/en mantenimiento del calculo, mismo criterio que
+   `uptime24h`), nunca un "100%" fijo.
+3. Si la carga del historial de latencia falla (error de red/servidor), el usuario ve un aviso en vez
+   de que el heatmap fabrique en silencio 30 bloques repitiendo el status actual del monitor.
+
+### Criterios de aceptacion
+
+1. `GET /api/v1/monitors` incluye `lastCheckedAt` (ISO 8601 o `null`) por monitor, poblado desde el
+   timestamp del ultimo heartbeat real.
+2. El detalle de un monitor con heartbeats reales en las ultimas 24h ya no muestra "Nunca" al
+   recargar la pagina (sin depender de un heartbeat en vivo por socket).
+3. La etiqueta de porcentaje sobre "Historial de Disponibilidad" cambia de color/valor segun los
+   bloques reales (verde >=99%, naranja 50-99%, rojo <50%), y muestra "Sin datos" en vez de un
+   porcentaje inventado cuando no hay bloques con dato real.
+4. Un fallo al cargar `getHistory()` dispara un aviso visible (toast) en vez de fallar en silencio.
+
+### Pistas de investigacion
+
+- `backend/src/application/ports/repositories/heartbeat-repository.ts` (`HeartbeatSummary`),
+  `backend/src/infrastructure/persistence/mongoose/repositories/mongoose-heartbeat.repository.ts`
+  (`getSummaries()`), `backend/src/infrastructure/http/presenters/monitor.presenter.ts`
+  (`toMonitorResponse`) — cadena completa que ahora expone `lastCheckedAt`.
+- `frontend/src/app/features/dashboard/dashboard.ts`: `uptimeBlocks()`, `uptimeBlocksPercent()`
+  (nuevo), y el `subscribe` de `getHistory()` en `selectMonitor()` (ahora con `error:`).
+- Para el falso-DOWN por DNS interno (punto 3 de la Descripcion, no verificado aun con el usuario):
+  revisar `lastErrorMsg`/la tabla de revisiones recientes del monitor "Certvault" buscando
+  `ENOTFOUND`; si se confirma, la mitigacion es de despliegue, no de codigo — agregar el DNS
+  corporativo interno al contenedor `azkin-back` (directiva `dns:` en `compose.yaml`/`compose.dev.yaml`),
+  ya que el contenedor no hereda automaticamente la resolucion DNS interna que si tiene la maquina
+  del usuario (por VPN/LAN corporativa).

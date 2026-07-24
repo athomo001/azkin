@@ -36,6 +36,7 @@ export function toMonitorResponse(monitor: IMonitor & Partial<HeartbeatSummary>)
     lastPing: monitor.lastPing ?? null,
     uptime24h: monitor.uptime24h ?? null,
     lastErrorMsg: monitor.lastErrorMsg ?? null,
+    lastCheckedAt: monitor.lastCheckedAt ? monitor.lastCheckedAt.toISOString() : null,
 
     // SNMP fields
     snmpVersion: monitor.snmpVersion ?? null,

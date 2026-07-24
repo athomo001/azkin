@@ -446,7 +446,14 @@ type HistoryRangeOption = {
               <div class="bg-zinc-900/20 border border-zinc-900/60 p-4 rounded-2xl space-y-3">
                 <div class="flex items-center justify-between text-xs text-zinc-400">
                   <span class="font-bold">{{ lang.t('monitor.detail.historyTitle') }}</span>
-                  <span class="font-mono text-emerald-500">100% {{ lang.t('monitor.detail.statusUp') }}</span>
+                  @if (uptimeBlocksPercent(); as pct) {
+                    <span class="font-mono"
+                      [class]="pct >= 99 ? 'text-emerald-500' : (pct >= 50 ? 'text-orange-500' : 'text-rose-500')">
+                      {{ pct }}% {{ lang.t('monitor.detail.statusUp') }}
+                    </span>
+                  } @else {
+                    <span class="font-mono text-zinc-600">{{ lang.t('monitor.detail.noData') }}</span>
+                  }
                 </div>
                 <div class="flex gap-1.5 justify-between py-2">
                   @for (b of uptimeBlocks(); track $index) {
@@ -1028,6 +1035,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return blocks;
   });
 
+  // Porcentaje operativo real de `uptimeBlocks()` — antes esta etiqueta era un "100% Operativo"
+  // fijo en el template, sin relación alguna con los bloques mostrados debajo (ver ISSUES.md).
+  // MAINTENANCE y los bloques sin dato (PENDING, relleno cuando hay menos de 30 chequeos) quedan
+  // fuera del cálculo, igual criterio que `uptime24h` en el backend (AZ-040).
+  readonly uptimeBlocksPercent = computed(() => {
+    const counted = this.uptimeBlocks().filter((b) => !b.isLocalNetworkDown && b.status !== 'PENDING' && b.status !== 'MAINTENANCE');
+    if (counted.length === 0) return null;
+    const upEquivalent = counted.reduce((acc, b) => acc + (b.status === 'UP' ? 1 : b.status === 'DEGRADED' ? 0.5 : 0), 0);
+    return Math.round((upEquivalent / counted.length) * 100);
+  });
+
   // Latencia promedio de las últimas 24h
   readonly avgPing = computed(() => {
     const points = this.historyPoints().filter(p => p.status === 'UP' && p.latency !== null && p.latency !== undefined);
@@ -1319,7 +1337,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
           }))));
         }
         setTimeout(() => this.initChart(), 50);
-      }
+      },
+      // Sin este handler, un fallo de red/servidor dejaba `historyPoints` vacío para siempre en
+      // silencio — y `uptimeBlocks()` interpreta "sin puntos" como "repetir el status actual del
+      // monitor en los 30 bloques", fabricando un heatmap que parece datos reales pero no lo es.
+      error: () => {
+        this.toast.show('No se pudo cargar el historial de latencia. Reintentá recargando la página.');
+        setTimeout(() => this.initChart(), 50);
+      },
     });
 
     if (this.showMultiRegionView()) {

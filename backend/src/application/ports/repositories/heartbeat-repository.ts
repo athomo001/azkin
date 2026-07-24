@@ -8,6 +8,10 @@ export interface HeartbeatSummary {
   lastPing: number | null;
   uptime24h: number | null; // ratio 0..1
   lastErrorMsg: string | null; // último mensaje de error (ej: "502 Bad Gateway" o timeout)
+  /** Timestamp del último heartbeat registrado (cualquier estado) — null si nunca se chequeó.
+   * Antes no existía este campo: el frontend mostraba "Nunca" siempre, incluso con historial y
+   * `uptime24h` reales, porque no había ningún dato de "última vez" que devolver. */
+  lastCheckedAt?: Date | null;
   certExpiry?: number | null;
   domainExpiry?: number | null;
   isLocalNetworkDown?: boolean;

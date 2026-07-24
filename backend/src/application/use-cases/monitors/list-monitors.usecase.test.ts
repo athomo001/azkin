@@ -55,3 +55,33 @@ test("ListMonitorsUseCase: un admin ve el pool global aunque los monitores los h
 
   assert.deepEqual(result.map((m) => m.id).sort(), ["m1", "m2"]);
 });
+
+test("ListMonitorsUseCase propaga lastCheckedAt del resumen de heartbeats (ISSUES.md: antes faltaba y la UI mostraba 'Nunca' siempre)", async () => {
+  const monitor = makeMonitor("m1", "admin-1", null);
+  const lastCheckedAt = new Date("2026-07-24T12:00:00.000Z");
+
+  const monitors: IMonitorRepository = {
+    create: async () => monitor,
+    findAll: async () => [monitor],
+    findById: async () => null,
+    update: async () => null,
+    delete: async () => true,
+    deleteMany: async () => 0,
+    findAllActive: async () => [],
+    distinctTags: async () => [],
+  };
+  const heartbeats: IHeartbeatRepository = {
+    save: async () => undefined,
+    findLast24h: async () => [],
+    findHistory: async () => [],
+    deleteByMonitor: async () => undefined,
+    getSummaries: async () => ({
+      m1: { lastStatus: 1 as any, lastPing: 42, uptime24h: 0.99, lastErrorMsg: null, lastCheckedAt },
+    }),
+  };
+
+  const useCase = new ListMonitorsUseCase(monitors, heartbeats);
+  const [result] = await useCase.execute("admin-1", "admin", "admin-1", []);
+
+  assert.equal(result.lastCheckedAt, lastCheckedAt);
+});
