@@ -64,6 +64,19 @@ export class FederationFetchClient implements IFederationClient {
     }
   }
 
+  async notifyDeletion(peer: RemotePeerAddress): Promise<void> {
+    const url = `${peer.remoteUrl.replace(/\/$/, "")}/api/v1/federation/peer/notify-deletion`;
+    try {
+      await fetch(url, {
+        method: "POST",
+        headers: { "X-Federation-Secret": peer.secret },
+      });
+    } catch {
+      // Ignorar fallos de red en el aviso saliente de eliminación; si el par vuelve a estar
+      // disponible más tarde, se le puede volver a avisar re-enviando el borrado.
+    }
+  }
+
   async registerPeerLink(peer: RemotePeerAddress, input: RegisterPeerLinkInput): Promise<void> {
     const url = `${peer.remoteUrl.replace(/\/$/, "")}/api/v1/federation/peer/links`;
     let res: Response;

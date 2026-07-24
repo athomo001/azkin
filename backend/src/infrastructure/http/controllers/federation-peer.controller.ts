@@ -3,7 +3,10 @@ import { Request, Response } from "express";
 import { ListLocalMonitorsForPeerUseCase } from "../../../application/use-cases/federation/list-local-monitors-for-peer.usecase";
 import { RespondToSyncRequestUseCase } from "../../../application/use-cases/federation/respond-to-sync-request.usecase";
 import { RegisterPeerMonitorLinkUseCase } from "../../../application/use-cases/federation/register-peer-monitor-link.usecase";
+import { DeleteFederatedInstanceUseCase } from "../../../application/use-cases/federation/delete-federated-instance.usecase";
 import { ValidationError } from "../../../domain/errors/domain-error";
+import { logger } from "../../logger";
+import { getErrorMessage } from "../../../application/services/get-error-message";
 
 import { IFederatedInstanceRepository } from "../../../application/ports/repositories/federated-instance-repository";
 
@@ -17,6 +20,10 @@ export class FederationPeerController {
     private readonly respondToSyncRequestUseCase: RespondToSyncRequestUseCase,
     private readonly federatedInstancesRepository?: IFederatedInstanceRepository,
     private readonly registerPeerMonitorLinkUseCase?: RegisterPeerMonitorLinkUseCase,
+    // Misma clase que usa el borrado iniciado por el propio Admin, pero instanciada SIN cliente de
+    // federación (ver composition-root) — así ejecuta la cascada local (instancia + vínculos +
+    // monitores auto-importados) sin volver a notificar al par, evitando un ping-pong infinito.
+    private readonly handlePeerFederationDeletedUseCase?: DeleteFederatedInstanceUseCase,
   ) {}
 
   monitors = async (_req: Request, res: Response): Promise<void> => {
@@ -51,5 +58,21 @@ export class FederationPeerController {
       await this.federatedInstancesRepository.revoke(req.federatedInstance.id);
     }
     res.status(200).json({ ok: true, message: "Revocación registrada" });
+  };
+
+  notifyDeletion = async (req: Request, res: Response): Promise<void> => {
+    if (req.federatedInstance && this.handlePeerFederationDeletedUseCase) {
+      try {
+        await this.handlePeerFederationDeletedUseCase.execute(
+          req.federatedInstance.createdById,
+          req.federatedInstance.id,
+        );
+      } catch (err) {
+        // No dejar que un fallo acá tumbe la respuesta al par: su propio borrado ya se completó
+        // de su lado igual, y esto solo limpia la copia local.
+        logger.error(`[Federation] Fallo al procesar el aviso de eliminación de "${req.federatedInstance.label}": ${getErrorMessage(err)}`);
+      }
+    }
+    res.status(200).json({ ok: true, message: "Eliminación registrada" });
   };
 }
