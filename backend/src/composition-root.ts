@@ -513,6 +513,21 @@ export function buildContainer(env: Env): AppContainer {
     federationClient,
     decryptPrivateKey,
     federationEncryptionKey,
+    publisher,
+  );
+  // Misma cascada de borrado, pero SIN cliente/clave de federación: la usa el endpoint que recibe
+  // el aviso de un par que se borró de su lado, así se limpia la copia local sin volver a notificar
+  // hacia afuera (evita un ping-pong infinito entre ambas instancias, ver AZ-050).
+  const handlePeerFederationDeleted = new DeleteFederatedInstanceUseCase(
+    federatedInstancesRepo,
+    federatedMonitorLinksRepo,
+    monitors,
+    deleteMonitor,
+    auditLog,
+    undefined,
+    undefined,
+    undefined,
+    publisher,
   );
   const listLocalMonitorsForPeer = new ListLocalMonitorsForPeerUseCase(monitors, heartbeats);
   const listRemoteMonitors = new ListRemoteMonitorsUseCase(federatedInstancesRepo, federationClient, decryptPrivateKey, federationEncryptionKey);
@@ -589,6 +604,7 @@ export function buildContainer(env: Env): AppContainer {
     respondToSyncRequest,
     federatedInstancesRepo,
     registerPeerMonitorLink,
+    handlePeerFederationDeleted,
   );
   const maintenanceController = new MaintenanceController(
     createMaintenanceWindow,

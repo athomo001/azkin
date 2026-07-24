@@ -4,6 +4,7 @@ import { IFederatedMonitorLinkRepository } from "../../ports/repositories/federa
 import { IMonitorRepository } from "../../ports/repositories/monitor-repository";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { IFederationClient } from "../../ports/services/federation-client";
+import { IRealtimePublisher } from "../../ports/services/realtime-publisher";
 import { DeleteMonitorUseCase } from "../monitors/delete-monitor.usecase";
 import { NotFoundError } from "../../../domain/errors/domain-error";
 import { getErrorMessage } from "../../services/get-error-message";
@@ -16,11 +17,14 @@ import { logger } from "../../../infrastructure/logger";
  * ver `importedFromFederatedInstanceId`), incluyendo cualquier otro vínculo que ese monitor tuviera
  * con OTRAS instancias federadas (topología de 3+ nodos: un monitor puede pertenecer al mismo grupo
  * de monitoreo equivalente con más de un par a la vez — si se borra el monitor, esos otros vínculos
- * quedarían apuntando a un id inexistente); y (2) avisa solo a ESE par remoto puntual (mismo
- * mecanismo que `RevokeFederatedInstanceUseCase`) para que también deje de considerarla activa — el
- * resto de federaciones de esta instancia con otros pares (nodo 3, nodo 4, ...) no se tocan, cada
- * enrollment es independiente. Antes, borrar de un lado dejaba al otro sondeando indefinidamente sin
- * enterarse nunca de que la federación terminó.
+ * quedarían apuntando a un id inexistente); y (2) avisa a ESE par remoto puntual para que TAMBIÉN
+ * borre por completo su propia copia — no solo la revoque (ver
+ * `HandlePeerFederationDeletedUseCase`, que ejecuta esta misma clase del lado receptor sin volver a
+ * notificar, para no generar un ping-pong infinito). El resto de federaciones de esta instancia con
+ * otros pares (nodo 3, nodo 4, ...) no se tocan, cada enrollment es independiente. Antes, borrar de
+ * un lado solo revocaba al otro (dejaba una instancia "zombie": ni sondeaba ni se podía re-vincular
+ * de verdad, y "Reactivar" no tenía ningún efecto útil porque el par ya no la reconocía) — ahora
+ * borra por completo en ambos lados, simétrico.
  */
 export class DeleteFederatedInstanceUseCase {
   constructor(
@@ -32,6 +36,10 @@ export class DeleteFederatedInstanceUseCase {
     private readonly client?: IFederationClient,
     private readonly decryptSecret?: (encrypted: string, key: string) => string,
     private readonly encryptionKey?: string,
+    // Avisa por Socket.IO al Admin de ESTE lado cuando el borrado lo dispara un par remoto (ver
+    // AZ-050): sin esto, la instancia/monitores desaparecen de la base pero la UI abierta no se
+    // entera hasta F5.
+    private readonly realtimePublisher?: IRealtimePublisher,
   ) {}
 
   async execute(actorId: string, instanceId: string): Promise<void> {
@@ -62,18 +70,24 @@ export class DeleteFederatedInstanceUseCase {
     // Eliminar el registro permanente de la instancia
     await this.federatedInstances.delete(instanceId);
 
-    // Avisar al par remoto (best-effort, igual que al revocar): sin esto, el otro lado nunca se
-    // entera de que la federación terminó y sigue sondeando/mostrando datos de un vínculo muerto.
+    // Avisar al par remoto para que TAMBIÉN borre por completo su propia copia (instancia,
+    // vínculos y monitores auto-importados) — best-effort: si el par está caído justo ahora, el
+    // borrado local ya se completó igual; el par queda con una entrada obsoleta que puede limpiar
+    // manualmente con "Borrar" cuando vuelva a estar disponible.
     if (this.client && this.decryptSecret && this.encryptionKey && existing.remoteSecretEncrypted) {
       try {
         const secret = this.decryptSecret(existing.remoteSecretEncrypted, this.encryptionKey);
-        this.client.notifyRevocation({ remoteUrl: existing.remoteUrl, secret }).catch((err) => {
+        this.client.notifyDeletion({ remoteUrl: existing.remoteUrl, secret }).catch((err) => {
           logger.error(`[Federation] No se pudo avisar la eliminación de la federación a "${existing.label}": ${getErrorMessage(err)}`);
         });
       } catch {
         // Ignorar fallos de descifrado al notificar al par
       }
     }
+
+    // Avisar por Socket.IO a ESTE lado (relevante sobre todo cuando este método corre porque un
+    // par remoto notificó su propio borrado — ver AZ-050, "sin F5").
+    this.realtimePublisher?.publishFederationLinksUpdated(actorId);
 
     await this.auditLog.record({
       actorId,

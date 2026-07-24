@@ -427,11 +427,12 @@ una recomendacion) y queda advertido tanto en `docs/` como en la UI de `/setting
 
 ## AZ-050) Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049)
 - Codigo: AZ-050
-- Estado: [~] En progreso — 5 rondas de bugs criticos de QA en vivo diagnosticados y corregidos
+- Estado: [~] En progreso — 6 rondas de bugs criticos de QA en vivo diagnosticados y corregidos
   (2026-07-24): auto-vinculacion parcial/PENDING, asimetria del grafico Multi-Nodo, borrado de
   instancia sin cascada ni aviso al par (+ gap de mesh 3+ nodos), grafico de la comparativa
-  federada congelado/sin selector de rango, y necesidad de F5 para ver el resultado del enrolamiento.
-  No se marca "Resuelto" hasta que el usuario confirme en
+  federada congelado/sin selector de rango, necesidad de F5 para ver el resultado del enrolamiento,
+  y borrado que solo revocaba (no borraba) del otro lado, dejando una instancia "zombie" que
+  "Reactivar" no podia recuperar de verdad. No se marca "Resuelto" hasta que el usuario confirme en
   un despliegue real con 2+ instancias (ver notas mas abajo).
 - Prioridad: Alta-CRITICA
 - Reportado: 2026-07-23
@@ -652,6 +653,34 @@ monitores sin toast adicional (el toast de "instancia lista" ya lo dio `federati
 Además, `onAutoLink()` en `federation-panel.ts` ahora también recarga `monitorService` directamente
 tras su propia respuesta HTTP, sin depender del socket. Cubierto con 3 tests nuevos. Suite completa:
 239/239, `tsc --noEmit` y `ng build` limpios en ambos lados.
+
+### Nota (2026-07-24, sexta ronda) — borrar de un lado solo revocaba (no borraba) del otro; "Reactivar" no tenia efecto real
+
+Reporte del usuario: "borré la conexión del nodo 2 y no se borró lo que venía del nodo 2 en el nodo
+1 [...] le puse reactivar y no pasó literalmente nada [...] si borro de 1 lado debe borrarse del
+otro". Confirmado: la ronda anterior (tercera) solo implementó que borrar en un lado **revocara**
+(no borrara) la copia del otro lado — dejando ahí una instancia "zombie" con status `revoked`, sus
+propios monitores auto-importados intactos (sin limpiar) y un botón "Reactivar" que, aunque
+funcionaba (volvía a poner `status: enrolled` localmente), no tenía ningún efecto útil: el otro
+lado ya había borrado por completo su registro de esa federación, así que cualquier request
+posterior (sondeo, "Probar conexión", etc.) seguía fallando con 401 porque `verifyPeerSecret` ya no
+encontraba ninguna instancia activa que coincidiera con ese secreto — de ahí "no pasó literalmente
+nada" pese a que el botón en sí no estaba roto.
+
+Corregido: se agregó un endpoint P2P nuevo, `POST /federation/peer/notify-deletion`
+(`FederationPeerController.notifyDeletion`), distinto de `notify-revocation` (que sigue existiendo
+tal cual, sin cambios, para la acción separada y deliberadamente reversible "Revocar"). Al borrar,
+`DeleteFederatedInstanceUseCase` ahora llama a `IFederationClient.notifyDeletion` (antes llamaba a
+`notifyRevocation`); el lado receptor ejecuta esa misma clase `DeleteFederatedInstanceUseCase` — la
+cascada completa de borrado (instancia + vínculos + monitores auto-importados, incluyendo la
+limpieza de vínculos huérfanos en otras federaciones ya cubierta en la tercera ronda) — pero
+instanciada **sin** cliente/clave de federación (`handlePeerFederationDeleted` en
+`composition-root.ts`), para que no vuelva a notificar hacia afuera y genere un ping-pong infinito
+entre ambos nodos. También avisa por Socket.IO (`federation:links-updated`, reutilizado de la quinta
+ronda) para que la UI del lado receptor se entere sin F5. Cubierto con 2 tests nuevos
+(`delete-federated-instance.usecase.test.ts`). Suite completa: 241/241, `tsc --noEmit` limpio en
+ambos lados (no se tocó frontend en esta ronda — el comportamiento ya funciona con el código
+existente, `loadInstances()` deja de listar la instancia borrada apenas llega el evento).
 
 ---
 

@@ -58,6 +58,10 @@ export interface IFederationClient {
   syncHeartbeats(peer: RemotePeerAddress, remoteMonitorId: string, since: Date | null): Promise<SyncedHeartbeat[]>;
   /** Notifica al par remoto que la federación ha sido revocada de este lado. */
   notifyRevocation(peer: RemotePeerAddress): Promise<void>;
+  /** Notifica al par remoto que la federación fue eliminada permanentemente de este lado (no solo
+   * revocada): el par debe borrar también su copia de la instancia, sus vínculos y los monitores
+   * que auto-importó por su causa — ver AZ-050, "si borro de un lado debe borrarse del otro". */
+  notifyDeletion(peer: RemotePeerAddress): Promise<void>;
   /** Registra en el par el vínculo recíproco tras auto-vincular un monitor suyo (ver AZ-050: sin
    * esto, el gráfico "Multi-Nodo" solo aparecía del lado que hizo la importación). */
   registerPeerLink(peer: RemotePeerAddress, input: RegisterPeerLinkInput): Promise<void>;

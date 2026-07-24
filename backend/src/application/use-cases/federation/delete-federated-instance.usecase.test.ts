@@ -93,7 +93,7 @@ test("DeleteFederatedInstanceUseCase elimina la instancia, sus vínculos y los m
   };
 
   const fakeClient = {
-    notifyRevocation: async (peer: { remoteUrl: string }) => {
+    notifyDeletion: async (peer: { remoteUrl: string }) => {
       notifyRevocationCalls.push(peer.remoteUrl);
     },
   } as any;
@@ -113,7 +113,7 @@ test("DeleteFederatedInstanceUseCase elimina la instancia, sus vínculos y los m
   assert.deepEqual(deletedMonitorIds, ["imported-1"], "solo debe borrar el monitor auto-importado de ESTA instancia");
   assert.equal(deletedLinksForInstance, instance.id);
   assert.equal(deletedInstanceId, instance.id);
-  assert.equal(notifyRevocationCalls.length, 1, "debe avisar al par remoto que la federación terminó");
+  assert.equal(notifyRevocationCalls.length, 1, "debe avisar al par remoto que la federación se eliminó por completo (notifyDeletion, no notifyRevocation)");
   assert.equal(notifyRevocationCalls[0], instance.remoteUrl);
 });
 
@@ -163,6 +163,57 @@ test("DeleteFederatedInstanceUseCase limpia vinculos huerfanos en OTRAS federaci
   await useCase.execute("user-1", instance.id);
 
   assert.deepEqual(deletedLinkIds, ["link-to-node3"], "el vinculo huerfano hacia el nodo 3 debe limpiarse antes de borrar el monitor");
+});
+
+test("DeleteFederatedInstanceUseCase avisa por Socket.IO y NO intenta notificar al par cuando se construye sin cliente de federación (AZ-050: instancia usada por el lado receptor de notify-deletion, evita ping-pong)", async () => {
+  const instance = makeInstance();
+
+  const fakeInstancesRepo = {
+    findById: async () => instance,
+    delete: async () => true,
+  } as any;
+  const fakeLinksRepo = {
+    deleteByFederatedInstanceId: async () => 0,
+    findByLocalMonitorId: async () => [],
+    delete: async () => true,
+  } as any;
+  const fakeMonitorsRepo = {
+    findAll: async () => [],
+    findById: async () => null,
+    delete: async () => true,
+  } as any;
+  const fakeHeartbeats = { deleteByMonitor: async () => undefined } as any;
+  const fakeScheduler = { unschedule: () => undefined } as any;
+  const deleteMonitor = new DeleteMonitorUseCase(fakeMonitorsRepo, fakeHeartbeats, fakeScheduler, {
+    record: async () => {},
+  } as any);
+
+  const publishCalls: string[] = [];
+  const realtimePublisher = {
+    publishHeartbeat: () => {},
+    publishFederationEnrolled: () => {},
+    publishFederationLinksUpdated: (userId: string) => {
+      publishCalls.push(userId);
+    },
+  };
+
+  // Sin client/decryptSecret/encryptionKey — exactamente como se instancia
+  // `handlePeerFederationDeleted` en composition-root.
+  const useCase = new DeleteFederatedInstanceUseCase(
+    fakeInstancesRepo,
+    fakeLinksRepo,
+    fakeMonitorsRepo,
+    deleteMonitor,
+    { record: async () => {} } as any,
+    undefined,
+    undefined,
+    undefined,
+    realtimePublisher,
+  );
+
+  await useCase.execute("admin-on-node1", instance.id);
+
+  assert.deepEqual(publishCalls, ["admin-on-node1"]);
 });
 
 test("DeleteFederatedInstanceUseCase lanza NotFoundError si no existe", async () => {
