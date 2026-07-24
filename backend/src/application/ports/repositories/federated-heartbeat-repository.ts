@@ -20,4 +20,5 @@ export interface FederatedHeartbeatSummary {
 export interface IFederatedHeartbeatRepository {
   insertMany(data: CreateFederatedHeartbeatData[]): Promise<void>;
   findLatest(federatedMonitorLinkId: string): Promise<FederatedHeartbeatSummary | null>;
+  findHistory(federatedMonitorLinkId: string, limit?: number): Promise<FederatedHeartbeatSummary[]>;
 }

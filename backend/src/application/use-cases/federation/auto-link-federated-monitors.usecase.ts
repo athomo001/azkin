@@ -50,21 +50,9 @@ export class AutoLinkFederatedMonitorsUseCase {
         return nameMatch || targetMatch;
       });
 
-      // Si el monitor del nodo remoto no existe en el nodo local, crearlo automáticamente para reflejarlo en ambas instancias
+      // Si el monitor no existe localmente en esta instancia independiente, no creamos un stub 'PENDING'
       if (!local) {
-        local = await this.monitors.create({
-          name: `${remote.name} (${instance.label})`,
-          type: (remote.type as any) || "http",
-          target: remote.target,
-          userId: actorId,
-          interval: 60,
-          retryInterval: 30,
-          retries: 2,
-          group: null,
-          tags: [],
-          notificationIds: [],
-        });
-        localMonitors.push(local);
+        continue;
       }
 
       // Verificar si ya existe un vínculo activo para este monitor local y el remoto

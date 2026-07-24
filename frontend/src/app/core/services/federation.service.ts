@@ -59,11 +59,13 @@ export interface IFederatedComparisonRegion {
   status: number | null;
   ping: number | null;
   lastUpdatedAt: string | null;
+  history?: { timestamp: string; ping: number | null }[];
 }
 
 export interface IFederatedComparisonResult {
   localMonitorId: string;
   local: { status: number | null; ping: number | null };
+  localHistory?: { timestamp: string; ping: number | null }[];
   regions: IFederatedComparisonRegion[];
   combinedStatus: number;
 }

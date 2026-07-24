@@ -114,6 +114,7 @@ test("GetFederatedComparisonUseCase combina el estado local (UP) con una region 
   const federatedHeartbeats: IFederatedHeartbeatRepository = {
     insertMany: async () => undefined,
     findLatest: async () => ({ timestamp: new Date(), status: MonitorStatus.DOWN, ping: null }),
+    findHistory: async () => [],
   };
   const heartbeats = makeHeartbeatsRepo({ lastStatus: MonitorStatus.UP, lastPing: 20, uptime24h: 1, lastErrorMsg: null });
   const monitors = makeMonitorsRepo();
@@ -151,6 +152,7 @@ test("GetFederatedComparisonUseCase sin vinculos: combinado igual al estado loca
   const federatedHeartbeats: IFederatedHeartbeatRepository = {
     insertMany: async () => undefined,
     findLatest: async () => null,
+    findHistory: async () => [],
   };
   const heartbeats = makeHeartbeatsRepo({ lastStatus: MonitorStatus.UP, lastPing: 15, uptime24h: 1, lastErrorMsg: null });
   const monitors = makeMonitorsRepo();
@@ -185,6 +187,7 @@ test("GetFederatedComparisonUseCase lanza NotFoundError si el monitor no existe 
   const federatedHeartbeats: IFederatedHeartbeatRepository = {
     insertMany: async () => undefined,
     findLatest: async () => null,
+    findHistory: async () => [],
   };
   const heartbeats = makeHeartbeatsRepo({ lastStatus: MonitorStatus.UP, lastPing: 15, uptime24h: 1, lastErrorMsg: null });
   // Monitor pertenece a un grupo que el viewer no tiene autorizado.

@@ -12,6 +12,7 @@ import { FileDownloadService } from '../../core/services/file-download.service';
 import { AuthService } from '../../core/services/auth.service';
 import { RealtimeService } from '../../core/services/realtime.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { FederationService } from '../../core/services/federation.service';
 import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader';
 import { HttpClient } from '@angular/common/http';
 import { LanguageService } from '../../core/services/language.service';
@@ -328,13 +329,15 @@ type HistoryRangeOption = {
                       }
                     </button>
 
-                    <button (click)="showMultiRegionView.set(!showMultiRegionView())" aria-label="Gráfico Multi-Nodo" title="Ver comparativa de gráficos Multi-Nodo"
-                      class="px-3 py-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-xl text-orange-400 font-bold text-xs transition-all shadow-md flex items-center gap-1.5">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-orange-400">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 0a8.949 8.949 0 0 0 4.951-1.488A3.987 3.987 0 0 0 13 16h-2a3.987 3.987 0 0 0-3.951 3.512A8.949 8.949 0 0 0 12 21Zm3-11a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                      </svg>
-                      Gráfico Multi-Nodo
-                    </button>
+                    @if (hasFederatedLinks()) {
+                      <button (click)="showMultiRegionView.set(!showMultiRegionView())" aria-label="Gráfico Multi-Nodo" title="Ver comparativa de gráficos Multi-Nodo"
+                        class="px-3 py-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-xl text-orange-400 font-bold text-xs transition-all shadow-md flex items-center gap-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-orange-400">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 0a8.949 8.949 0 0 0 4.951-1.488A3.987 3.987 0 0 0 13 16h-2a3.987 3.987 0 0 0-3.951 3.512A8.949 8.949 0 0 0 12 21Zm3-11a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        </svg>
+                        Gráfico Multi-Nodo
+                      </button>
+                    }
 
                     <button (click)="openEditForm(selectedMonitor()!)" aria-label="Editar monitor" title="Editar monitor"
                       class="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 rounded-xl text-zinc-400 hover:text-white transition-all shadow-md">
@@ -393,8 +396,8 @@ type HistoryRangeOption = {
                 </div>
               </div>
 
-              <!-- Federación (AZ-049): solo se renderiza si el monitor tiene vínculos -->
-              @if (selectedMonitorId()) {
+              <!-- Federación (AZ-049): solo se renderiza si el monitor tiene vínculos de federación activos -->
+              @if (hasFederatedLinks() && showMultiRegionView()) {
                 <app-federated-comparison [monitorId]="selectedMonitorId()!" />
               }
 
@@ -794,6 +797,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly themeService = inject(ThemeService);
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
+  private readonly federationService = inject(FederationService);
 
   // Estados de carga e interfaz
   readonly isLoading = signal(true);
@@ -807,6 +811,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly selectedGroup = signal<any | null>(null);
   readonly selectedGroupName = computed(() => this.selectedGroup()?.group ?? null);
   readonly showMultiRegionView = signal<boolean>(true);
+  readonly hasFederatedLinks = computed(() => {
+    const id = this.selectedMonitorId();
+    return id ? this.federationService.links().some((l) => l.localMonitorId === id) : false;
+  });
 
   // Historial de latencia del monitor seleccionado
   readonly historyPoints = signal<IHeartbeat[]>([]);
