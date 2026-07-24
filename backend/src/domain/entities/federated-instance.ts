@@ -7,7 +7,7 @@
  * otro (el sondeo es bidireccional). Corre sobre el mismo puerto que la API principal, con o sin
  * HTTPS nativo — no hay un puerto ni listener dedicado a federación.
  */
-export type FederatedInstanceStatus = "enrolled" | "revoked";
+export type FederatedInstanceStatus = "enrolled" | "revoked" | "pending_approval";
 
 export interface IFederatedInstance {
   id: string;

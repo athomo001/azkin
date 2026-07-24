@@ -14,7 +14,7 @@ export class MongooseFederatedInstanceRepository implements IFederatedInstanceRe
       label: data.label,
       remoteUrl: data.remoteUrl,
       remoteSecretEncrypted: data.remoteSecretEncrypted,
-      status: "enrolled",
+      status: data.status ?? "enrolled",
       createdById: new Types.ObjectId(data.createdById),
       revokedAt: null,
       lastSuccessfulSyncAt: null,
@@ -36,6 +36,16 @@ export class MongooseFederatedInstanceRepository implements IFederatedInstanceRe
 
   async countActive(): Promise<number> {
     return FederatedInstanceModel.countDocuments({ status: "enrolled" });
+  }
+
+  async approve(id: string): Promise<IFederatedInstance | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
+    const doc = await FederatedInstanceModel.findByIdAndUpdate(
+      id,
+      { status: "enrolled", revokedAt: null },
+      { new: true },
+    );
+    return doc ? this.toDomain(doc) : null;
   }
 
   async revoke(id: string): Promise<IFederatedInstance | null> {

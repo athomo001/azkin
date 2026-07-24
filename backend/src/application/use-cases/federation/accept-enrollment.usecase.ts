@@ -53,6 +53,7 @@ export class AcceptEnrollmentUseCase {
       remoteUrl: input.callerUrl,
       remoteSecretEncrypted: this.encryptSecret(input.callerSecret, this.encryptionKey),
       createdById: consumed.createdById,
+      status: "enrolled",
     });
 
     await this.auditLog.record({

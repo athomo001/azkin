@@ -57,20 +57,22 @@ export class JoinFederationUseCase {
 
     const decoded = this.decodeCode(input.code);
     const secret = crypto.randomBytes(32).toString("hex");
+    const effectivePeerLabel = input.peerLabel?.trim() || decoded.label;
 
     await this.client.requestEnrollment({
       remoteUrl: decoded.url,
       token: decoded.token,
-      callerLabel: input.ownLabel,
+      callerLabel: input.ownLabel?.trim() || ownUrl,
       callerUrl: ownUrl,
       callerSecret: secret,
     });
 
     const instance = await this.federatedInstances.create({
-      label: input.peerLabel,
+      label: effectivePeerLabel,
       remoteUrl: decoded.url,
       remoteSecretEncrypted: this.encryptSecret(secret, this.encryptionKey),
       createdById: input.actorId,
+      status: "enrolled",
     });
 
     await this.auditLog.record({
@@ -83,7 +85,7 @@ export class JoinFederationUseCase {
     return { instance };
   }
 
-  private decodeCode(code: string): { url: string; token: string } {
+  private decodeCode(code: string): { url: string; token: string; label: string } {
     let parsed: unknown;
     try {
       parsed = JSON.parse(Buffer.from(code, "base64url").toString("utf8"));
@@ -91,11 +93,11 @@ export class JoinFederationUseCase {
       throw new ValidationError(`El código de enrollment no tiene un formato válido: ${getErrorMessage(err)}`);
     }
 
-    const { url, token } = (parsed ?? {}) as { url?: unknown; token?: unknown };
+    const { url, token, label } = (parsed ?? {}) as { url?: unknown; token?: unknown; label?: unknown };
     if (typeof url !== "string" || typeof token !== "string" || !url || !token) {
       throw new ValidationError("El código de enrollment no tiene un formato válido");
     }
 
-    return { url, token };
+    return { url, token, label: typeof label === "string" && label ? label : url };
   }
 }

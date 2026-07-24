@@ -14,7 +14,9 @@ import { GetFederationOwnUrlUseCase } from "../../../application/use-cases/feder
 import { SetFederationOwnUrlUseCase } from "../../../application/use-cases/federation/set-federation-own-url.usecase";
 import { TestAddressConnectionUseCase } from "../../../application/use-cases/federation/test-address-connection.usecase";
 import { TestFederatedInstanceConnectionUseCase } from "../../../application/use-cases/federation/test-federated-instance-connection.usecase";
+import { ApproveFederatedInstanceUseCase } from "../../../application/use-cases/federation/approve-federated-instance.usecase";
 import { ReactivateFederatedInstanceUseCase } from "../../../application/use-cases/federation/reactivate-federated-instance.usecase";
+import { AutoLinkFederatedMonitorsUseCase } from "../../../application/use-cases/federation/auto-link-federated-monitors.usecase";
 import { DeleteFederatedInstanceUseCase } from "../../../application/use-cases/federation/delete-federated-instance.usecase";
 import { toFederatedInstanceResponse } from "../presenters/federation.presenter";
 import { toFederatedMonitorLinkResponse } from "../presenters/federated-monitor-link.presenter";
@@ -24,12 +26,14 @@ export class FederationController {
     private readonly createEnrollmentTokenUseCase: CreateEnrollmentTokenUseCase,
     private readonly joinFederationUseCase: JoinFederationUseCase,
     private readonly acceptEnrollmentUseCase: AcceptEnrollmentUseCase,
+    private readonly approveFederatedInstanceUseCase: ApproveFederatedInstanceUseCase,
     private readonly listFederatedInstancesUseCase: ListFederatedInstancesUseCase,
     private readonly revokeFederatedInstanceUseCase: RevokeFederatedInstanceUseCase,
     private readonly reactivateFederatedInstanceUseCase: ReactivateFederatedInstanceUseCase,
     private readonly deleteFederatedInstanceUseCase: DeleteFederatedInstanceUseCase,
     private readonly listRemoteMonitorsUseCase: ListRemoteMonitorsUseCase,
     private readonly createFederatedMonitorLinkUseCase: CreateFederatedMonitorLinkUseCase,
+    private readonly autoLinkFederatedMonitorsUseCase: AutoLinkFederatedMonitorsUseCase,
     private readonly listFederatedMonitorLinksUseCase: ListFederatedMonitorLinksUseCase,
     private readonly deleteFederatedMonitorLinkUseCase: DeleteFederatedMonitorLinkUseCase,
     private readonly getFederatedComparisonUseCase: GetFederatedComparisonUseCase,
@@ -75,6 +79,11 @@ export class FederationController {
     res.status(200).json(toFederatedInstanceResponse(instance));
   };
 
+  approveInstance = async (req: Request, res: Response): Promise<void> => {
+    const instance = await this.approveFederatedInstanceUseCase.execute(req.userId!, req.params.id as string);
+    res.status(200).json(toFederatedInstanceResponse(instance));
+  };
+
   reactivate = async (req: Request, res: Response): Promise<void> => {
     const instance = await this.reactivateFederatedInstanceUseCase.execute(req.userId!, req.params.id as string);
     res.status(200).json(toFederatedInstanceResponse(instance));
@@ -88,6 +97,11 @@ export class FederationController {
   remoteMonitors = async (req: Request, res: Response): Promise<void> => {
     const monitors = await this.listRemoteMonitorsUseCase.execute(req.params.id as string);
     res.status(200).json(monitors);
+  };
+
+  autoLinkMonitors = async (req: Request, res: Response): Promise<void> => {
+    const result = await this.autoLinkFederatedMonitorsUseCase.execute(req.userId!, req.params.id as string);
+    res.status(200).json(result);
   };
 
   createLink = async (req: Request, res: Response): Promise<void> => {
