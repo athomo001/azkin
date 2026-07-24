@@ -536,6 +536,7 @@ export function buildContainer(env: Env): AppContainer {
     defaultAlertRecipients,
     decryptPrivateKey,
     federationEncryptionKey,
+    heartbeats,
   );
   const autoLinkFederatedMonitors = new AutoLinkFederatedMonitorsUseCase(
     federatedInstancesRepo,

@@ -843,10 +843,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
         for (const r of comp.regions) {
           let pts: [number, number | null][] = (r.history ?? []).map((h) => [new Date(h.timestamp).getTime(), h.ping]);
 
-          // Si aún no hay historial acumulado para la región remota, proyectar su latencia sobre la línea temporal local para garantizar el gráfico
-          if (pts.length < 2 && localPoints.length > 0) {
-            const fallbackPing = r.ping ?? (localPoints[localPoints.length - 1]?.latency ?? 100);
-            pts = localPoints.map((lp) => [new Date(lp.timestamp).getTime(), fallbackPing]);
+          // Si aún no hay historial acumulado para la región remota, proyectar sobre la línea temporal local o generar 2 puntos de anclaje
+          if (pts.length < 2) {
+            if (localPoints.length > 0) {
+              const fallbackPing = r.ping ?? (localPoints[localPoints.length - 1]?.latency ?? 100);
+              pts = localPoints.map((lp) => [new Date(lp.timestamp).getTime(), fallbackPing]);
+            } else {
+              const pingVal = r.ping ?? 100;
+              const now = Date.now();
+              pts = [
+                [now - 60000, pingVal],
+                [now, pingVal],
+              ];
+            }
           }
 
           map.set(r.federatedInstanceLabel, { label: r.federatedInstanceLabel, points: pts });

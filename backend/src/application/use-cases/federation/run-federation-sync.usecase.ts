@@ -2,6 +2,7 @@
 import { IFederatedInstanceRepository } from "../../ports/repositories/federated-instance-repository";
 import { IFederatedMonitorLinkRepository } from "../../ports/repositories/federated-monitor-link-repository";
 import { IFederatedHeartbeatRepository } from "../../ports/repositories/federated-heartbeat-repository";
+import { IHeartbeatRepository } from "../../ports/repositories/heartbeat-repository";
 import { IFederationClient } from "../../ports/services/federation-client";
 import { IMailer } from "../../ports/services/mailer";
 import { ResolveDefaultAlertRecipients } from "../../services/resolve-default-alert-recipients";
@@ -26,6 +27,7 @@ export class RunFederationSyncUseCase {
     private readonly defaultAlertRecipients: ResolveDefaultAlertRecipients,
     private readonly decryptSecret: (encrypted: string, key: string) => string,
     private readonly encryptionKey: string,
+    private readonly localHeartbeats?: IHeartbeatRepository,
   ) {}
 
   async execute(): Promise<void> {
@@ -64,6 +66,18 @@ export class RunFederationSyncUseCase {
               ping: hb.ping,
             })),
           );
+
+          if (this.localHeartbeats) {
+            const latestRemoteBeat = heartbeats[heartbeats.length - 1];
+            await this.localHeartbeats.save({
+              monitorId: link.localMonitorId,
+              status: latestRemoteBeat.status === 1 ? ("UP" as any) : latestRemoteBeat.status === 4 ? ("DEGRADED" as any) : ("DOWN" as any),
+              ping: latestRemoteBeat.ping ?? null,
+              timestamp: new Date(latestRemoteBeat.timestamp),
+              isLocalNetworkDown: false,
+              msg: null,
+            });
+          }
         }
         await this.links.markSynced(link.id, new Date());
       } catch (err) {
