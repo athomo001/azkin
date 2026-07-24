@@ -811,10 +811,43 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly selectedGroup = signal<any | null>(null);
   readonly selectedGroupName = computed(() => this.selectedGroup()?.group ?? null);
   readonly showMultiRegionView = signal<boolean>(true);
+  readonly federatedSeriesMap = signal<Map<string, { label: string; points: [number, number | null][] }>>(new Map());
   readonly hasFederatedLinks = computed(() => {
     const id = this.selectedMonitorId();
     return id ? this.federationService.links().some((l) => l.localMonitorId === id) : false;
   });
+
+  toggleMultiRegionView(): void {
+    const next = !this.showMultiRegionView();
+    this.showMultiRegionView.set(next);
+    const monitor = this.selectedMonitor();
+    if (next && monitor) {
+      this.loadFederatedSeries(monitor.id);
+    } else {
+      this.updateChart();
+    }
+  }
+
+  loadFederatedSeries(monitorId: string): void {
+    this.federationService.getComparison(monitorId).subscribe({
+      next: (comp) => {
+        const map = new Map<string, { label: string; points: [number, number | null][] }>();
+        for (const r of comp.regions) {
+          const pts: [number, number | null][] = (r.history ?? []).map((h) => [new Date(h.timestamp).getTime(), h.ping]);
+          if (pts.length === 0 && r.ping !== null && r.lastUpdatedAt) {
+            pts.push([new Date(r.lastUpdatedAt).getTime(), r.ping]);
+          }
+          map.set(r.federatedInstanceLabel, { label: r.federatedInstanceLabel, points: pts });
+        }
+        this.federatedSeriesMap.set(map);
+        this.updateChart();
+      },
+      error: () => {
+        this.federatedSeriesMap.set(new Map());
+        this.updateChart();
+      },
+    });
+  }
 
   // Historial de latencia del monitor seleccionado
   readonly historyPoints = signal<IHeartbeat[]>([]);
@@ -1244,6 +1277,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.selectedMonitor.set(monitor);
     this.historyPoints.set([]);
+    this.federatedSeriesMap.set(new Map());
     this.chart?.dispose();
     this.chart = null;
 
@@ -1262,6 +1296,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
         setTimeout(() => this.initChart(), 50);
       }
     });
+
+    if (this.showMultiRegionView()) {
+      this.loadFederatedSeries(monitor.id);
+    }
 
     this.loadEventsTableForMonitor(monitor.id);
   }
@@ -1513,40 +1551,94 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return point;
     });
 
+    const seriesList: any[] = [
+      {
+        name: this.isNyanCatMode() ? 'Nyan Cat' : 'Este servidor (Local)',
+        data: latencies,
+        type: 'line',
+        smooth: true,
+        showSymbol: true,
+        symbol: 'none',
+        lineStyle: {
+          width: this.isNyanCatMode() ? 5 : 2.5,
+          color: this.isNyanCatMode() ? '#ec4899' : '#f97316',
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: this.isNyanCatMode() ? 'rgba(236, 72, 153, 0.2)' : 'rgba(249, 115, 22, 0.2)' },
+            { offset: 1, color: 'transparent' },
+          ]),
+        },
+      },
+    ];
+
+    if (this.showMultiRegionView() && this.federatedSeriesMap().size > 0) {
+      const colors = ['#06b6d4', '#a855f7', '#10b981', '#ec4899'];
+      let idx = 0;
+      for (const [label, dataObj] of this.federatedSeriesMap().entries()) {
+        const color = colors[idx % colors.length];
+        seriesList.push({
+          name: label,
+          data: dataObj.points,
+          type: 'line',
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {
+            width: 2.5,
+            color,
+          },
+        });
+        idx++;
+      }
+    }
+
     const option = {
       backgroundColor: 'transparent',
+      legend: {
+        show: this.showMultiRegionView() && this.federatedSeriesMap().size > 0,
+        top: 0,
+        right: 20,
+        textStyle: { color: '#a1a1aa', fontSize: 11 },
+      },
       tooltip: {
         trigger: 'axis',
         backgroundColor: '#18181b',
         borderColor: '#3f3f46',
         textStyle: { color: '#e4e4e7', fontSize: 11 },
         formatter: (params: any[]) => {
-          const p = params[0];
-          const rawValue = Array.isArray(p.value) ? p.value[1] : p.value;
-          const ts = Array.isArray(p.value) ? p.value[0] : p.axisValue;
+          if (!params || params.length === 0) return '';
+          const p0 = params[0];
+          const ts = Array.isArray(p0.value) ? p0.value[0] : p0.axisValue;
           const time = new Date(ts).toLocaleString([], {
             hour: '2-digit',
             minute: '2-digit',
             ...(isWideRange ? { day: '2-digit', month: '2-digit' } : {}),
           });
-          const isLocalDown = !!p.data?.isLocalNetworkDown;
 
-          let valueStr = `${rawValue} ms`;
-          if (isLocalDown) {
-            valueStr = `<span style="color:#f59e0b;font-weight:bold">${this.lang.t('monitor.detail.statusLocalDown')}</span>`;
-          } else if (rawValue === 0) {
-            valueStr = `<span style="color:#ef4444;font-weight:bold">DOWN</span>`;
-          }
+          let html = `<div style="font-size:10px;color:#9ca3af;margin-bottom:6px;border-bottom:1px solid #3f3f46;padding-bottom:2px">${time}</div>`;
+          params.forEach((p) => {
+            const rawValue = Array.isArray(p.value) ? p.value[1] : p.value;
+            const isLocalDown = !!p.data?.isLocalNetworkDown;
 
-          return `<div style="font-size:10px;color:#9ca3af;margin-bottom:4px">${time}</div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color}"></span>
-              <span style="font-weight:bold">${p.seriesName}:</span>
-              <span>${valueStr}</span>
+            let valueStr = `${rawValue} ms`;
+            if (isLocalDown) {
+              valueStr = `<span style="color:#f59e0b;font-weight:bold">${this.lang.t('monitor.detail.statusLocalDown')}</span>`;
+            } else if (rawValue === 0 || rawValue === null) {
+              valueStr = `<span style="color:#ef4444;font-weight:bold">DOWN</span>`;
+            }
+
+            html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:2px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color}"></span>
+                <span style="font-weight:bold;color:#e4e4e7">${p.seriesName}:</span>
+              </div>
+              <span style="font-family:monospace;font-weight:bold">${valueStr}</span>
             </div>`;
-        }
+          });
+          return html;
+        },
       },
-      grid: { left: '3%', right: '3%', top: '8%', bottom: '8%', containLabel: true },
+      grid: { left: '3%', right: '3%', top: '12%', bottom: '8%', containLabel: true },
       xAxis: {
         type: 'time',
         min: rangeStart,
@@ -1555,39 +1647,23 @@ export class DashboardComponent implements OnInit, OnDestroy {
         axisLabel: {
           color: '#71717a',
           fontSize: 11,
-          formatter: (value: number) => new Date(value).toLocaleString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-            ...(isWideRange ? { day: '2-digit', month: '2-digit' } : {}),
-          }),
-        }
+          formatter: (value: number) =>
+            new Date(value).toLocaleString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              ...(isWideRange ? { day: '2-digit', month: '2-digit' } : {}),
+            }),
+        },
       },
       yAxis: {
         type: 'value',
         axisLabel: { color: '#71717a', fontSize: 11 },
-        splitLine: { lineStyle: { color: '#1c1c1e' } }
+        splitLine: { lineStyle: { color: '#1c1c1e' } },
       },
-      series: [{
-        name: 'Latencia (ms)',
-        data: latencies,
-        type: 'line',
-        smooth: true,
-        showSymbol: true, // Permitir símbolos dinámicos de los puntos
-        symbol: 'none',   // No poner símbolo por defecto a nivel de serie
-        lineStyle: {
-          width: this.isNyanCatMode() ? 5 : 2,
-          color: this.isNyanCatMode() ? '#ec4899' : '#f97316'
-        },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: this.isNyanCatMode() ? 'rgba(236, 72, 153, 0.2)' : 'rgba(249, 115, 22, 0.2)' },
-            { offset: 1, color: 'transparent' }
-          ])
-        }
-      }]
+      series: seriesList,
     };
 
-    this.chart.setOption(option);
+    this.chart.setOption(option, true);
 
     // Calcular posición y rotación del NyanCat animado en el DOM
     if (this.isNyanCatMode() && data.length > 0) {
