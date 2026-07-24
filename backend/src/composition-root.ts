@@ -510,7 +510,7 @@ export function buildContainer(env: Env): AppContainer {
     federatedMonitorLinksRepo,
     auditLog,
   );
-  const listLocalMonitorsForPeer = new ListLocalMonitorsForPeerUseCase(monitors);
+  const listLocalMonitorsForPeer = new ListLocalMonitorsForPeerUseCase(monitors, heartbeats);
   const listRemoteMonitors = new ListRemoteMonitorsUseCase(federatedInstancesRepo, federationClient, decryptPrivateKey, federationEncryptionKey);
   const createFederatedMonitorLink = new CreateFederatedMonitorLinkUseCase(
     federatedMonitorLinksRepo,
@@ -544,6 +544,7 @@ export function buildContainer(env: Env): AppContainer {
     monitors,
     listRemoteMonitors,
     auditLog,
+    heartbeats,
   );
   autoLinkFederatedMonitors.setSyncTrigger(() => runFederationSync.execute());
   createFederatedMonitorLink.setSyncTrigger(() => runFederationSync.execute());
