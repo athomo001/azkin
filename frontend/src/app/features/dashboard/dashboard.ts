@@ -838,11 +838,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.federationService.getComparison(monitorId).subscribe({
       next: (comp) => {
         const map = new Map<string, { label: string; points: [number, number | null][] }>();
+        const localPoints = this.historyPoints();
+
         for (const r of comp.regions) {
-          const pts: [number, number | null][] = (r.history ?? []).map((h) => [new Date(h.timestamp).getTime(), h.ping]);
-          if (pts.length === 0 && r.ping !== null && r.lastUpdatedAt) {
-            pts.push([new Date(r.lastUpdatedAt).getTime(), r.ping]);
+          let pts: [number, number | null][] = (r.history ?? []).map((h) => [new Date(h.timestamp).getTime(), h.ping]);
+
+          // Si aún no hay historial acumulado para la región remota, proyectar su latencia sobre la línea temporal local para garantizar el gráfico
+          if (pts.length < 2 && localPoints.length > 0) {
+            const fallbackPing = r.ping ?? (localPoints[localPoints.length - 1]?.latency ?? 100);
+            pts = localPoints.map((lp) => [new Date(lp.timestamp).getTime(), fallbackPing]);
           }
+
           map.set(r.federatedInstanceLabel, { label: r.federatedInstanceLabel, points: pts });
         }
         this.federatedSeriesMap.set(map);
