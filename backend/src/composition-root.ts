@@ -151,6 +151,7 @@ import { CreateFederatedMonitorLinkUseCase } from "./application/use-cases/feder
 import { AutoLinkFederatedMonitorsUseCase } from "./application/use-cases/federation/auto-link-federated-monitors.usecase";
 import { ListFederatedMonitorLinksUseCase } from "./application/use-cases/federation/list-federated-monitor-links.usecase";
 import { DeleteFederatedMonitorLinkUseCase } from "./application/use-cases/federation/delete-federated-monitor-link.usecase";
+import { RegisterPeerMonitorLinkUseCase } from "./application/use-cases/federation/register-peer-monitor-link.usecase";
 import { RunFederationSyncUseCase } from "./application/use-cases/federation/run-federation-sync.usecase";
 import { RespondToSyncRequestUseCase } from "./application/use-cases/federation/respond-to-sync-request.usecase";
 import { GetFederatedComparisonUseCase } from "./application/use-cases/federation/get-federated-comparison.usecase";
@@ -506,7 +507,12 @@ export function buildContainer(env: Env): AppContainer {
   const deleteFederatedInstance = new DeleteFederatedInstanceUseCase(
     federatedInstancesRepo,
     federatedMonitorLinksRepo,
+    monitors,
+    deleteMonitor,
     auditLog,
+    federationClient,
+    decryptPrivateKey,
+    federationEncryptionKey,
   );
   const listLocalMonitorsForPeer = new ListLocalMonitorsForPeerUseCase(monitors, heartbeats);
   const listRemoteMonitors = new ListRemoteMonitorsUseCase(federatedInstancesRepo, federationClient, decryptPrivateKey, federationEncryptionKey);
@@ -543,6 +549,9 @@ export function buildContainer(env: Env): AppContainer {
     listRemoteMonitors,
     auditLog,
     heartbeats,
+    federationClient,
+    decryptPrivateKey,
+    federationEncryptionKey,
   );
   autoLinkFederatedMonitors.setSyncTrigger(() => runFederationSync.execute());
   createFederatedMonitorLink.setSyncTrigger(() => runFederationSync.execute());
@@ -573,10 +582,12 @@ export function buildContainer(env: Env): AppContainer {
     testFederatedInstanceConnection,
   );
   const respondToSyncRequest = new RespondToSyncRequestUseCase(heartbeats);
+  const registerPeerMonitorLink = new RegisterPeerMonitorLinkUseCase(federatedMonitorLinksRepo, monitors, auditLog);
   const federationPeerController = new FederationPeerController(
     listLocalMonitorsForPeer,
     respondToSyncRequest,
     federatedInstancesRepo,
+    registerPeerMonitorLink,
   );
   const maintenanceController = new MaintenanceController(
     createMaintenanceWindow,

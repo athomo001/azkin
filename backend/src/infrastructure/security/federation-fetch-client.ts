@@ -1,6 +1,7 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import {
   IFederationClient,
+  RegisterPeerLinkInput,
   RemoteMonitorSummary,
   RemotePeerAddress,
   RequestEnrollmentInput,
@@ -60,6 +61,23 @@ export class FederationFetchClient implements IFederationClient {
       });
     } catch {
       // Ignorar fallos de red en el aviso saliente de revocación; el par lo detectará al recibir HTTP 401
+    }
+  }
+
+  async registerPeerLink(peer: RemotePeerAddress, input: RegisterPeerLinkInput): Promise<void> {
+    const url = `${peer.remoteUrl.replace(/\/$/, "")}/api/v1/federation/peer/links`;
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", "X-Federation-Secret": peer.secret },
+        body: JSON.stringify(input),
+      });
+    } catch (err) {
+      throw new ValidationError(`No se pudo contactar al par federado: ${getErrorMessage(err)}`);
+    }
+    if (!res.ok) {
+      throw new ValidationError(`El par respondió con error (HTTP ${res.status}) al registrar el vínculo recíproco`);
     }
   }
 

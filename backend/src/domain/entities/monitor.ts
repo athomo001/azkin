@@ -65,6 +65,11 @@ export interface IMonitor {
   integrityAllowedScripts?: string[]; // Lista blanca de urls de scripts autorizados
   integrityThreshold?: number; // Tolerancia de cambio visual de píxeles (ej: 0.10)
 
+  // Federación (AZ-049/AZ-050): id de la instancia federada de la que este monitor se auto-importó,
+  // si corresponde — null/undefined si es un monitor propio. Permite borrarlo en cascada al
+  // eliminar esa instancia sin tocar monitores que el Admin ya tenía manualmente.
+  importedFromFederatedInstanceId?: string | null;
+
   createdAt: Date;
   updatedAt: Date;
 }

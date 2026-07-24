@@ -44,6 +44,9 @@ export interface MonitorDoc {
   integrityVisualMasks?: { x: number; y: number; width: number; height: number }[];
   integrityAllowedScripts?: string[];
   integrityThreshold?: number;
+
+  importedFromFederatedInstanceId?: Types.ObjectId | null;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -112,6 +115,8 @@ const monitorSchema = new Schema<MonitorDoc>(
     ],
     integrityAllowedScripts: { type: [String], default: [] },
     integrityThreshold: { type: Number, default: 0.10 },
+
+    importedFromFederatedInstanceId: { type: Schema.Types.ObjectId, ref: "FederatedInstance", default: null, index: true },
   },
   { timestamps: true, versionKey: false },
 );

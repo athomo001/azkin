@@ -17,5 +17,6 @@ export function federationPeerRoutes(controller: FederationPeerController, verif
   router.get("/monitors", asyncHandler(controller.monitors));
   router.get("/sync", asyncHandler(controller.sync));
   router.post("/notify-revocation", asyncHandler(controller.notifyRevocation));
+  router.post("/links", asyncHandler(controller.registerLink));
   return router;
 }
