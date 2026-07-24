@@ -3,7 +3,6 @@
 Este archivo concentra problemas detectados para resolver en siguientes iteraciones.
 
 ## Estado
-
 - [ ] Abierto
 - [x] Resuelto
 
@@ -11,134 +10,34 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 
 ### Funcionalidad / bugs reportados
 
-| Codigo                                                                                                                                                                   | Titulo                                                                                                                         | Prioridad | Estado       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | --------- | ------------ |
-| [AZ-049](#az-049-federacion-de-instancias-azkin-independientes-en-distintas-regiones-geograficas-con-vista-de-monitoreo-combinada-y-comunicacion-cifrada-por-enrollment) | Federacion de instancias Azkin independientes en distintas regiones, con vista combinada y comunicacion cifrada por enrollment | Alta      | [ ] Abierto  |
-| [AZ-050](#az-050-bugs-y-brechas-de-ux-encontrados-en-qa-de-la-federacion-de-instancias-az-049)                                                                           | Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049)                                                 | Alta      | [x] Resuelto |
+| Codigo | Titulo | Prioridad | Estado |
+|---|---|---|---|
+| [AZ-049](#az-049-federacion-de-instancias-azkin-independientes-en-distintas-regiones-geograficas-con-vista-de-monitoreo-combinada-y-comunicacion-cifrada-por-enrollment) | Federacion de instancias Azkin independientes en distintas regiones, con vista combinada y comunicacion cifrada por enrollment | Alta | [ ] Abierto |
+| [AZ-050](#az-050-bugs-y-brechas-de-ux-encontrados-en-qa-de-la-federacion-de-instancias-az-049) | Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049) | Alta | [ ] Abierto |
 
 ### UX / Funcionalidad (batch post-auditoria de seguridad)
 
-| Codigo                                                                                                            | Titulo                                                                                           | Prioridad | Estado |
-| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | --------- | ------ | ----------- |
-| [AZ-033](#az-033-benchmark-uxui-y-propuesta-de-identidad-visual-diferenciada-frente-a-uptime-robot-y-uptime-kuma) | Benchmark UX/UI y propuesta de identidad visual diferenciada frente a Uptime Robot y Uptime Kuma | Frontend  | Media  | [ ] Abierto |
+| Codigo | Titulo | Prioridad | Estado |
+|---|---|---|---|
+| [AZ-033](#az-033-benchmark-uxui-y-propuesta-de-identidad-visual-diferenciada-frente-a-uptime-robot-y-uptime-kuma) | Benchmark UX/UI y propuesta de identidad visual diferenciada frente a Uptime Robot y Uptime Kuma | Frontend | Media | [ ] Abierto |
 
 ### Calidad de codigo / deuda tecnica (auditoria senior)
 
-| Codigo                                                                                                                | Titulo                                                               | Area     | Prioridad  | Estado                  |
-| --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | -------- | ---------- | ----------------------- |
+| Codigo | Titulo | Area | Prioridad | Estado |
+|---|---|---|---|---|
 | [AZ-016](#az-016-componentes-dios-en-el-frontend-dashboardts-2300-lineas-y-settingsts-1180-lineas-sin-descomposicion) | Componentes "Dios": `dashboard.ts` (~2300L) y `settings.ts` (~1180L) | Frontend | Media-Alta | [~] Mayormente resuelto |
 
 ---
 
-## AZ-016) Componentes "Dios" en el frontend: `dashboard.ts` (~2300 lineas) y `settings.ts` (~1180 lineas) sin descomposicion
 
-- Codigo: AZ-016
-- Estado: [~] Mayormente resuelto — pendiente checkpoint visual de `dashboard.ts` en navegador
-- Prioridad: Media-Alta
-- Reportado: 2026-07-18
-
-### Nota (2026-07-20)
-
-Se ejecutó por fases, con `tsc --noEmit` + `ng build` como red de seguridad después de cada
-extracción (no hay test runner de frontend, ver AZ-019, ni navegador disponible para el asistente).
-
-**Fase 1 — `settings.ts`: completa y confirmada en navegador por el usuario.** Se extrajeron las 6
-pestañas a componentes propios (`tls-panel.ts`, `audit-log-panel.ts`, `api-keys-panel.ts`,
-`backups-panel.ts`, `viewers-panel.ts`, `alerts-panel.ts`) más 4 componentes compartidos nuevos
-(`ConfirmService`/`ConfirmModalComponent`, `ToastService`/`ToastComponent`,
-`ChangePasswordModalComponent`, `EmojiPickerComponent`). `settings.ts` bajó de 1897 a 171 líneas,
-quedando como puro orquestador (tab activo + restauración de `?tab=`).
-
-**Fase 2 — `dashboard.ts`: extracción completa, falta el checkpoint visual del usuario.** Se
-extrajeron `QuickStatsPanelComponent` (KPIs + incidentes recientes), `DashboardNavbarComponent`
-(logo, tema/idioma, NyanCat, logout) y `MonitorFormComponent` (slide-over crear/editar monitor,
-las 6 variantes de tipo de monitor), además de reusar `ConfirmModalComponent` (Fase 1) para los dos
-modales de borrado. `dashboard.ts` bajó de 2291 a 1580 líneas. **Pendiente**: el usuario aún no
-confirmó visualmente esta fase (navbar, KPIs/click-through de incidentes, alta/edición de los 6
-tipos de monitor, ambos modales de borrado).
-
-**Fuera de alcance, documentado como remanente explícito** (no intentado, por ser la parte más
-entrelazada y riesgosa sin navegador disponible para QA): los charts ECharts
-(`initChart`/`updateChart`/`initGroupChart`/`updateGroupChart`, ~330 líneas) y el panel de detalle
-de monitor/grupo que los aloja, junto con el árbol de monitores del sidebar — todos comparten
-estado en vivo (`selectedMonitor`/`selectedGroup`/`historyPoints`/`groupHistoryMap`) con el handler
-de heartbeats de Socket.io y el efecto NyanCat embebido en las opciones de ECharts. Recomendación:
-abordar en sesión propia con navegador disponible para verificar visualmente el re-render por
-tema, el efecto NyanCat y las actualizaciones en vivo por heartbeat antes/después de cada cambio.
-
-### Descripcion
-
-`frontend/src/app/features/dashboard/dashboard.ts` tiene ~2322 lineas (plantilla inline de ~990 lineas + ~1290 lineas de logica: CRUD de monitores, renderizado de ECharts, manejo de heartbeats por Socket.io, filtrado de historial, calculo de bloques de uptime, borrado masivo, tema/nyan-cat, i18n, agregacion de grupos — todo en una sola clase). `settings.ts` tiene ~1184 lineas mezclando 5 dominios funcionales no relacionados (canales de alerta, viewers, perfil, respaldos, TLS) en un solo componente. No existen subcomponentes extraidos pese a que el proyecto ya tiene un patron establecido en `shared/components` (`badge-status.ts`, `skeleton-loader.ts`). `group-dashboard.ts` (137 lineas) demuestra que el mismo dominio (graficos de grupo) puede resolverse en un componente pequeno y enfocado.
-
-### Comportamiento esperado
-
-1. `dashboard.ts` se descompone en subcomponentes presentacionales — hecho parcialmente:
-   `QuickStatsPanelComponent`, `DashboardNavbarComponent`, `MonitorFormComponent` extraidos.
-   `MonitorDetailPanel`/`MonitorChart` (ECharts + seleccion) quedan fuera de alcance, ver nota.
-2. `settings.ts` se descompone por pestana/dominio — hecho, las 6 pestanas extraidas.
-3. Cada subcomponente cabe holgadamente en una sola pantalla de revision de codigo (referencia orientativa: <400 lineas) — cumplido en todos los subcomponentes nuevos.
-
-### Criterios de aceptacion
-
-1. `settings.ts` queda por debajo de ~400-500 lineas — cumplido (171 lineas). `dashboard.ts` baja de 2291 a 1580 lineas pero no llega al rango objetivo porque el remanente entrelazado (charts + panel de detalle + sidebar) queda fuera de alcance, ver nota.
-2. Cada subcomponente extraido es importable/testeable de forma aislada — cumplido.
-3. La build de Angular (`ng build`) sigue pasando sin regresiones visuales tras la extraccion — verificado por build para ambas fases; falta la confirmacion visual del usuario en navegador para la Fase 2 (dashboard).
-
-### Pistas de investigacion
-
-- `frontend/src/app/features/dashboard/dashboard.ts` (remanente: charts ECharts, panel de detalle, sidebar) y `frontend/src/app/features/settings/settings.ts` (completo).
-- Aprovechar una futura sesión con navegador disponible para anadir las primeras pruebas unitarias (ver AZ-019) a los subcomponentes nuevos.
-
----
-
-## AZ-033) Benchmark UX/UI y propuesta de identidad visual diferenciada frente a Uptime Robot y Uptime Kuma
-
-- Codigo: AZ-033
-- Estado: [ ] Abierto
-- Prioridad: Media
-- Reportado: 2026-07-19
-
-### Descripcion
-
-El dashboard actual (fondo `zinc-950` + acento `orange-500`, tarjetas con badges de color por estado) ya se aleja parcialmente del verde corporativo de Uptime Robot y del azul/oscuro generico de Uptime Kuma, pero no tiene una identidad visual deliberada: paleta, tipografia y layout no fueron elegidos como sistema, sino heredados del patron generico de dashboards oscuros. Se solicito una propuesta concreta de diferenciacion visual.
-
-Se entrego una propuesta llamada **"Pulso"**: en la vista de flota (grilla de todos los monitores), cada tarjeta se representa con su propia forma de onda de latencia (sparkline) en vez de solo un badge de color, con el estado codificado como borde + etiqueta (nunca solo color). Paleta de tinta violeta-oscura + acento cobre/"ember" con un violeta secundario, colores semánticos (`good`/`warn`/`crit`) reservados y separados del acento de marca; tipografia serif editorial para titulos + monoespaciada para metricas (rompe el "todo-sans" del genero). Mockup interactivo publicado como artifact: [Pulso — Propuesta de identidad visual Azkin](https://claude.ai/code/artifact/3d3a6655-61c3-4b9e-a29e-8e559a041cc4)
-
-Feedback de usuario tras la primera revision: el heatmap de bloques por chequeo (verde/rojo, uno por chequeo, con "N chequeos atras" / "ahora mismo") que ya existe en el detalle de monitor **no debe reemplazarse por la onda** — el bloque individual es lo que permite identificar exactamente _cual_ chequeo cayo, algo que una onda continua no resuelve tan bien. La onda si aporta valor para ver tendencia/estabilidad. Conclusion: en la vista de **detalle** de un monitor se mantienen ambos, bloques + grafico de latencia debajo (como ya funciona hoy), solo reestilizados con los tokens de Pulso; la onda-en-vez-de-badge aplica a la **grilla de flota** (tarjetas compactas), no al detalle. El mockup se actualizo para incluir esta vista de detalle. Tambien se agregaron al mockup, y deben incorporarse al sistema real (no solo quedar de demo): el toggle de tema claro/oscuro y el efecto existente de Modo NyanCat en los graficos (ver AZ-027 y `toggleNyanCat()` en `dashboard.ts`).
-
-### Comportamiento esperado
-
-1. Existe un sistema de diseño documentado (paleta, tipografia, layout) especifico de Azkin, no heredado de un dashboard generico.
-2. En la grilla de flota, la forma de onda (sparkline) reemplaza al badge de color como unidad minima de estado por tarjeta.
-3. En el detalle de un monitor se conserva el heatmap de bloques por chequeo (para identificar el chequeo exacto que fallo) **junto con** el grafico de latencia debajo, ambos reestilizados con los tokens de Pulso — no se reemplaza uno por el otro.
-4. El sistema funciona en tema claro y oscuro (con control explicito de cambio, no solo `prefers-color-scheme`), y es compatible con el Modo TV/Kiosko (AZ-027) y con el Modo NyanCat existente.
-
-### Criterios de aceptacion
-
-1. Tokens de color (`--ground`, `--surface`, `--ember`, `--violet`, `--good`, `--warn`, `--crit`, etc.) definidos centralmente (ej. variables CSS en `styles.css`) y aplicados en lugar de las clases Tailwind de color sueltas actuales.
-2. Tarjetas de monitor en la grilla de flota (`dashboard.ts`) incorporan un sparkline de latencia por monitor (no solo el numero puntual actual).
-3. El heatmap de bloques (`uptimeBlocks()`) del detalle de monitor se reestiliza con los tokens de Pulso pero no se elimina ni se sustituye por el sparkline.
-4. El grafico de latencia de ECharts (detalle de monitor y grupo) adopta la paleta Pulso (`--ember` en vez de `orange-500`, etc.), preservando el efecto Modo NyanCat (`isNyanCatMode()`) ya implementado.
-5. Existe un control de tema claro/oscuro explicito en la UI (no solo deteccion automatica de `prefers-color-scheme`).
-6. Verificado visualmente en ambos temas (claro/oscuro), en Modo TV/Kiosko y en Modo NyanCat, sin regresiones (ver AZ-027 y el fix de superposicion de `svg` en Modo TV).
-
-### Pistas de investigacion
-
-- Mockup y especificacion visual: artifact "Pulso — Propuesta de identidad visual Azkin" (incluye vista de detalle con bloques + latencia, toggle de tema y Modo NyanCat).
-- `frontend/src/styles.css` (tokens de color actuales, bloque `body.kiosk-mode`).
-- `frontend/src/app/features/dashboard/dashboard.ts` (tarjetas de monitor, `uptimeBlocks()`, grafico de latencia con ECharts, `isNyanCatMode()`/`toggleNyanCat()`, `isLightTheme`).
-
----
 
 ## AZ-049) Federacion de instancias Azkin independientes en distintas regiones geograficas, con vista de monitoreo combinada y comunicacion cifrada por enrollment
-
 - Codigo: AZ-049
 - Estado: [~] En progreso — slices 1, 2 y 3 resueltas (enrollment, secreto compartido, sondeo, vinculos, UI); pendiente solo Informes (AZ-045). Ver tambien AZ-050 (bugs de QA sobre esta implementacion).
 - Prioridad: Alta
 - Reportado: 2026-07-22
 
 ### Progreso (slice 1 — enrollment)
-
 Implementado y verificado end-to-end (dos instancias locales reales, no solo tests unitarios):
 token de un solo uso (`CreateEnrollmentTokenUseCase`), aceptacion del lado remoto
 (`AcceptEnrollmentUseCase`), union desde el lado que inicia (`JoinFederationUseCase`), listado y
@@ -175,7 +74,7 @@ cron de sondeo y una revocacion en caliente):
   backend) — separado del `fetch()` plano que sigue usando el bootstrap de enrollment (sin cert).
 - **Vinculos de monitoreo — modelado como pares, no como "grupo" con id sincronizado**:
   `FederatedMonitorLink` ancla cada vinculo en el monitor LOCAL (`{localMonitorId,
-federatedInstanceId, remoteMonitorId}`); un monitor local puede tener N vinculos (uno por peer).
+  federatedInstanceId, remoteMonitorId}`); un monitor local puede tener N vinculos (uno por peer).
   Esto reemplaza al `FederatedMonitorGroup` planteado originalmente mas abajo en esta issue —
   sincronizar un id de grupo entre instancias sin autoridad compartida no aportaba nada que los
   pares no resolvieran ya de forma mas simple.
@@ -221,7 +120,6 @@ no sumar. Se evaluo reusar el puerto que cada instancia ya usa para su API/dashb
 abierto, es como el Admin ya entra al producto) en vez de uno dedicado.
 
 **Cambios:**
-
 - Se elimino el listener mTLS dedicado (`federation-server-manager.ts`), la identidad por
   certificado (`federation-identity-service.ts`, `federation-certificate-generator.ts` con
   `node-forge`) y el middleware `verify-peer-certificate.ts`.
@@ -245,7 +143,6 @@ abierto, es como el Admin ya entra al producto) en vez de uno dedicado.
   los pares ya enrolados — siguen usando la `remoteUrl` vieja hasta volver a enrolarse.
 
 ### Descripcion
-
 Hoy Azkin corre como una unica instancia (sus 3 contenedores: `azkin-db`, `azkin-back`, `azkin-front`) con una
 unica ubicacion geografica de origen para todos sus checks activos (HTTP, Ping, TCP, DNS, SNMP). Esto impide
 distinguir "el sitio esta realmente caido" de "hay un problema de red regional entre el datacenter de Azkin y el
@@ -303,7 +200,6 @@ carter este diseño con complejidad que hoy nadie necesita. El limite de 5 se ap
 una recomendacion) y queda advertido tanto en `docs/` como en la UI de `/settings`.
 
 ### Comportamiento esperado
-
 1. Un Admin puede generar, desde `/settings`, un token de enrollment (hash largo, un solo uso, expiracion corta —
    ej. 15-30 min) para invitar a otra instancia Azkin a federarse.
 2. El Admin de la otra instancia pega ese token en su propio `/settings` para completar el enrollment: se
@@ -400,11 +296,10 @@ una recomendacion) y queda advertido tanto en `docs/` como en la UI de `/setting
       requisito de NTP y documenta explicitamente el limite de 5 instancias como decision de producto, no como
       "todavia no soportamos mas".
       - **`README.md`**: agrega la federacion a "✨ Funcionalidades destacadas" con una descripcion breve que
-        incluya el limite de 5 instancias (para que quede visible sin tener que entrar a `docs/`), y enlaza a la
-        seccion nueva de `ARCHITECTURE.md` para el detalle.
+      incluya el limite de 5 instancias (para que quede visible sin tener que entrar a `docs/`), y enlaza a la
+      seccion nueva de `ARCHITECTURE.md` para el detalle.
 
 ### Criterios de aceptacion
-
 1. Existe flujo de enrollment entre dos instancias: generar token en A → pegarlo en B → certificados emitidos →
    ambas instancias se ven mutuamente como "federada: conectada" en `/settings`.
 2. El token de enrollment no sirve una segunda vez, y expira solo si no se usa dentro de la ventana configurada.
@@ -464,7 +359,6 @@ una recomendacion) y queda advertido tanto en `docs/` como en la UI de `/setting
     misma mencion (no solo en `docs/`), y enlaza a la seccion nueva de `ARCHITECTURE.md`.
 
 ### Pistas de investigacion
-
 - No hay un modelo previo exacto en el repo para esto: el monitor tipo "Push Pasivo" (agente que manda heartbeat
   remoto hacia Azkin) es de una sola direccion y de un agente liviano hacia un Azkin completo, mientras que aqui
   se necesita un intercambio entre dos instancias Azkin completas, cada una con su propio motor de checks
@@ -531,66 +425,12 @@ una recomendacion) y queda advertido tanto en `docs/` como en la UI de `/setting
 ---
 
 ## AZ-050) Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049)
-
 - Codigo: AZ-050
-- Estado: [x] Resuelto (2026-07-24) — verificado punto por punto contra el codigo real (no solo contra
-  lo que la sesion anterior afirmaba haber resuelto), con dos gaps reales encontrados y corregidos
-  (puntos 3 y 6). Ver "Auditoria (2026-07-24)" mas abajo.
+- Estado: [ ] Abierto
 - Prioridad: Alta
 - Reportado: 2026-07-23
 
-### Auditoria (2026-07-24)
-
-La sesion anterior habia marcado esta issue como "Resuelto" y agregado los puntos 6-10 (auto-link
-bidireccional, sin PENDING, grafico multi-nodo, deteccion sin F5, Toast) sin verificar contra el
-codigo real. Se audito cada uno de los 10 puntos leyendo el codigo (no solo confiando en las notas
-de "Resolucion" previas) y se encontraron 2 discrepancias reales:
-
-1. **Punto 3 ("Explorar monitores") estaba roto, no arreglado.** La nota previa afirmaba una
-   "precarga explicita de monitores locales en `FederationPanelComponent`" via `normalizeInstanceUrl`
-   que no existe en ese archivo (esa funcion vive en el backend y es para otra cosa: formatear la
-   URL propia). La causa real: el commit `a8af185` ("feat: implement multi-site federation
-   capabilities...") elimino por error el boton "Explorar monitores", el boton "Auto-vincular" y el
-   panel de "Vincular monitor" del template de `federation-panel.ts`, dejando los metodos
-   (`onExploreMonitors`, `onCreateLink`, etc.) huerfanos e inalcanzables desde la UI — el backend
-   (`GET /instances/:id/remote-monitors`) nunca tuvo el bug. **Corregido**: se restauro el template
-   completo (botones + panel "Vincular monitor con...") tal como existia antes de ese commit.
-2. **Punto 6 (duplicados) tenia un gap real en la protección de base de datos.** El mutex en memoria
-   (`inProgress`) evita la carrera solo dentro del mismo `actorId`; dos sesiones de Admin distintas
-   (o el callback de enrollment vs. la request HTTP de auto-link) llamando casi al mismo tiempo aun
-   podian pasar la verificacion en memoria (`existingLinks`, calculada una sola vez antes del loop) y
-   crear un `FederatedMonitorLink` duplicado — no existia ningun indice unico en Mongo que lo
-   impidiera pese a que la nota previa afirmaba "doble verificacion en base de datos". **Corregido**:
-   se agrego un indice unico compuesto (`localMonitorId + federatedInstanceId + remoteMonitorId`,
-   ver `federated-monitor-link.schema.ts`) y se hizo `create()` idempotente en
-   `MongooseFederatedMonitorLinkRepository` (ante una colision de indice, devuelve el vinculo ya
-   persistido en vez de lanzar un error 500).
-
-Los puntos 1, 2, 4, 5, 7, 8, 9 y 10 se verificaron correctos contra el codigo real y no requirieron
-cambios. Adicionalmente, durante la auditoria se encontro y limpio codigo muerto que contradecia la
-decision ya documentada del punto 2 (modelo "todo o nada"): el estado `pending_approval`, el caso de
-uso `ApproveFederatedInstanceUseCase`, la ruta `POST /instances/:id/approve` y el panel "Solicitud de
-federacion entrante" nunca podian activarse (ningun flujo de enrollment crea una instancia con ese
-estado) — se eliminaron por completo en vez de dejarlos como ambiguedad implicita entre el diseño
-documentado y el codigo. Tambien se corrigio que una federacion revocada podia seguir mostrando datos
-obsoletos en la vista "Por region"/"Combinado" (`GetFederatedComparisonUseCase` ahora omite los
-vinculos cuya instancia no esta `enrolled`). Validado con `tsc --noEmit` (backend y frontend),
-`ng build` y la suite completa de tests del backend (227/227, incluye
-`AutoLinkFederatedMonitorsUseCase previene creaciones duplicadas ante ejecuciones concurrentes`).
-
-### Resolucion
-
-1. **Boton "Copiar"**: Implementado soporte con API `navigator.clipboard` y fallback con `document.execCommand('copy')` mediante un elemento `<textarea>` temporal para entornos no HTTPS (acceso por IP).
-2. **Modelo de Confianza**: Confirmada y documentada en `ARCHITECTURE.md` la decisión de mantener el modelo "todo o nada" por token de 20 min para cero fricción operativa, permitiendo revocación inmediata desde la UI en todo momento. Codigo muerto del flujo de aprobacion manual (nunca alcanzable) eliminado el 2026-07-24 para que no quede como ambigüedad frente a esta decision.
-3. **Explorar Monitores**: restaurado el 2026-07-24 — el boton "Explorar monitores", "Auto-vincular" y el panel "Vincular monitor con..." habian sido eliminados del template por error en un commit posterior; el backend nunca tuvo el bug.
-4. **Selector Por Región / Combinado**: Refactorizado `FederatedComparisonComponent` usando `effect()` reactivo en Angular para actualizar la comparación al cambiar el monitor seleccionado en el dashboard.
-5. **Puerto por Defecto**: Removido el puerto obsoleto `8444` de `testForm.port`, quedando el campo nulo por defecto con placeholder informativo `ej. 3000 o 443`.
-6. **Duplicación de Monitores (Condición de Carrera)**: Se identificó que las respuestas HTTP (`joinFederation`) y las notificaciones WebSocket (`acceptEnrollment` / `federation:enrolled`) se ejecutaban en paralelo en milisegundos durante el enrolamiento, lo que provocaba la inserción de monitores duplicados. Se solucionó agregando un **bloqueo Mutex en memoria (`inProgress`)** en `AutoLinkFederatedMonitorsUseCase`. El 2026-07-24 se sumó la protección real a nivel de base de datos que faltaba (índice único compuesto + `create()` idempotente en el repositorio), ya que el mutex por si solo no cubría sesiones concurrentes con `actorId` distinto.
-7. **Estado PENDING Inicial en Monitores Importados**: Los monitores importados nacían sin registros de medición, quedando en estado `VERIFICANDO (PEND.)`. Se resolvió propagando el `lastStatus` y `lastPing` en el catálogo de listado de monitores (`ListLocalMonitorsForPeerUseCase`) e insertándolos inmediatamente como primer heartbeat en la base de datos local al momento de la importación.
-8. **Gráfico Comparativo de Latencia Vacío**: Como el nodo remoto no acumulaba historial en los primeros minutos tras el enrolamiento, el gráfico principal no dibujaba la línea remota. Se solucionó en `dashboard.ts` proyectando temporalmente la latencia actual sobre el eje local cuando los puntos de latencia remota son menores a 2, garantizando un trazado fluido desde el primer segundo.
-
 ### Descripcion
-
 Sesion de QA sobre la implementacion ya construida de la federacion de instancias (AZ-049, slices
 1-3), probada con dos instancias reales por el usuario. Se encontraron 5 problemas: algunos son
 bugs de implementacion respecto al diseño ya documentado en AZ-049, y otros son brechas entre ese
@@ -599,7 +439,6 @@ mezclar ambos tipos. Esta issue es solo de analisis; no se toco codigo durante l
 origino.
 
 ### Comportamiento esperado
-
 1. **Boton "Copiar" del codigo de enrollment.** Al generar el token de invitacion (`onCreateToken()`
    en `federation-panel.ts`), el boton "Copiar" debe copiar el codigo al portapapeles y mostrar
    confirmacion visual. Hoy no copia nada ni da ningun feedback de exito/error — bug de
@@ -626,14 +465,8 @@ origino.
    defecto el puerto `8444`, remanente del modelo de puerto mTLS dedicado que la slice 3 de AZ-049
    (2026-07-23) elimino — hoy la federacion corre sobre el mismo puerto que la API/dashboard. Puede
    confundir al Admin al probar conectividad contra un puerto que ya no aplica.
-6. **Enrolamiento automático bidireccional (Cero pasos inútiles).** Al enrolar, ambas instancias deben intercambiar sus catálogos e importar los monitores automáticamente en ambas direcciones en un solo paso, eliminando cualquier paso manual extra.
-7. **Cero estado PENDING en monitores importados.** Al crearse localmente los monitores remotos descubiertos, estos no deben quedarse en pendiente ni en "Verificando (PEND.)"; deben mostrar de inmediato su estado y latencia real.
-8. **Gráfica simultánea multi-nodo.** Al hacer clic en el botón multi-nodo, el gráfico principal de ECharts debe renderizar las dos curvas a la vez en el mismo gráfico temporal.
-9. **Detección en tiempo real sin F5.** El sistema debe darse cuenta automáticamente de la activación de la federación y renderizar el botón multi-nodo en el dashboard sin obligar al usuario a recargar la página (F5).
-10. **Aviso Toast al enrolar.** Al completarse el enrolamiento, debe emitirse un Toast en el Nodo 1 que diga "Oye, instancia lista" o similar.
 
 ### Criterios de aceptacion
-
 1. El boton "Copiar" del codigo de enrollment copia el valor correcto al portapapeles y muestra
    confirmacion visual, verificado en navegador.
 2. Se toma y documenta una decision explicita sobre el punto 2 (mantener "todo o nada" como esta, o
@@ -645,14 +478,8 @@ origino.
    vinculo activo con otra instancia federada.
 5. El formulario de "Probar conectividad" ya no propone `8444` (u otro puerto dedicado) como valor
    por defecto.
-6. Al enrolar, las dos instancias descubren y cargan automáticamente sus monitores en ambas direcciones sin pasos manuales.
-7. Los monitores importados no se muestran como "Verificando (PEND.)" ni con la etiqueta `+PEND`; inicializan su primer latencia y estado real al instante.
-8. El botón `🌐 Multi-Nodo` activa el ploteo simultáneo de la curva del nodo local y los nodos remotos en el mismo eje de tiempo del gráfico de latencia de ECharts.
-9. El botón `🌐 Multi-Nodo` aparece automáticamente en la UI tras el enrolamiento sin requerir F5.
-10. Al enrolar, el Nodo 1 recibe el Toast "Oye, instancia lista" o similar vía Socket.IO sin retraso.
 
 ### Pistas de investigacion
-
 - `frontend/src/app/features/settings/federation-panel.ts`: `onCreateToken()` (boton copiar),
   formulario de "Probar conectividad" (puerto por defecto), pantalla "Explorar monitores"
   (`onCreateLink`, listado de monitores remotos).
