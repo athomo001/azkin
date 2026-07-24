@@ -184,6 +184,75 @@ test("RunFederationSyncUseCase persiste heartbeats, marca sincronizacion exitosa
   assert.match(sent[0].subject, /recuperada/i);
 });
 
+test("RunFederationSyncUseCase guarda el heartbeat local con el status numerico real y marca el link como sincronizado (AZ-050: antes se guardaba un string y el CastError de Mongo abortaba silenciosamente el sondeo)", async () => {
+  const instance = makeInstance();
+  const link = makeLink();
+  const markSyncedCalls: string[] = [];
+  const savedLocalHeartbeats: { monitorId: string; status: unknown; ping: number | null }[] = [];
+
+  const federatedInstances: IFederatedInstanceRepository = {
+    create: async () => instance,
+    findAll: async () => [instance],
+    findById: async () => instance,
+    countActive: async () => 1,
+    revoke: async () => null,
+    findAllActive: async () => [instance],
+    markSyncSuccess: async () => undefined,
+    setNotifiedDown: async () => undefined,
+  };
+  const links: IFederatedMonitorLinkRepository = {
+    create: async () => link,
+    findAll: async () => [link],
+    findByLocalMonitorId: async () => [link],
+    findById: async () => link,
+    findByFederatedInstanceId: async () => [link],
+    delete: async () => true,
+    markSynced: async (id) => {
+      markSyncedCalls.push(id);
+    },
+  };
+  const federatedHeartbeats: IFederatedHeartbeatRepository = {
+    insertMany: async () => undefined,
+    findLatest: async () => null,
+  };
+  // Status DOWN (0) a propósito: el bug original re-mapeaba con un ternario que además rompía por
+  // el cast string->Number, y por separado un `if (status)` en otro lugar del código trataba 0
+  // como falsy — este caso cubre que 0 se propague igual que cualquier otro valor.
+  const client: IFederationClient = {
+    requestEnrollment: async () => {
+      throw new Error("no debería llamarse");
+    },
+    listRemoteMonitors: async () => [],
+    syncHeartbeats: async () => [{ timestamp: new Date().toISOString(), status: 0, ping: null }],
+  };
+  const localHeartbeats = {
+    save: async (beat: any) => {
+      savedLocalHeartbeats.push(beat);
+    },
+  } as any;
+  const { mailer } = makeFakeMailer();
+  const useCase = new RunFederationSyncUseCase(
+    federatedInstances,
+    links,
+    federatedHeartbeats,
+    client,
+    mailer,
+    makeFakeResolver(["admin@test.local"]),
+    (enc) => enc,
+    "identity-key",
+    localHeartbeats,
+  );
+
+  await useCase.execute();
+
+  assert.equal(savedLocalHeartbeats.length, 1);
+  assert.equal(savedLocalHeartbeats[0].status, 0);
+  assert.equal(typeof savedLocalHeartbeats[0].status, "number");
+  // Si el save del heartbeat local lanzara (como antes con el string mal tipado), esta linea nunca
+  // se alcanzaria y el link quedaria eternamente sin avanzar su cursor `since`.
+  assert.equal(markSyncedCalls.length, 1);
+});
+
 test("RunFederationSyncUseCase notifica 'sin reportar' solo tras superar el umbral, y solo una vez", async () => {
   const overdueInstance = makeInstance({
     lastSuccessfulSyncAt: new Date(Date.now() - (FEDERATION_REPORTING_THRESHOLD_SECONDS + 60) * 1000),

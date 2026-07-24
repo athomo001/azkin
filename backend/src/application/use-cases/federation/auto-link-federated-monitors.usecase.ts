@@ -6,12 +6,39 @@ import { IAuditLogRepository } from "../../ports/repositories/audit-log-reposito
 import { ListRemoteMonitorsUseCase } from "./list-remote-monitors.usecase";
 import { IFederatedMonitorLink } from "../../../domain/entities/federated-monitor-link";
 import { NotFoundError, ValidationError } from "../../../domain/errors/domain-error";
+import { getErrorMessage } from "../../services/get-error-message";
+import { logger } from "../../../infrastructure/logger";
+import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
 
 import { IHeartbeatRepository } from "../../ports/repositories/heartbeat-repository";
+
+/**
+ * Traduce el `lastStatus` del catálogo remoto (numérico `MonitorStatus` o, por compatibilidad,
+ * las etiquetas de texto que ya usa el sondeo periódico) al enum numérico real que exige el
+ * schema de heartbeats (`status: { type: Number, enum: [0,1,2,3,4] }`, ver AZ-050). Antes de este
+ * fix se guardaba el string literal "UP"/"DOWN"/"DEGRADED" tal cual, lo que Mongoose no puede
+ * castear a Number — `heartbeats.save()` fallaba siempre con un CastError y el monitor recién
+ * importado quedaba sin heartbeat inicial (PENDING) pese a que el fix ya estaba "aplicado".
+ */
+function mapRemoteStatus(lastStatus: number | string): MonitorStatus {
+  if (lastStatus === MonitorStatus.UP || lastStatus === "UP") return MonitorStatus.UP;
+  if (lastStatus === MonitorStatus.DEGRADED || lastStatus === "DEGRADED") return MonitorStatus.DEGRADED;
+  if (lastStatus === MonitorStatus.MAINTENANCE || lastStatus === "MAINTENANCE") return MonitorStatus.MAINTENANCE;
+  return MonitorStatus.DOWN;
+}
+
+export interface AutoLinkFailure {
+  remoteMonitorName: string;
+  error: string;
+}
 
 export interface AutoLinkResult {
   linkedCount: number;
   links: IFederatedMonitorLink[];
+  /** Monitores remotos que no se pudieron importar/vincular (ver AZ-050): un fallo individual
+   * (ej. un monitor tipo "port" sin puerto informado) ya no aborta el resto del lote. */
+  failedCount: number;
+  failures: AutoLinkFailure[];
 }
 
 /**
@@ -35,7 +62,7 @@ export class AutoLinkFederatedMonitorsUseCase {
     const lockKey = `${actorId}:${federatedInstanceId}`;
     if (AutoLinkFederatedMonitorsUseCase.inProgress.has(lockKey)) {
       const existing = await this.links.findByFederatedInstanceId(federatedInstanceId);
-      return { linkedCount: existing.length, links: existing };
+      return { linkedCount: existing.length, links: existing, failedCount: 0, failures: [] };
     }
 
     AutoLinkFederatedMonitorsUseCase.inProgress.add(lockKey);
@@ -54,98 +81,110 @@ export class AutoLinkFederatedMonitorsUseCase {
       const existingLinks = await this.links.findByFederatedInstanceId(federatedInstanceId);
 
       const createdLinks: IFederatedMonitorLink[] = [];
+      const failures: AutoLinkFailure[] = [];
 
+      // Cada monitor remoto se procesa de forma aislada (mismo patrón que RunFederationSyncUseCase):
+      // que uno falle (ej. tipo "port" con datos incompletos) no debe abortar el resto del lote — ver
+      // AZ-050, bug reportado en QA real ("tengo 3 monitores y solo se cargó 1").
       for (const remote of remoteMonitors) {
-        // Buscar coincidencia en monitores locales por nombre o target
-        let local = localMonitors.find((m) => {
-          const nameMatch = m.name.trim().toLowerCase() === remote.name.trim().toLowerCase();
-          const targetMatch = m.target.trim().toLowerCase() === remote.target.trim().toLowerCase();
-          return nameMatch || targetMatch;
-        });
-
-        // Si el monitor del nodo remoto no existe en el nodo local, crearlo automáticamente
-        if (!local) {
-          // Re-verificar contra base de datos por si se creó concurrentemente
-          const currentAll = await this.monitors.findAll();
-          local = currentAll.find((m) => {
+        try {
+          // Buscar coincidencia en monitores locales por nombre o target
+          let local = localMonitors.find((m) => {
             const nameMatch = m.name.trim().toLowerCase() === remote.name.trim().toLowerCase();
             const targetMatch = m.target.trim().toLowerCase() === remote.target.trim().toLowerCase();
             return nameMatch || targetMatch;
           });
 
+          // Si el monitor del nodo remoto no existe en el nodo local, crearlo automáticamente
           if (!local) {
-            local = await this.monitors.create({
-              name: remote.name,
-              type: (remote.type as any) || "http",
-              target: remote.target,
-              userId: actorId,
-              interval: 60,
-              retryInterval: 30,
-              retries: 2,
-              group: null,
-              tags: [],
-              notificationIds: [],
+            // Re-verificar contra base de datos por si se creó concurrentemente
+            const currentAll = await this.monitors.findAll();
+            local = currentAll.find((m) => {
+              const nameMatch = m.name.trim().toLowerCase() === remote.name.trim().toLowerCase();
+              const targetMatch = m.target.trim().toLowerCase() === remote.target.trim().toLowerCase();
+              return nameMatch || targetMatch;
             });
-            localMonitors.push(local);
 
-            // Inicializar el heartbeat local con la medición del nodo remoto para evitar estado PENDING
-            if (this.heartbeats && remote.lastStatus) {
-              const statusStr =
-                remote.lastStatus === 1 || remote.lastStatus === "UP"
-                  ? ("UP" as any)
-                  : remote.lastStatus === 4 || remote.lastStatus === "DEGRADED"
-                    ? ("DEGRADED" as any)
-                    : ("DOWN" as any);
-
-              await this.heartbeats.save({
-                monitorId: local.id,
-                status: statusStr,
-                ping: remote.lastPing ?? null,
-                timestamp: new Date(),
-                isLocalNetworkDown: false,
-                msg: null,
+            if (!local) {
+              local = await this.monitors.create({
+                name: remote.name,
+                type: (remote.type as any) || "http",
+                target: remote.target,
+                // Requerido por el schema para type "port" (TCP) — sin esto, crear el monitor
+                // remoto lanzaba ValidationError y abortaba (antes) el resto del lote.
+                port: remote.port ?? undefined,
+                userId: actorId,
+                interval: 60,
+                retryInterval: 30,
+                retries: 2,
+                group: null,
+                tags: [],
+                notificationIds: [],
               });
+              localMonitors.push(local);
+
+              // Inicializar el heartbeat local con la medición del nodo remoto para evitar estado
+              // PENDING. Importante: `remote.lastStatus` puede ser DOWN (valor numérico 0), que es
+              // falsy en JS — comparar explícitamente contra null/undefined, no con `if (valor)`.
+              if (this.heartbeats && remote.lastStatus !== null && remote.lastStatus !== undefined) {
+                await this.heartbeats.save({
+                  monitorId: local.id,
+                  status: mapRemoteStatus(remote.lastStatus),
+                  ping: remote.lastPing ?? null,
+                  timestamp: new Date(),
+                  isLocalNetworkDown: false,
+                  msg: null,
+                });
+              }
             }
           }
+
+          // Verificar si ya existe un vínculo activo para este monitor local y el remoto
+          const alreadyLinked = existingLinks.some(
+            (l) => l.localMonitorId === local!.id && l.remoteMonitorId === remote.id,
+          );
+
+          if (!alreadyLinked) {
+            const link = await this.links.create({
+              localMonitorId: local.id,
+              federatedInstanceId,
+              remoteMonitorId: remote.id,
+              remoteMonitorLabel: `${remote.name} (${instance.label})`,
+              createdById: actorId,
+            });
+
+            createdLinks.push(link);
+
+            await this.auditLog.record({
+              actorId,
+              action: "FEDERATION_MONITOR_LINK_CREATED",
+              targetType: "federated-monitor-link",
+              targetIds: [link.id],
+              metadata: { localMonitorId: local.id, federatedInstanceId, autoLinked: true },
+            });
+          }
+        } catch (err) {
+          const message = getErrorMessage(err);
+          logger.error(
+            `[Federation] Fallo al auto-vincular el monitor remoto "${remote.name}" (${instance.label}): ${message}`,
+          );
+          failures.push({ remoteMonitorName: remote.name, error: message });
         }
+      }
 
-      // Verificar si ya existe un vínculo activo para este monitor local y el remoto
-      const alreadyLinked = existingLinks.some(
-        (l) => l.localMonitorId === local!.id && l.remoteMonitorId === remote.id,
-      );
-
-      if (!alreadyLinked) {
-        const link = await this.links.create({
-          localMonitorId: local.id,
-          federatedInstanceId,
-          remoteMonitorId: remote.id,
-          remoteMonitorLabel: `${remote.name} (${instance.label})`,
-          createdById: actorId,
-        });
-
-        createdLinks.push(link);
-
-        await this.auditLog.record({
-          actorId,
-          action: "FEDERATION_MONITOR_LINK_CREATED",
-          targetType: "federated-monitor-link",
-          targetIds: [link.id],
-          metadata: { localMonitorId: local.id, federatedInstanceId, autoLinked: true },
+      // Si se crearon o vincularon monitores y existe función de sincronización, disparar sync asíncrono
+      if (createdLinks.length > 0 && this.triggerSync) {
+        this.triggerSync().catch(() => {
+          // Silenciar errores asíncronos en segundo plano
         });
       }
-    }
 
-    // Si se crearon o vincularon monitores y existe función de sincronización, disparar sync asíncrono
-    if (createdLinks.length > 0 && this.triggerSync) {
-      this.triggerSync().catch(() => {
-        // Silenciar errores asíncronos en segundo plano
-      });
-    }
-
-    return {
-      linkedCount: createdLinks.length,
-      links: createdLinks,
-    };
+      return {
+        linkedCount: createdLinks.length,
+        links: createdLinks,
+        failedCount: failures.length,
+        failures,
+      };
     } finally {
       AutoLinkFederatedMonitorsUseCase.inProgress.delete(lockKey);
     }

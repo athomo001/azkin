@@ -426,9 +426,37 @@ una recomendacion) y queda advertido tanto en `docs/` como en la UI de `/setting
 
 ## AZ-050) Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049)
 - Codigo: AZ-050
-- Estado: [ ] Abierto
-- Prioridad: Alta
+- Estado: [~] En progreso — bug critico de auto-vinculacion diagnosticado y corregido (2026-07-24),
+  pendiente de verificacion en vivo por el usuario con datos reales (no se marca "Resuelto" hasta
+  confirmar en un despliegue real con 2+ instancias, ver nota mas abajo).
+- Prioridad: Alta-CRITICA
 - Reportado: 2026-07-23
+
+### Nota (2026-07-24) — bug critico encontrado en QA real: solo se importaba 1 de N monitores remotos
+
+Reporte del usuario probando con datos reales: "en el nodo 1 tengo 3 monitoreos y solo se cargo 1
+solo y sale como pendiente". Causa raiz identificada en `AutoLinkFederatedMonitorsUseCase` y
+`RunFederationSyncUseCase`: el heartbeat sintetico que se inserta para que un monitor recien
+importado no quede en PENDING guardaba `status` como **string** (`"UP"/"DOWN"/"DEGRADED"`), pero el
+schema de Mongo define ese campo como `Number` (`enum: [0,1,2,3,4]`) — Mongoose no puede castear el
+string y `heartbeats.save()` lanzaba excepcion **siempre**, tanto en la importacion inicial como en
+cada sondeo periodico posterior. Como el loop de auto-vinculacion no aislaba cada monitor remoto en
+su propio try/catch, esa excepcion abortaba el resto del lote: de ahi que solo se importara el
+primer monitor (con heartbeat roto) y los demas se perdieran en silencio. Ademas, un monitor remoto
+tipo `port` (TCP) no podia importarse nunca porque el catalogo remoto no exponia el numero de puerto
+(campo requerido por el schema para ese tipo), y un remoto en estado DOWN (valor numerico 0) no
+inicializaba su heartbeat porque el codigo lo evaluaba con `if (status)`, que trata 0 como falso.
+Corregido: (1) `status` ahora se guarda como el enum numerico real, nunca un string; (2) el loop de
+auto-vinculacion procesa cada monitor remoto en su propio try/catch (mismo patron que
+`RunFederationSyncUseCase`), asi que uno invalido ya no tumba al resto del lote; (3) el catalogo de
+monitores remotos (`GET /federation/peer/monitors`) ahora incluye `port` para poder recrear
+monitores tipo TCP; (4) la comparacion de status remoto ya no usa `if (valor)` sino una comparacion
+explicita contra `null`/`undefined`, asi que DOWN (0) tambien inicializa el heartbeat. Cubierto con
+4 tests nuevos (`auto-link-federated-monitors.usecase.test.ts`,
+`run-federation-sync.usecase.test.ts`) que reproducen exactamente el escenario reportado (3 remotos,
+1 con datos incompletos) contra el tipo real del campo `status`, no solo contra un mock permisivo —
+los tests anteriores no detectaban el bug porque el repositorio falso de heartbeats no validaba
+tipos como Mongo real.
 
 ### Descripcion
 Sesion de QA sobre la implementacion ya construida de la federacion de instancias (AZ-049, slices

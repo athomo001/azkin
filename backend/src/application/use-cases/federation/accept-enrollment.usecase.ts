@@ -6,6 +6,8 @@ import { IAuditLogRepository } from "../../ports/repositories/audit-log-reposito
 import { IRealtimePublisher } from "../../ports/services/realtime-publisher";
 import { QuotaExceededError, ValidationError } from "../../../domain/errors/domain-error";
 import { MAX_FEDERATED_INSTANCES } from "./federation-limits";
+import { getErrorMessage } from "../../services/get-error-message";
+import { logger } from "../../../infrastructure/logger";
 
 export interface AcceptEnrollmentInput {
   token: string;
@@ -70,9 +72,13 @@ export class AcceptEnrollmentUseCase {
       this.realtimePublisher.publishFederationEnrolled(consumed.createdById, input.callerLabel);
     }
 
-    // Ejecutar el callback de auto-vinculación en segundo plano
+    // Ejecutar el callback de auto-vinculación en segundo plano — no bloquea la respuesta HTTP al
+    // que llama, pero un fallo inesperado (ej. el par no responde a /monitors) queda registrado en
+    // vez de desaparecer en silencio (ver AZ-050).
     if (this.onEnrolledCallback) {
-      this.onEnrolledCallback(instance.id, consumed.createdById).catch(() => {});
+      this.onEnrolledCallback(instance.id, consumed.createdById).catch((err) => {
+        logger.error(`[Federation] Fallo en auto-vinculación en segundo plano tras enrollment: ${getErrorMessage(err)}`);
+      });
     }
   }
 

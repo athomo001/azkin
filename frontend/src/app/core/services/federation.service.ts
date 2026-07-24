@@ -32,6 +32,19 @@ export interface IRemoteMonitorSummary {
   name: string;
   type: string;
   target: string;
+  port?: number | null;
+}
+
+export interface IAutoLinkFailure {
+  remoteMonitorName: string;
+  error: string;
+}
+
+export interface IAutoLinkResult {
+  linkedCount: number;
+  links: IFederatedMonitorLink[];
+  failedCount: number;
+  failures: IAutoLinkFailure[];
 }
 
 export interface IFederatedMonitorLink {
@@ -102,8 +115,8 @@ export class FederationService {
     );
   }
 
-  autoLinkMonitors(id: string): Observable<{ linkedCount: number; links: IFederatedMonitorLink[] }> {
-    return this.http.post<{ linkedCount: number; links: IFederatedMonitorLink[] }>(
+  autoLinkMonitors(id: string): Observable<IAutoLinkResult> {
+    return this.http.post<IAutoLinkResult>(
       `${this.apiUrl}/instances/${id}/auto-link`,
       {},
     ).pipe(

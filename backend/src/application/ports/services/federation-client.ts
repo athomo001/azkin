@@ -24,6 +24,9 @@ export interface RemoteMonitorSummary {
   name: string;
   type: string;
   target: string;
+  /** Requerido para recrear localmente un monitor tipo "port" (TCP) — no es sensible (a
+   * diferencia de credenciales SNMP o secretos de notificación), así que sí viaja en el catálogo. */
+  port?: number | null;
   lastStatus?: number | string | null;
   lastPing?: number | null;
 }

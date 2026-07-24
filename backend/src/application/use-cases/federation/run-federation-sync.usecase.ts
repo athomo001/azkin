@@ -69,9 +69,15 @@ export class RunFederationSyncUseCase {
 
           if (this.localHeartbeats) {
             const latestRemoteBeat = heartbeats[heartbeats.length - 1];
+            // `latestRemoteBeat.status` ya es el enum numérico real de `MonitorStatus` (viene tal
+            // cual del peer, ver `SyncedHeartbeat.status: number`) — antes se reconvertía a un
+            // string ("UP"/"DOWN"/"DEGRADED") que el schema de Mongo (`status: Number`) no puede
+            // castear: cada sondeo periódico fallaba con un CastError, el `try/catch` de arriba lo
+            // silenciaba en el log y `markSynced` nunca corría, dejando el monitor importado
+            // congelado sin actualizarse (ver AZ-050).
             await this.localHeartbeats.save({
               monitorId: link.localMonitorId,
-              status: latestRemoteBeat.status === 1 ? ("UP" as any) : latestRemoteBeat.status === 4 ? ("DEGRADED" as any) : ("DOWN" as any),
+              status: latestRemoteBeat.status,
               ping: latestRemoteBeat.ping ?? null,
               timestamp: new Date(latestRemoteBeat.timestamp),
               isLocalNetworkDown: false,

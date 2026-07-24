@@ -392,6 +392,13 @@ export class FederationPanelComponent {
         if (res.linkedCount > 0) {
           this.toast.show(`Se vincularon automáticamente ${res.linkedCount} monitores coincidentes con "${instance.label}".`);
         }
+        if (res.failedCount > 0) {
+          const detalle = res.failures.map((f) => `${f.remoteMonitorName}: ${f.error}`).join(' · ');
+          this.toast.show(`${res.failedCount} monitor(es) de "${instance.label}" no se pudieron auto-vincular — ${detalle}`);
+        }
+        if (res.linkedCount === 0 && res.failedCount === 0) {
+          this.toast.show(`No hay monitores nuevos para auto-vincular con "${instance.label}".`);
+        }
       },
       error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al auto-vincular monitores.')),
     });
