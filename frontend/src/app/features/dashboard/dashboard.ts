@@ -329,13 +329,14 @@ type HistoryRangeOption = {
                       }
                     </button>
 
-                    @if (hasFederatedLinks()) {
-                      <button (click)="showMultiRegionView.set(!showMultiRegionView())" aria-label="Gráfico Multi-Nodo" title="Ver comparativa de gráficos Multi-Nodo"
-                        class="px-3 py-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-xl text-orange-400 font-bold text-xs transition-all shadow-md flex items-center gap-1.5">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-orange-400">
+                    @if (isMultiRegionActive()) {
+                      <button (click)="toggleMultiRegionView()" aria-label="Gráfico Multi-Nodo" title="Activar/desactivar curvas comparativas Multi-Nodo"
+                        [class]="showMultiRegionView() ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30 border border-orange-400 font-bold' : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'"
+                        class="px-3 py-2 rounded-xl text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 0a8.949 8.949 0 0 0 4.951-1.488A3.987 3.987 0 0 0 13 16h-2a3.987 3.987 0 0 0-3.951 3.512A8.949 8.949 0 0 0 12 21Zm3-11a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                         </svg>
-                        Gráfico Multi-Nodo
+                        🌐 Multi-Nodo: {{ showMultiRegionView() ? 'ON' : 'OFF' }}
                       </button>
                     }
 
@@ -812,6 +813,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly selectedGroupName = computed(() => this.selectedGroup()?.group ?? null);
   readonly showMultiRegionView = signal<boolean>(true);
   readonly federatedSeriesMap = signal<Map<string, { label: string; points: [number, number | null][] }>>(new Map());
+  readonly isMultiRegionActive = computed(() => {
+    const instances = this.federationService.instances();
+    const links = this.federationService.links();
+    return instances.some((i) => i.status === 'enrolled') || links.length > 0;
+  });
   readonly hasFederatedLinks = computed(() => {
     const id = this.selectedMonitorId();
     return id ? this.federationService.links().some((l) => l.localMonitorId === id) : false;
@@ -898,6 +904,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly nyanCatAngle = signal(0);
 
   constructor() {
+    this.federationService.loadInstances().subscribe();
+    this.federationService.loadLinks().subscribe();
     effect(() => {
       // Registrar dependencias reactivas
       this.isNyanCatMode();
@@ -1226,6 +1234,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   loadData(): void {
     this.isLoading.set(true);
+    this.federationService.loadInstances().subscribe();
+    this.federationService.loadLinks().subscribe();
     this.monitorService.loadMonitors().subscribe({
       next: (data) => {
         this.isLoading.set(false);

@@ -549,6 +549,9 @@ export function buildContainer(env: Env): AppContainer {
   acceptEnrollment.setOnEnrolledCallback(async (instanceId, createdById) => {
     await autoLinkFederatedMonitors.execute(createdById, instanceId);
   });
+  joinFederation.setOnEnrolledCallback(async (instanceId, createdById) => {
+    await autoLinkFederatedMonitors.execute(createdById, instanceId);
+  });
 
   const federationController = new FederationController(
     createEnrollmentToken,
