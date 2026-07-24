@@ -14,7 +14,6 @@ import { GetFederationOwnUrlUseCase } from "../../../application/use-cases/feder
 import { SetFederationOwnUrlUseCase } from "../../../application/use-cases/federation/set-federation-own-url.usecase";
 import { TestAddressConnectionUseCase } from "../../../application/use-cases/federation/test-address-connection.usecase";
 import { TestFederatedInstanceConnectionUseCase } from "../../../application/use-cases/federation/test-federated-instance-connection.usecase";
-import { ApproveFederatedInstanceUseCase } from "../../../application/use-cases/federation/approve-federated-instance.usecase";
 import { ReactivateFederatedInstanceUseCase } from "../../../application/use-cases/federation/reactivate-federated-instance.usecase";
 import { AutoLinkFederatedMonitorsUseCase } from "../../../application/use-cases/federation/auto-link-federated-monitors.usecase";
 import { DeleteFederatedInstanceUseCase } from "../../../application/use-cases/federation/delete-federated-instance.usecase";
@@ -26,7 +25,6 @@ export class FederationController {
     private readonly createEnrollmentTokenUseCase: CreateEnrollmentTokenUseCase,
     private readonly joinFederationUseCase: JoinFederationUseCase,
     private readonly acceptEnrollmentUseCase: AcceptEnrollmentUseCase,
-    private readonly approveFederatedInstanceUseCase: ApproveFederatedInstanceUseCase,
     private readonly listFederatedInstancesUseCase: ListFederatedInstancesUseCase,
     private readonly revokeFederatedInstanceUseCase: RevokeFederatedInstanceUseCase,
     private readonly reactivateFederatedInstanceUseCase: ReactivateFederatedInstanceUseCase,
@@ -76,11 +74,6 @@ export class FederationController {
 
   revoke = async (req: Request, res: Response): Promise<void> => {
     const instance = await this.revokeFederatedInstanceUseCase.execute(req.userId!, req.params.id as string);
-    res.status(200).json(toFederatedInstanceResponse(instance));
-  };
-
-  approveInstance = async (req: Request, res: Response): Promise<void> => {
-    const instance = await this.approveFederatedInstanceUseCase.execute(req.userId!, req.params.id as string);
     res.status(200).json(toFederatedInstanceResponse(instance));
   };
 

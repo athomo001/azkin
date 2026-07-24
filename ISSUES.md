@@ -13,7 +13,7 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | Codigo | Titulo | Prioridad | Estado |
 |---|---|---|---|
 | [AZ-049](#az-049-federacion-de-instancias-azkin-independientes-en-distintas-regiones-geograficas-con-vista-de-monitoreo-combinada-y-comunicacion-cifrada-por-enrollment) | Federacion de instancias Azkin independientes en distintas regiones, con vista combinada y comunicacion cifrada por enrollment | Alta | [ ] Abierto |
-| [AZ-050](#az-050-bugs-y-brechas-de-ux-encontrados-en-qa-de-la-federacion-de-instancias-az-049) | Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049) | Alta | [x] Resuelto |
+| [AZ-050](#az-050-bugs-y-brechas-de-ux-encontrados-en-qa-de-la-federacion-de-instancias-az-049) | Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049) | Alta | [ ] Abierto |
 
 ### UX / Funcionalidad (batch post-auditoria de seguridad)
 
@@ -29,94 +29,7 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 
 ---
 
-## AZ-016) Componentes "Dios" en el frontend: `dashboard.ts` (~2300 lineas) y `settings.ts` (~1180 lineas) sin descomposicion
-- Codigo: AZ-016
-- Estado: [~] Mayormente resuelto — pendiente checkpoint visual de `dashboard.ts` en navegador
-- Prioridad: Media-Alta
-- Reportado: 2026-07-18
 
-### Nota (2026-07-20)
-Se ejecutó por fases, con `tsc --noEmit` + `ng build` como red de seguridad después de cada
-extracción (no hay test runner de frontend, ver AZ-019, ni navegador disponible para el asistente).
-
-**Fase 1 — `settings.ts`: completa y confirmada en navegador por el usuario.** Se extrajeron las 6
-pestañas a componentes propios (`tls-panel.ts`, `audit-log-panel.ts`, `api-keys-panel.ts`,
-`backups-panel.ts`, `viewers-panel.ts`, `alerts-panel.ts`) más 4 componentes compartidos nuevos
-(`ConfirmService`/`ConfirmModalComponent`, `ToastService`/`ToastComponent`,
-`ChangePasswordModalComponent`, `EmojiPickerComponent`). `settings.ts` bajó de 1897 a 171 líneas,
-quedando como puro orquestador (tab activo + restauración de `?tab=`).
-
-**Fase 2 — `dashboard.ts`: extracción completa, falta el checkpoint visual del usuario.** Se
-extrajeron `QuickStatsPanelComponent` (KPIs + incidentes recientes), `DashboardNavbarComponent`
-(logo, tema/idioma, NyanCat, logout) y `MonitorFormComponent` (slide-over crear/editar monitor,
-las 6 variantes de tipo de monitor), además de reusar `ConfirmModalComponent` (Fase 1) para los dos
-modales de borrado. `dashboard.ts` bajó de 2291 a 1580 líneas. **Pendiente**: el usuario aún no
-confirmó visualmente esta fase (navbar, KPIs/click-through de incidentes, alta/edición de los 6
-tipos de monitor, ambos modales de borrado).
-
-**Fuera de alcance, documentado como remanente explícito** (no intentado, por ser la parte más
-entrelazada y riesgosa sin navegador disponible para QA): los charts ECharts
-(`initChart`/`updateChart`/`initGroupChart`/`updateGroupChart`, ~330 líneas) y el panel de detalle
-de monitor/grupo que los aloja, junto con el árbol de monitores del sidebar — todos comparten
-estado en vivo (`selectedMonitor`/`selectedGroup`/`historyPoints`/`groupHistoryMap`) con el handler
-de heartbeats de Socket.io y el efecto NyanCat embebido en las opciones de ECharts. Recomendación:
-abordar en sesión propia con navegador disponible para verificar visualmente el re-render por
-tema, el efecto NyanCat y las actualizaciones en vivo por heartbeat antes/después de cada cambio.
-
-### Descripcion
-`frontend/src/app/features/dashboard/dashboard.ts` tiene ~2322 lineas (plantilla inline de ~990 lineas + ~1290 lineas de logica: CRUD de monitores, renderizado de ECharts, manejo de heartbeats por Socket.io, filtrado de historial, calculo de bloques de uptime, borrado masivo, tema/nyan-cat, i18n, agregacion de grupos — todo en una sola clase). `settings.ts` tiene ~1184 lineas mezclando 5 dominios funcionales no relacionados (canales de alerta, viewers, perfil, respaldos, TLS) en un solo componente. No existen subcomponentes extraidos pese a que el proyecto ya tiene un patron establecido en `shared/components` (`badge-status.ts`, `skeleton-loader.ts`). `group-dashboard.ts` (137 lineas) demuestra que el mismo dominio (graficos de grupo) puede resolverse en un componente pequeno y enfocado.
-
-### Comportamiento esperado
-1. `dashboard.ts` se descompone en subcomponentes presentacionales — hecho parcialmente:
-   `QuickStatsPanelComponent`, `DashboardNavbarComponent`, `MonitorFormComponent` extraidos.
-   `MonitorDetailPanel`/`MonitorChart` (ECharts + seleccion) quedan fuera de alcance, ver nota.
-2. `settings.ts` se descompone por pestana/dominio — hecho, las 6 pestanas extraidas.
-3. Cada subcomponente cabe holgadamente en una sola pantalla de revision de codigo (referencia orientativa: <400 lineas) — cumplido en todos los subcomponentes nuevos.
-
-### Criterios de aceptacion
-1. `settings.ts` queda por debajo de ~400-500 lineas — cumplido (171 lineas). `dashboard.ts` baja de 2291 a 1580 lineas pero no llega al rango objetivo porque el remanente entrelazado (charts + panel de detalle + sidebar) queda fuera de alcance, ver nota.
-2. Cada subcomponente extraido es importable/testeable de forma aislada — cumplido.
-3. La build de Angular (`ng build`) sigue pasando sin regresiones visuales tras la extraccion — verificado por build para ambas fases; falta la confirmacion visual del usuario en navegador para la Fase 2 (dashboard).
-
-### Pistas de investigacion
-- `frontend/src/app/features/dashboard/dashboard.ts` (remanente: charts ECharts, panel de detalle, sidebar) y `frontend/src/app/features/settings/settings.ts` (completo).
-- Aprovechar una futura sesión con navegador disponible para anadir las primeras pruebas unitarias (ver AZ-019) a los subcomponentes nuevos.
-
----
-
-## AZ-033) Benchmark UX/UI y propuesta de identidad visual diferenciada frente a Uptime Robot y Uptime Kuma
-- Codigo: AZ-033
-- Estado: [ ] Abierto
-- Prioridad: Media
-- Reportado: 2026-07-19
-
-### Descripcion
-El dashboard actual (fondo `zinc-950` + acento `orange-500`, tarjetas con badges de color por estado) ya se aleja parcialmente del verde corporativo de Uptime Robot y del azul/oscuro generico de Uptime Kuma, pero no tiene una identidad visual deliberada: paleta, tipografia y layout no fueron elegidos como sistema, sino heredados del patron generico de dashboards oscuros. Se solicito una propuesta concreta de diferenciacion visual.
-
-Se entrego una propuesta llamada **"Pulso"**: en la vista de flota (grilla de todos los monitores), cada tarjeta se representa con su propia forma de onda de latencia (sparkline) en vez de solo un badge de color, con el estado codificado como borde + etiqueta (nunca solo color). Paleta de tinta violeta-oscura + acento cobre/"ember" con un violeta secundario, colores semánticos (`good`/`warn`/`crit`) reservados y separados del acento de marca; tipografia serif editorial para titulos + monoespaciada para metricas (rompe el "todo-sans" del genero). Mockup interactivo publicado como artifact: [Pulso — Propuesta de identidad visual Azkin](https://claude.ai/code/artifact/3d3a6655-61c3-4b9e-a29e-8e559a041cc4)
-
-Feedback de usuario tras la primera revision: el heatmap de bloques por chequeo (verde/rojo, uno por chequeo, con "N chequeos atras" / "ahora mismo") que ya existe en el detalle de monitor **no debe reemplazarse por la onda** — el bloque individual es lo que permite identificar exactamente *cual* chequeo cayo, algo que una onda continua no resuelve tan bien. La onda si aporta valor para ver tendencia/estabilidad. Conclusion: en la vista de **detalle** de un monitor se mantienen ambos, bloques + grafico de latencia debajo (como ya funciona hoy), solo reestilizados con los tokens de Pulso; la onda-en-vez-de-badge aplica a la **grilla de flota** (tarjetas compactas), no al detalle. El mockup se actualizo para incluir esta vista de detalle. Tambien se agregaron al mockup, y deben incorporarse al sistema real (no solo quedar de demo): el toggle de tema claro/oscuro y el efecto existente de Modo NyanCat en los graficos (ver AZ-027 y `toggleNyanCat()` en `dashboard.ts`).
-
-### Comportamiento esperado
-1. Existe un sistema de diseño documentado (paleta, tipografia, layout) especifico de Azkin, no heredado de un dashboard generico.
-2. En la grilla de flota, la forma de onda (sparkline) reemplaza al badge de color como unidad minima de estado por tarjeta.
-3. En el detalle de un monitor se conserva el heatmap de bloques por chequeo (para identificar el chequeo exacto que fallo) **junto con** el grafico de latencia debajo, ambos reestilizados con los tokens de Pulso — no se reemplaza uno por el otro.
-4. El sistema funciona en tema claro y oscuro (con control explicito de cambio, no solo `prefers-color-scheme`), y es compatible con el Modo TV/Kiosko (AZ-027) y con el Modo NyanCat existente.
-
-### Criterios de aceptacion
-1. Tokens de color (`--ground`, `--surface`, `--ember`, `--violet`, `--good`, `--warn`, `--crit`, etc.) definidos centralmente (ej. variables CSS en `styles.css`) y aplicados en lugar de las clases Tailwind de color sueltas actuales.
-2. Tarjetas de monitor en la grilla de flota (`dashboard.ts`) incorporan un sparkline de latencia por monitor (no solo el numero puntual actual).
-3. El heatmap de bloques (`uptimeBlocks()`) del detalle de monitor se reestiliza con los tokens de Pulso pero no se elimina ni se sustituye por el sparkline.
-4. El grafico de latencia de ECharts (detalle de monitor y grupo) adopta la paleta Pulso (`--ember` en vez de `orange-500`, etc.), preservando el efecto Modo NyanCat (`isNyanCatMode()`) ya implementado.
-5. Existe un control de tema claro/oscuro explicito en la UI (no solo deteccion automatica de `prefers-color-scheme`).
-6. Verificado visualmente en ambos temas (claro/oscuro), en Modo TV/Kiosko y en Modo NyanCat, sin regresiones (ver AZ-027 y el fix de superposicion de `svg` en Modo TV).
-
-### Pistas de investigacion
-- Mockup y especificacion visual: artifact "Pulso — Propuesta de identidad visual Azkin" (incluye vista de detalle con bloques + latencia, toggle de tema y Modo NyanCat).
-- `frontend/src/styles.css` (tokens de color actuales, bloque `body.kiosk-mode`).
-- `frontend/src/app/features/dashboard/dashboard.ts` (tarjetas de monitor, `uptimeBlocks()`, grafico de latencia con ECharts, `isNyanCatMode()`/`toggleNyanCat()`, `isLightTheme`).
-
----
 
 ## AZ-049) Federacion de instancias Azkin independientes en distintas regiones geograficas, con vista de monitoreo combinada y comunicacion cifrada por enrollment
 - Codigo: AZ-049
@@ -513,16 +426,9 @@ una recomendacion) y queda advertido tanto en `docs/` como en la UI de `/setting
 
 ## AZ-050) Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049)
 - Codigo: AZ-050
-- Estado: [x] Resuelto (2026-07-24)
+- Estado: [ ] Abierto
 - Prioridad: Alta
 - Reportado: 2026-07-23
-
-### Resolucion
-1. **Boton "Copiar"**: Implementado soporte con API `navigator.clipboard` y fallback con `document.execCommand('copy')` mediante un elemento `<textarea>` temporal para entornos no HTTPS (acceso por IP).
-2. **Modelo de Confianza**: Confirmada y documentada en `ARCHITECTURE.md` la decisión de mantener el modelo "todo o nada" por token de 20 min para cero fricción operativa, permitiendo revocación inmediata desde la UI en todo momento.
-3. **Explorar Monitores & Red**: `normalizeInstanceUrl` soporta deducción inteligente de `http://` para puertos de desarrollo (`:3000`, `:8080`, etc.) y `localhost`. Precarga explícita de monitores locales en `FederationPanelComponent`.
-4. **Selector Por Región / Combinado**: Refactorizado `FederatedComparisonComponent` usando `effect()` reactivo en Angular para actualizar la comparación al cambiar el monitor seleccionado en el dashboard.
-5. **Puerto por Defecto**: Removido el puerto obsoleto `8444` de `testForm.port`, quedando el campo nulo por defecto con placeholder informativo `ej. 3000 o 443`.
 
 ### Descripcion
 Sesion de QA sobre la implementacion ya construida de la federacion de instancias (AZ-049, slices

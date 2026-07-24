@@ -68,6 +68,9 @@ export class GetFederatedComparisonUseCase {
 
     for (const link of links) {
       const instance = await this.federatedInstances.findById(link.federatedInstanceId);
+      // Una federación revocada no debe seguir apareciendo en la vista "Por región"/"Combinado"
+      // con datos que ya dejaron de refrescarse (ver AZ-050, observación adjunta al punto 4).
+      if (!instance || instance.status !== "enrolled") continue;
       const latest = await this.federatedHeartbeats.findLatest(link.id);
       const historyBeats = await this.federatedHeartbeats.findHistory(link.id, 20);
       const history = historyBeats.map((b) => ({ timestamp: b.timestamp.toISOString(), ping: b.ping }));

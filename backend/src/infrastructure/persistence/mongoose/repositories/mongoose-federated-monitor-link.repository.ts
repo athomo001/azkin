@@ -10,15 +10,34 @@ import { toDomainId } from "../to-domain-id";
 
 export class MongooseFederatedMonitorLinkRepository implements IFederatedMonitorLinkRepository {
   async create(data: CreateFederatedMonitorLinkData): Promise<IFederatedMonitorLink> {
-    const doc = await FederatedMonitorLinkModel.create({
-      localMonitorId: new Types.ObjectId(data.localMonitorId),
-      federatedInstanceId: new Types.ObjectId(data.federatedInstanceId),
-      remoteMonitorId: data.remoteMonitorId,
-      remoteMonitorLabel: data.remoteMonitorLabel,
-      createdById: new Types.ObjectId(data.createdById),
-      lastSyncedAt: null,
-    });
-    return this.toDomain(doc);
+    try {
+      const doc = await FederatedMonitorLinkModel.create({
+        localMonitorId: new Types.ObjectId(data.localMonitorId),
+        federatedInstanceId: new Types.ObjectId(data.federatedInstanceId),
+        remoteMonitorId: data.remoteMonitorId,
+        remoteMonitorLabel: data.remoteMonitorLabel,
+        createdById: new Types.ObjectId(data.createdById),
+        lastSyncedAt: null,
+      });
+      return this.toDomain(doc);
+    } catch (err) {
+      // Colisión con el índice único (localMonitorId + federatedInstanceId + remoteMonitorId):
+      // dos requests concurrentes intentaron crear el mismo vínculo (ver AZ-050 punto 6). En vez de
+      // fallar, se devuelve el vínculo ya persistido para que la operación sea idempotente.
+      if (this.isDuplicateKeyError(err)) {
+        const existing = await FederatedMonitorLinkModel.findOne({
+          localMonitorId: new Types.ObjectId(data.localMonitorId),
+          federatedInstanceId: new Types.ObjectId(data.federatedInstanceId),
+          remoteMonitorId: data.remoteMonitorId,
+        });
+        if (existing) return this.toDomain(existing);
+      }
+      throw err;
+    }
+  }
+
+  private isDuplicateKeyError(err: unknown): boolean {
+    return typeof err === "object" && err !== null && (err as { code?: number }).code === 11000;
   }
 
   async findAll(): Promise<IFederatedMonitorLink[]> {

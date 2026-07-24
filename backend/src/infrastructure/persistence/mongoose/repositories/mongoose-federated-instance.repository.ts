@@ -38,16 +38,6 @@ export class MongooseFederatedInstanceRepository implements IFederatedInstanceRe
     return FederatedInstanceModel.countDocuments({ status: "enrolled" });
   }
 
-  async approve(id: string): Promise<IFederatedInstance | null> {
-    if (!Types.ObjectId.isValid(id)) return null;
-    const doc = await FederatedInstanceModel.findByIdAndUpdate(
-      id,
-      { status: "enrolled", revokedAt: null },
-      { new: true },
-    );
-    return doc ? this.toDomain(doc) : null;
-  }
-
   async revoke(id: string): Promise<IFederatedInstance | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await FederatedInstanceModel.findByIdAndUpdate(

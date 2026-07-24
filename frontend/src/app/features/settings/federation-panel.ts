@@ -1,5 +1,5 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -133,38 +133,6 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
         </div>
       </div>
 
-      <!-- ================= SOLICITUDES PENDIENTES DE APROBACIÓN ================= -->
-      @if (pendingInstances().length > 0) {
-        <div class="bg-amber-950/30 border border-amber-500/40 rounded-xl p-6 space-y-4 shadow-lg">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-            <h3 class="text-sm font-bold text-amber-200 uppercase tracking-wider">Solicitud de federación entrante</h3>
-          </div>
-          <p class="text-xs text-amber-300/80 font-medium">
-            Las siguientes instancias solicitaron unirse a este nodo usando tu código de invitación. Debes aprobar la solicitud para activar el intercambio de monitoreos:
-          </p>
-          <div class="space-y-3">
-            @for (p of pendingInstances(); track p.id) {
-              <div class="bg-zinc-950/80 border border-amber-500/30 rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <p class="text-xs font-black text-white">{{ p.label }}</p>
-                  <p class="text-[10px] text-zinc-400 font-mono mt-0.5">{{ p.remoteUrl }}</p>
-                  <p class="text-[9px] text-zinc-500 mt-1">Solicitado: {{ p.createdAt | date: 'medium' }}</p>
-                </div>
-                <div class="flex items-center gap-2 shrink-0">
-                  <button (click)="onApproveInstance(p)" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition-all shadow-md">
-                    Aceptar Solicitud
-                  </button>
-                  <button (click)="onDeleteInstance(p)" class="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-300 transition-all">
-                    Rechazar
-                  </button>
-                </div>
-              </div>
-            }
-          </div>
-        </div>
-      }
-
       <!-- ================= INSTANCIAS FEDERADAS ================= -->
       <div class="space-y-3">
         <div class="flex items-center justify-between">
@@ -180,13 +148,12 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
             @for (i of federation.instances(); track i.id) {
               <div class="bg-zinc-900/20 border rounded-xl p-4 flex flex-col gap-2"
                 [class.border-emerald-900/50]="i.status === 'enrolled'"
-                [class.border-amber-500/40]="i.status === 'pending_approval'"
                 [class.border-zinc-850]="i.status === 'revoked'">
                 <div class="flex justify-between items-start gap-2">
                   <span class="text-xs font-black text-zinc-200">{{ i.label }}</span>
                   <span class="text-[9px] px-2 py-0.5 rounded font-mono uppercase font-bold shrink-0"
-                    [class]="i.status === 'enrolled' ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : (i.status === 'pending_approval' ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400' : 'bg-rose-500/10 border border-rose-500/20 text-rose-400')">
-                    {{ i.status === 'enrolled' ? 'Enrolada' : (i.status === 'pending_approval' ? 'Pendiente' : 'Revocada') }}
+                    [class]="i.status === 'enrolled' ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/20 text-rose-400'">
+                    {{ i.status === 'enrolled' ? 'Enrolada' : 'Revocada' }}
                   </span>
                 </div>
                 <p class="text-[10px] text-zinc-500 font-mono">{{ i.remoteUrl }}</p>
@@ -195,10 +162,10 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                   @if (i.notifiedDown) { <span class="text-rose-400 font-bold"> · sin reportar</span> }
                 </p>
                 <div class="flex items-center justify-end gap-3 border-t border-zinc-900 pt-2 text-[10px] font-bold">
-                  @if (i.status === 'pending_approval') {
-                    <button (click)="onApproveInstance(i)" class="text-emerald-400 hover:text-emerald-300 transition-colors">Aceptar</button>
-                  } @else if (i.status === 'enrolled') {
+                  @if (i.status === 'enrolled') {
+                    <button (click)="onAutoLink(i)" class="text-orange-400 hover:text-orange-300 transition-colors">Auto-vincular</button>
                     <button (click)="onTestInstanceConnection(i)" class="text-zinc-400 hover:text-zinc-200 transition-colors">Probar conexión</button>
+                    <button (click)="onExploreMonitors(i)" class="text-zinc-400 hover:text-zinc-200 transition-colors">Explorar monitores</button>
                     <button (click)="onRevoke(i)" class="text-amber-500 hover:text-amber-400 transition-colors">Revocar</button>
                   } @else {
                     <button (click)="onReactivate(i)" class="text-emerald-400 hover:text-emerald-300 transition-colors">Reactivar</button>
@@ -210,6 +177,42 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
           </div>
         }
       </div>
+
+      <!-- ================= VINCULAR MONITORES ================= -->
+      @if (exploringInstance()) {
+        <div class="bg-zinc-900/20 border border-zinc-800/80 rounded-xl p-6 space-y-4">
+          <h3 class="text-sm font-bold text-white tracking-tight">Vincular monitor con "{{ exploringInstance()!.label }}"</h3>
+          @if (remoteMonitors().length === 0) {
+            <p class="text-[11px] text-zinc-500 font-medium">Este par no tiene monitores para explorar, o todavía no responde.</p>
+          }
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Mi monitor local</label>
+              <select [(ngModel)]="linkForm.localMonitorId" class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500">
+                <option value="">Selecciona...</option>
+                @for (m of monitorService.monitors(); track m.id) {
+                  <option [value]="m.id">{{ m.name }}</option>
+                }
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Monitor remoto equivalente</label>
+              <select [(ngModel)]="linkForm.remoteMonitorId" (change)="onRemoteMonitorSelected()" class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500">
+                <option value="">Selecciona...</option>
+                @for (m of remoteMonitors(); track m.id) {
+                  <option [value]="m.id">{{ m.name }} ({{ m.type }})</option>
+                }
+              </select>
+            </div>
+            <div class="flex items-end">
+              <button (click)="onCreateLink()" class="w-full px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-xs font-bold transition-all shadow-md">
+                Crear vínculo
+              </button>
+            </div>
+          </div>
+          <button (click)="exploringInstance.set(null)" class="text-[10px] text-zinc-500 hover:text-zinc-300 font-bold">Cerrar</button>
+        </div>
+      }
 
       <!-- ================= VÍNCULOS EXISTENTES ================= -->
       <div class="space-y-3">
@@ -251,7 +254,6 @@ export class FederationPanelComponent {
   readonly isSavingOwnUrl = signal(false);
   readonly addressTestResult = signal<ITestConnectionResult | null>(null);
   readonly isTestingAddress = signal(false);
-  readonly pendingInstances = computed(() => this.federation.instances().filter((i) => i.status === 'pending_approval'));
 
   joinForm = { code: '', peerLabel: '', ownLabel: '' };
   linkForm = { localMonitorId: '', remoteMonitorId: '', remoteMonitorLabel: '' };
@@ -417,16 +419,6 @@ export class FederationPanelComponent {
         });
       },
     );
-  }
-
-  onApproveInstance(instance: IFederatedInstance): void {
-    this.federation.approveInstance(instance.id).subscribe({
-      next: () => {
-        this.toast.show(`Solicitud de "${instance.label}" aprobada correctamente.`);
-        this.federation.loadInstances().subscribe();
-      },
-      error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al aprobar la solicitud.')),
-    });
   }
 
   onReactivate(instance: IFederatedInstance): void {
