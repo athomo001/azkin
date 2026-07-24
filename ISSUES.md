@@ -13,6 +13,7 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | Codigo | Titulo | Prioridad | Estado |
 |---|---|---|---|
 | [AZ-049](#az-049-federacion-de-instancias-azkin-independientes-en-distintas-regiones-geograficas-con-vista-de-monitoreo-combinada-y-comunicacion-cifrada-por-enrollment) | Federacion de instancias Azkin independientes en distintas regiones, con vista combinada y comunicacion cifrada por enrollment | Alta | [ ] Abierto |
+| [AZ-050](#az-050-bugs-y-brechas-de-ux-encontrados-en-qa-de-la-federacion-de-instancias-az-049) | Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049) | Alta | [x] Resuelto |
 
 ### UX / Funcionalidad (batch post-auditoria de seguridad)
 
@@ -119,7 +120,7 @@ Feedback de usuario tras la primera revision: el heatmap de bloques por chequeo 
 
 ## AZ-049) Federacion de instancias Azkin independientes en distintas regiones geograficas, con vista de monitoreo combinada y comunicacion cifrada por enrollment
 - Codigo: AZ-049
-- Estado: [~] En progreso — slices 1 y 2 resueltas (enrollment, mTLS, sondeo, vinculos, UI); pendiente solo Informes (AZ-045)
+- Estado: [~] En progreso — slices 1, 2 y 3 resueltas (enrollment, secreto compartido, sondeo, vinculos, UI); pendiente solo Informes (AZ-045). Ver tambien AZ-050 (bugs de QA sobre esta implementacion).
 - Prioridad: Alta
 - Reportado: 2026-07-22
 
@@ -507,3 +508,83 @@ una recomendacion) y queda advertido tanto en `docs/` como en la UI de `/setting
   las demas, ej. la de "Módulo de Mantenimiento" o "Estado DEGRADADO y monitoreo adaptativo") y no tocar la tabla
   de "📚 Documentación" salvo para verificar que el link a `docs/ARCHITECTURE.md` siga siendo valido (ya apunta al
   archivo completo, no a una seccion especifica).
+
+---
+
+## AZ-050) Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049)
+- Codigo: AZ-050
+- Estado: [x] Resuelto (2026-07-24)
+- Prioridad: Alta
+- Reportado: 2026-07-23
+
+### Resolucion
+1. **Boton "Copiar"**: Implementado soporte con API `navigator.clipboard` y fallback con `document.execCommand('copy')` mediante un elemento `<textarea>` temporal para entornos no HTTPS (acceso por IP).
+2. **Modelo de Confianza**: Confirmada y documentada en `ARCHITECTURE.md` la decisión de mantener el modelo "todo o nada" por token de 20 min para cero fricción operativa, permitiendo revocación inmediata desde la UI en todo momento.
+3. **Explorar Monitores & Red**: `normalizeInstanceUrl` soporta deducción inteligente de `http://` para puertos de desarrollo (`:3000`, `:8080`, etc.) y `localhost`. Precarga explícita de monitores locales en `FederationPanelComponent`.
+4. **Selector Por Región / Combinado**: Refactorizado `FederatedComparisonComponent` usando `effect()` reactivo en Angular para actualizar la comparación al cambiar el monitor seleccionado en el dashboard.
+5. **Puerto por Defecto**: Removido el puerto obsoleto `8444` de `testForm.port`, quedando el campo nulo por defecto con placeholder informativo `ej. 3000 o 443`.
+
+### Descripcion
+Sesion de QA sobre la implementacion ya construida de la federacion de instancias (AZ-049, slices
+1-3), probada con dos instancias reales por el usuario. Se encontraron 5 problemas: algunos son
+bugs de implementacion respecto al diseño ya documentado en AZ-049, y otros son brechas entre ese
+diseño (ya deliberado y documentado) y la expectativa del usuario — se listan por separado para no
+mezclar ambos tipos. Esta issue es solo de analisis; no se toco codigo durante la sesion que la
+origino.
+
+### Comportamiento esperado
+1. **Boton "Copiar" del codigo de enrollment.** Al generar el token de invitacion (`onCreateToken()`
+   en `federation-panel.ts`), el boton "Copiar" debe copiar el codigo al portapapeles y mostrar
+   confirmacion visual. Hoy no copia nada ni da ningun feedback de exito/error — bug de
+   implementacion, reproducible siempre, que obliga a seleccionar/copiar el texto a mano.
+2. **Paso de aprobacion al recibir un enrollment.** El usuario esperaba que, al usarse su codigo en
+   otra instancia, la instancia que lo genero mostrara una notificacion de "alguien intenta
+   conectarse" con opcion de aceptar/rechazar, agregandose la conexion sola solo si se acepta. El
+   diseño ya documentado en AZ-049 (`AcceptEnrollmentUseCase`, "Modelo de confianza deliberadamente
+   simple") es intencionalmente "todo o nada": la sola posesion del token de un solo uso ya
+   autoriza el enrollment, sin paso manual adicional. Esto **no es un bug** respecto al diseño ya
+   acordado, pero es una brecha real frente a la expectativa del usuario — pendiente decidir si
+   AZ-049 debe revisarse para sumar un paso de confirmacion manual, o si se deja documentado
+   explicitamente como decision aceptada (con su tradeoff de UX vs. friccion operativa).
+3. **"Explorar monitores" debe mostrar el catalogo de la instancia par.** Probado en una instancia
+   recien enrolada, sin monitores propios, contra un par con 3 monitores configurados — la lista
+   remota (`GET /federation/instances/:id/remote-monitors`) no mostro ningun monitor. Confirmado una
+   sola vez por el usuario; falta verificar si es reproducible siempre o intermitente antes de
+   diagnosticar la causa.
+4. **El selector "Por region / Combinado" debe aparecer en el detalle de un monitor vinculado.** El
+   componente `federated-comparison.ts` no se mostro en ningun monitor durante la prueba. Posible
+   consecuencia directa del punto 3 (sin vinculos de monitor creados, no hay nada que comparar) — a
+   confirmar una vez resuelto el punto 3 y con al menos un vinculo activo.
+5. **El formulario "Probar conectividad" no debe proponer un puerto obsoleto.** Sigue trayendo por
+   defecto el puerto `8444`, remanente del modelo de puerto mTLS dedicado que la slice 3 de AZ-049
+   (2026-07-23) elimino — hoy la federacion corre sobre el mismo puerto que la API/dashboard. Puede
+   confundir al Admin al probar conectividad contra un puerto que ya no aplica.
+
+### Criterios de aceptacion
+1. El boton "Copiar" del codigo de enrollment copia el valor correcto al portapapeles y muestra
+   confirmacion visual, verificado en navegador.
+2. Se toma y documenta una decision explicita sobre el punto 2 (mantener "todo o nada" como esta, o
+   agregar un paso de aceptacion manual del lado receptor) — no debe quedar como ambigüedad
+   implicita entre AZ-049 y esta issue.
+3. "Explorar monitores" muestra el catalogo real de la instancia par (nombre/URL/tipo) apenas hay un
+   enrollment activo, sin necesidad de que la instancia local tenga monitores propios.
+4. El selector "Por region / Combinado" aparece en el detalle de todo monitor que tenga al menos un
+   vinculo activo con otra instancia federada.
+5. El formulario de "Probar conectividad" ya no propone `8444` (u otro puerto dedicado) como valor
+   por defecto.
+
+### Pistas de investigacion
+- `frontend/src/app/features/settings/federation-panel.ts`: `onCreateToken()` (boton copiar),
+  formulario de "Probar conectividad" (puerto por defecto), pantalla "Explorar monitores"
+  (`onCreateLink`, listado de monitores remotos).
+- `backend/src/infrastructure/http/routes/federation.routes.ts` y
+  `GET /federation/instances/:id/remote-monitors` para el punto 3 — revisar filtro de permisos
+  (AZ-008) y si el enrollment recien creado ya tiene todos los datos que ese endpoint necesita.
+- `backend/src/application/use-cases/federation/accept-enrollment.usecase.ts` como punto de partida
+  si se decide agregar un paso de aprobacion manual (punto 2) — hoy autoriza solo por posesion del
+  token.
+- `frontend/src/app/shared/components/federated-comparison.ts` para el punto 4 — confirmar si el
+  componente no se renderiza por falta de vinculos (efecto de AZ-050.3) o por un bug propio en la
+  condicion que decide mostrarlo.
+- Ver AZ-049 (seccion "Progreso slice 2" y "slice 3") para el contexto completo de diseño de la
+  federacion antes de tocar cualquiera de estos puntos.

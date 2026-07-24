@@ -58,7 +58,7 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
           </div>
           <div>
             <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Puerto</label>
-            <input type="number" [(ngModel)]="testForm.port" placeholder="8444"
+            <input type="number" [(ngModel)]="testForm.port" placeholder="ej. 3000 o 443"
               class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-orange-500">
           </div>
         </div>
@@ -151,7 +151,7 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                 <div class="flex justify-between items-start gap-2">
                   <span class="text-xs font-black text-zinc-200">{{ i.label }}</span>
                   <span class="text-[9px] px-2 py-0.5 rounded font-mono uppercase font-bold shrink-0"
-                    [class]="i.status === 'enrolled' ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-zinc-800 border border-zinc-700 text-zinc-500'">
+                    [class]="i.status === 'enrolled' ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/20 text-rose-400'">
                     {{ i.status === 'enrolled' ? 'Enrolada' : 'Revocada' }}
                   </span>
                 </div>
@@ -160,13 +160,16 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                   {{ i.lastSuccessfulSyncAt ? ('Último sondeo: ' + (i.lastSuccessfulSyncAt | date: 'short')) : 'Sin sondeo todavía' }}
                   @if (i.notifiedDown) { <span class="text-rose-400 font-bold"> · sin reportar</span> }
                 </p>
-                @if (i.status === 'enrolled') {
-                  <div class="flex items-center justify-end gap-3 border-t border-zinc-900 pt-2 text-[10px] font-bold">
+                <div class="flex items-center justify-end gap-3 border-t border-zinc-900 pt-2 text-[10px] font-bold">
+                  @if (i.status === 'enrolled') {
                     <button (click)="onTestInstanceConnection(i)" class="text-zinc-400 hover:text-zinc-200 transition-colors">Probar conexión</button>
                     <button (click)="onExploreMonitors(i)" class="text-zinc-400 hover:text-zinc-200 transition-colors">Explorar monitores</button>
-                    <button (click)="onRevoke(i)" class="text-rose-500 hover:text-rose-400 transition-colors">Revocar</button>
-                  </div>
-                }
+                    <button (click)="onRevoke(i)" class="text-amber-500 hover:text-amber-400 transition-colors">Revocar</button>
+                  } @else {
+                    <button (click)="onReactivate(i)" class="text-emerald-400 hover:text-emerald-300 transition-colors">Reactivar</button>
+                  }
+                  <button (click)="onDeleteInstance(i)" class="text-rose-500 hover:text-rose-400 transition-colors">Borrar</button>
+                </div>
               </div>
             }
           </div>
@@ -250,11 +253,12 @@ export class FederationPanelComponent {
   joinForm = { code: '', peerLabel: '', ownLabel: '' };
   linkForm = { localMonitorId: '', remoteMonitorId: '', remoteMonitorLabel: '' };
   networkForm = { ownUrl: '' };
-  testForm = { host: '', port: 8444 };
+  testForm: { host: string; port: number | null } = { host: '', port: null };
 
   constructor() {
     this.federation.loadInstances().subscribe();
     this.federation.loadLinks().subscribe();
+    this.monitorService.loadMonitors().subscribe();
     this.loadOwnUrlStatus();
   }
 
@@ -320,11 +324,45 @@ export class FederationPanelComponent {
     });
   }
 
+  /**
+   * Copia el código de enrollment generado al portapapeles.
+   * Utiliza navigator.clipboard cuando está disponible, con un fallback a document.execCommand
+   * para entornos HTTP o IP directa donde la API Clipboard no es expuesta por el navegador.
+   */
   copyCode(): void {
     const code = this.generatedCode();
     if (!code) return;
-    navigator.clipboard?.writeText(code);
-    this.toast.show('Código copiado al portapapeles.');
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      navigator.clipboard.writeText(code).then(
+        () => this.toast.show('Código copiado al portapapeles.'),
+        () => this.fallbackCopyCode(code)
+      );
+    } else {
+      this.fallbackCopyCode(code);
+    }
+  }
+
+  private fallbackCopyCode(code: string): void {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = code;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textarea);
+
+      if (successful) {
+        this.toast.show('Código copiado al portapapeles.');
+      } else {
+        this.toast.show('No se pudo copiar el código automáticamente.');
+      }
+    } catch {
+      this.toast.show('No se pudo copiar el código automáticamente.');
+    }
   }
 
   onJoin(): void {
@@ -355,11 +393,37 @@ export class FederationPanelComponent {
   onRevoke(instance: IFederatedInstance): void {
     this.confirm.ask(
       '¿Revocar esta federación?',
-      `"${instance.label}" dejará de poder intercambiar datos de inmediato. Esta acción no se puede deshacer.`,
+      `"${instance.label}" dejará de poder intercambiar datos de inmediato.`,
       () => {
         this.federation.revokeInstance(instance.id).subscribe({
           next: () => this.toast.show('Federación revocada.'),
           error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al revocar la federación.')),
+        });
+      },
+    );
+  }
+
+  onReactivate(instance: IFederatedInstance): void {
+    this.federation.reactivateInstance(instance.id).subscribe({
+      next: () => this.toast.show(`Federación con "${instance.label}" reactivada.`),
+      error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al reactivar la federación.')),
+    });
+  }
+
+  onDeleteInstance(instance: IFederatedInstance): void {
+    this.confirm.ask(
+      '¿Eliminar esta instancia federada?',
+      `Se eliminará permanentemente "${instance.label}" y todos los vínculos de monitoreo asociados. Esta acción no se puede deshacer.`,
+      () => {
+        this.federation.deleteInstance(instance.id).subscribe({
+          next: () => {
+            if (this.exploringInstance()?.id === instance.id) {
+              this.exploringInstance.set(null);
+            }
+            this.toast.show('Instancia federada eliminada.');
+            this.federation.loadLinks().subscribe();
+          },
+          error: (err) => this.toast.show(extractApiErrorMessage(err, 'Error al eliminar la instancia federada.')),
         });
       },
     );

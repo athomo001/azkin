@@ -48,6 +48,22 @@ export class MongooseFederatedInstanceRepository implements IFederatedInstanceRe
     return doc ? this.toDomain(doc) : null;
   }
 
+  async reactivate(id: string): Promise<IFederatedInstance | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
+    const doc = await FederatedInstanceModel.findByIdAndUpdate(
+      id,
+      { status: "enrolled", revokedAt: null },
+      { new: true },
+    );
+    return doc ? this.toDomain(doc) : null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    if (!Types.ObjectId.isValid(id)) return false;
+    const res = await FederatedInstanceModel.deleteOne({ _id: id });
+    return (res.deletedCount ?? 0) > 0;
+  }
+
   async findAllActive(): Promise<IFederatedInstance[]> {
     const docs = await FederatedInstanceModel.find({ status: "enrolled" });
     return docs.map((doc) => this.toDomain(doc));

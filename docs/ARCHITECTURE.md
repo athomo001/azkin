@@ -401,7 +401,9 @@ Esto logra combinar 3+ regiones sin necesitar sincronizar un identificador de gr
 instancias que no comparten autoridad. La confianza entre dos instancias ya federadas es "todo o
 nada" (cualquiera puede listar los monitores del otro o pedir heartbeats de cualquiera por id, sin
 ACL granular adicional) — mismo criterio que el modelo multi-admin sin aislamiento por tenant que
-ya usa el resto de Azkin.
+ya usa el resto de Azkin. La sola posesión del token de enrollment de un solo uso (válido por 20 min)
+autoriza la conexión de inmediato ("todo o nada", sin paso de aprobación manual adicional), eliminando
+fricción operativa y colas de espera; cualquier federación no deseada puede revocarse de inmediato con el botón "Revocar".
 
 **Enrollment implementado — sin CA, sin mTLS, por secreto compartido cifrado en reposo:** al
 diseñar la implementación se descartó una CA propia (innecesaria para un máximo de 5 pares) y,

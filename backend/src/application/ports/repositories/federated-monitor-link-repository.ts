@@ -21,5 +21,6 @@ export interface IFederatedMonitorLinkRepository {
   /** Todos los vínculos que apuntan a una instancia dada (para el tick de sondeo). */
   findByFederatedInstanceId(federatedInstanceId: string): Promise<IFederatedMonitorLink[]>;
   delete(id: string): Promise<boolean>;
+  deleteByFederatedInstanceId(federatedInstanceId: string): Promise<number>;
   markSynced(id: string, at: Date): Promise<void>;
 }

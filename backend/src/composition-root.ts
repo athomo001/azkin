@@ -143,6 +143,8 @@ import { TestAddressConnectionUseCase } from "./application/use-cases/federation
 import { TestFederatedInstanceConnectionUseCase } from "./application/use-cases/federation/test-federated-instance-connection.usecase";
 import { ListFederatedInstancesUseCase } from "./application/use-cases/federation/list-federated-instances.usecase";
 import { RevokeFederatedInstanceUseCase } from "./application/use-cases/federation/revoke-federated-instance.usecase";
+import { ReactivateFederatedInstanceUseCase } from "./application/use-cases/federation/reactivate-federated-instance.usecase";
+import { DeleteFederatedInstanceUseCase } from "./application/use-cases/federation/delete-federated-instance.usecase";
 import { ListLocalMonitorsForPeerUseCase } from "./application/use-cases/federation/list-local-monitors-for-peer.usecase";
 import { ListRemoteMonitorsUseCase } from "./application/use-cases/federation/list-remote-monitors.usecase";
 import { CreateFederatedMonitorLinkUseCase } from "./application/use-cases/federation/create-federated-monitor-link.usecase";
@@ -491,7 +493,19 @@ export function buildContainer(env: Env): AppContainer {
   const testAddressConnection = new TestAddressConnectionUseCase();
   const testFederatedInstanceConnection = new TestFederatedInstanceConnectionUseCase(federatedInstancesRepo);
   const listFederatedInstances = new ListFederatedInstancesUseCase(federatedInstancesRepo);
-  const revokeFederatedInstance = new RevokeFederatedInstanceUseCase(federatedInstancesRepo, auditLog);
+  const revokeFederatedInstance = new RevokeFederatedInstanceUseCase(
+    federatedInstancesRepo,
+    auditLog,
+    federationClient,
+    decryptPrivateKey,
+    federationEncryptionKey,
+  );
+  const reactivateFederatedInstance = new ReactivateFederatedInstanceUseCase(federatedInstancesRepo, auditLog);
+  const deleteFederatedInstance = new DeleteFederatedInstanceUseCase(
+    federatedInstancesRepo,
+    federatedMonitorLinksRepo,
+    auditLog,
+  );
   const listLocalMonitorsForPeer = new ListLocalMonitorsForPeerUseCase(monitors);
   const listRemoteMonitors = new ListRemoteMonitorsUseCase(federatedInstancesRepo, federationClient, decryptPrivateKey, federationEncryptionKey);
   const createFederatedMonitorLink = new CreateFederatedMonitorLinkUseCase(
@@ -525,6 +539,8 @@ export function buildContainer(env: Env): AppContainer {
     acceptEnrollment,
     listFederatedInstances,
     revokeFederatedInstance,
+    reactivateFederatedInstance,
+    deleteFederatedInstance,
     listRemoteMonitors,
     createFederatedMonitorLink,
     listFederatedMonitorLinks,
@@ -536,7 +552,11 @@ export function buildContainer(env: Env): AppContainer {
     testFederatedInstanceConnection,
   );
   const respondToSyncRequest = new RespondToSyncRequestUseCase(heartbeats);
-  const federationPeerController = new FederationPeerController(listLocalMonitorsForPeer, respondToSyncRequest);
+  const federationPeerController = new FederationPeerController(
+    listLocalMonitorsForPeer,
+    respondToSyncRequest,
+    federatedInstancesRepo,
+  );
   const maintenanceController = new MaintenanceController(
     createMaintenanceWindow,
     listMaintenanceWindows,

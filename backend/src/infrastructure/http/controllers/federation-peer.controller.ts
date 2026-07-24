@@ -4,15 +4,17 @@ import { ListLocalMonitorsForPeerUseCase } from "../../../application/use-cases/
 import { RespondToSyncRequestUseCase } from "../../../application/use-cases/federation/respond-to-sync-request.usecase";
 import { ValidationError } from "../../../domain/errors/domain-error";
 
+import { IFederatedInstanceRepository } from "../../../application/ports/repositories/federated-instance-repository";
+
 /**
- * Controller del listener mTLS de federación (AZ-049, slice 2) — nunca montado en la app
- * principal. Cada handler asume que `verifyPeerCertificate` ya corrió antes (adjunta
- * `req.federatedInstance`).
+ * Controller de endpoints peer-to-peer de federación (AZ-049 / AZ-050). Cada handler asume que
+ * `verifyPeerSecret` ya corrió antes (adjunta `req.federatedInstance`).
  */
 export class FederationPeerController {
   constructor(
     private readonly listLocalMonitorsForPeerUseCase: ListLocalMonitorsForPeerUseCase,
     private readonly respondToSyncRequestUseCase: RespondToSyncRequestUseCase,
+    private readonly federatedInstancesRepository?: IFederatedInstanceRepository,
   ) {}
 
   monitors = async (_req: Request, res: Response): Promise<void> => {
@@ -28,5 +30,12 @@ export class FederationPeerController {
     const since = typeof req.query.since === "string" && req.query.since ? new Date(req.query.since) : null;
     const heartbeats = await this.respondToSyncRequestUseCase.execute(monitorId, since);
     res.status(200).json(heartbeats);
+  };
+
+  notifyRevocation = async (req: Request, res: Response): Promise<void> => {
+    if (req.federatedInstance && this.federatedInstancesRepository) {
+      await this.federatedInstancesRepository.revoke(req.federatedInstance.id);
+    }
+    res.status(200).json({ ok: true, message: "Revocación registrada" });
   };
 }

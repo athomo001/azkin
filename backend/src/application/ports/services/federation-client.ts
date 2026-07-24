@@ -45,4 +45,6 @@ export interface IFederationClient {
   listRemoteMonitors(peer: RemotePeerAddress): Promise<RemoteMonitorSummary[]>;
   /** `since: null` trae todo el historial disponible (solo ocurre en el primer sondeo). */
   syncHeartbeats(peer: RemotePeerAddress, remoteMonitorId: string, since: Date | null): Promise<SyncedHeartbeat[]>;
+  /** Notifica al par remoto que la federación ha sido revocada de este lado. */
+  notifyRevocation(peer: RemotePeerAddress): Promise<void>;
 }
