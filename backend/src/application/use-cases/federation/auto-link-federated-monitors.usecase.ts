@@ -9,6 +9,7 @@ import { NotFoundError, ValidationError } from "../../../domain/errors/domain-er
 import { getErrorMessage } from "../../services/get-error-message";
 import { logger } from "../../../infrastructure/logger";
 import { MonitorStatus } from "../../../domain/value-objects/monitor-status";
+import { IFederationClient } from "../../ports/services/federation-client";
 
 import { IHeartbeatRepository } from "../../ports/repositories/heartbeat-repository";
 
@@ -56,6 +57,11 @@ export class AutoLinkFederatedMonitorsUseCase {
     private readonly listRemoteMonitors: ListRemoteMonitorsUseCase,
     private readonly auditLog: IAuditLogRepository,
     private readonly heartbeats?: IHeartbeatRepository,
+    // Necesarios para avisarle al par que registre el vínculo recíproco (ver AZ-050): sin esto, el
+    // gráfico "Multi-Nodo" solo aparece del lado que importó el monitor, no del lado de origen.
+    private readonly client?: IFederationClient,
+    private readonly decryptSecret?: (encrypted: string, key: string) => string,
+    private readonly encryptionKey?: string,
   ) {}
 
   async execute(actorId: string, federatedInstanceId: string): Promise<AutoLinkResult> {
@@ -113,6 +119,10 @@ export class AutoLinkFederatedMonitorsUseCase {
                 // Requerido por el schema para type "port" (TCP) — sin esto, crear el monitor
                 // remoto lanzaba ValidationError y abortaba (antes) el resto del lote.
                 port: remote.port ?? undefined,
+                // Marca de origen (ver AZ-050): permite que al eliminar la instancia federada se
+                // borren también los monitores que se auto-importaron por su causa, sin tocar
+                // monitores que el Admin ya tenía manualmente y que solo coincidieron por nombre.
+                importedFromFederatedInstanceId: federatedInstanceId,
                 userId: actorId,
                 interval: 60,
                 retryInterval: 30,
@@ -162,6 +172,22 @@ export class AutoLinkFederatedMonitorsUseCase {
               targetIds: [link.id],
               metadata: { localMonitorId: local.id, federatedInstanceId, autoLinked: true },
             });
+
+            // Avisar al par para que registre el vínculo de vuelta (best-effort: si falla, nuestro
+            // propio vínculo ya quedó creado igual; el par puede recuperarlo con "Auto-vincular").
+            if (this.client && this.decryptSecret && this.encryptionKey) {
+              try {
+                const secret = this.decryptSecret(instance.remoteSecretEncrypted, this.encryptionKey);
+                await this.client.registerPeerLink(
+                  { remoteUrl: instance.remoteUrl, secret },
+                  { localMonitorId: remote.id, remoteMonitorId: local.id, remoteMonitorName: local.name },
+                );
+              } catch (err) {
+                logger.error(
+                  `[Federation] No se pudo registrar el vínculo recíproco en "${instance.label}" para "${remote.name}": ${getErrorMessage(err)}`,
+                );
+              }
+            }
           }
         } catch (err) {
           const message = getErrorMessage(err);

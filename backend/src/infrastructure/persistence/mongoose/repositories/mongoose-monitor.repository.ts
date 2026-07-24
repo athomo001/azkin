@@ -51,6 +51,9 @@ export class MongooseMonitorRepository implements IMonitorRepository {
       integrityVisualMasks: data.integrityVisualMasks,
       integrityAllowedScripts: data.integrityAllowedScripts,
       integrityThreshold: data.integrityThreshold,
+      importedFromFederatedInstanceId: data.importedFromFederatedInstanceId
+        ? new Types.ObjectId(data.importedFromFederatedInstanceId)
+        : null,
     });
     return this.toDomain(doc);
   }
@@ -156,6 +159,8 @@ export class MongooseMonitorRepository implements IMonitorRepository {
       snmpV3AuthKey: doc.snmpV3AuthKey,
       snmpV3PrivProtocol: doc.snmpV3PrivProtocol as any,
       snmpV3PrivKey: doc.snmpV3PrivKey,
+
+      importedFromFederatedInstanceId: doc.importedFromFederatedInstanceId ? String(doc.importedFromFederatedInstanceId) : null,
 
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,

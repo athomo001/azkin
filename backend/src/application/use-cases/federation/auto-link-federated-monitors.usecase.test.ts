@@ -329,6 +329,77 @@ test("AutoLinkFederatedMonitorsUseCase propaga el puerto remoto para poder crear
   assert.equal(createdMonitors[0].port, 3306);
 });
 
+test("AutoLinkFederatedMonitorsUseCase registra el vínculo recíproco en el par (AZ-050: sin esto el gráfico Multi-Nodo solo aparecía del lado que importó)", async () => {
+  const federatedInstances: IFederatedInstanceRepository = {
+    findById: async () => makeInstance(),
+    findAll: async () => [],
+    countActive: async () => 1,
+    revoke: async () => null,
+    findAllActive: async () => [],
+    markSyncSuccess: async () => undefined,
+    setNotifiedDown: async () => undefined,
+    create: async () => makeInstance(),
+  };
+
+  const monitors: IMonitorRepository = {
+    findAll: async () => [],
+    create: async (data) => ({ id: "local-google", ...data, isActive: true } as IMonitor),
+    findById: async () => null,
+    update: async () => null,
+    delete: async () => true,
+    bulkDelete: async () => 0,
+  };
+
+  const links: IFederatedMonitorLinkRepository = {
+    create: async (data) => ({ id: `link-${data.localMonitorId}`, ...data } as IFederatedMonitorLink),
+    findByFederatedInstanceId: async () => [],
+    findByLocalMonitorId: async () => [],
+    markSynced: async () => undefined,
+    delete: async () => true,
+    deleteByFederatedInstanceId: async () => 0,
+  };
+
+  const listRemoteMonitors = {
+    execute: async () => [
+      { id: "remote-google-on-node1", name: "google", type: "http", target: "https://google.com", lastStatus: 1, lastPing: 100 },
+    ],
+  } as unknown as ListRemoteMonitorsUseCase;
+
+  const auditLog: IAuditLogRepository = {
+    record: async (data) => ({ id: "audit-1", createdAt: new Date(), ...data }),
+    listRecent: async () => [],
+    listAll: async () => [],
+    deleteAll: async () => 0,
+  };
+
+  const registerCalls: any[] = [];
+  const client = {
+    registerPeerLink: async (peer: any, input: any) => {
+      registerCalls.push({ peer, input });
+    },
+  } as any;
+
+  const useCase = new AutoLinkFederatedMonitorsUseCase(
+    federatedInstances,
+    links,
+    monitors,
+    listRemoteMonitors,
+    auditLog,
+    undefined,
+    client,
+    (enc: string) => enc,
+    "identity-key",
+  );
+
+  await useCase.execute("admin-1", "instance-1");
+
+  assert.equal(registerCalls.length, 1);
+  assert.equal(registerCalls[0].peer.remoteUrl, "https://node1.example.com");
+  assert.equal(registerCalls[0].input.localMonitorId, "remote-google-on-node1");
+  assert.equal(registerCalls[0].input.remoteMonitorId, "local-google");
+  assert.equal(registerCalls[0].input.remoteMonitorName, "google");
+});
+
 test("AutoLinkFederatedMonitorsUseCase previene creaciones duplicadas ante ejecuciones concurrentes", async () => {
   const createdMonitors: CreateMonitorData[] = [];
   const localList: IMonitor[] = [];

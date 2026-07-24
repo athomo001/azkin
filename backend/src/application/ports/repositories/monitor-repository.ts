@@ -41,6 +41,7 @@ export interface CreateMonitorData {
   integrityVisualMasks?: { x: number; y: number; width: number; height: number }[];
   integrityAllowedScripts?: string[];
   integrityThreshold?: number;
+  importedFromFederatedInstanceId?: string | null;
 }
 
 export interface UpdateMonitorData {

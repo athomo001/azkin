@@ -426,9 +426,10 @@ una recomendacion) y queda advertido tanto en `docs/` como en la UI de `/setting
 
 ## AZ-050) Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049)
 - Codigo: AZ-050
-- Estado: [~] En progreso — bug critico de auto-vinculacion diagnosticado y corregido (2026-07-24),
-  pendiente de verificacion en vivo por el usuario con datos reales (no se marca "Resuelto" hasta
-  confirmar en un despliegue real con 2+ instancias, ver nota mas abajo).
+- Estado: [~] En progreso — 2 rondas de bugs criticos de QA en vivo diagnosticados y corregidos
+  (2026-07-24): auto-vinculacion parcial/PENDING, asimetria del grafico Multi-Nodo, y borrado de
+  instancia sin cascada ni aviso al par. No se marca "Resuelto" hasta que el usuario confirme en un
+  despliegue real con 2+ instancias (ver notas mas abajo).
 - Prioridad: Alta-CRITICA
 - Reportado: 2026-07-23
 
@@ -522,3 +523,59 @@ origino.
   condicion que decide mostrarlo.
 - Ver AZ-049 (seccion "Progreso slice 2" y "slice 3") para el contexto completo de diseño de la
   federacion antes de tocar cualquiera de estos puntos.
+
+### Nota (2026-07-24, segunda ronda) — 3 hallazgos de QA en vivo con 2 nodos reales, corregidos
+
+1. **El grafico/comparativa Multi-Nodo solo aparecia del lado que importo el monitor, no del lado de
+   origen.** Causa: `FederatedMonitorLink` se ancla solo en el monitor LOCAL de quien crea el vinculo
+   (diseño deliberado de AZ-049, "pares, no grupo con id sincronizado"), y los dos `autoLink` (uno por
+   cada lado, disparados por callbacks independientes al enrolar) corren en paralelo sin coordinacion
+   — si el lado B importa un monitor de A antes de que el propio auto-link de A alcance a ver la copia
+   de B en el catalogo remoto, A se queda sin vinculo propio para siempre (no hay reintento
+   automatico). Corregido: al crear un vinculo por auto-vinculacion, la instancia que importa ahora
+   avisa al par vía un nuevo endpoint P2P (`POST /federation/peer/links`,
+   `RegisterPeerMonitorLinkUseCase`) para que este cree su propio vinculo reciproco de inmediato, sin
+   depender de que su propio ciclo de descubrimiento alcance a correr despues. Cubierto con test en
+   `auto-link-federated-monitors.usecase.test.ts` y `register-peer-monitor-link.usecase.test.ts`.
+2. **Borrar una instancia federada no eliminaba los monitores auto-importados desde ella, y el otro
+   nodo no se enteraba.** `DeleteFederatedInstanceUseCase` solo borraba el registro de la instancia y
+   sus `FederatedMonitorLink`, dejando huerfanos los monitores creados por auto-vinculacion (ya
+   indistinguibles de uno manual). Corregido: (a) los monitores llevan ahora una marca de origen
+   (`Monitor.importedFromFederatedInstanceId`, seteada solo al crear un monitor nuevo por
+   auto-vinculacion — nunca cuando el auto-link solo hizo *match* con un monitor manual preexistente
+   por nombre/target) y `DeleteFederatedInstanceUseCase` borra en cascada (reutilizando
+   `DeleteMonitorUseCase`, con su propio borrado de heartbeats y desagendamiento) solo esos monitores;
+   (b) al eliminar, se notifica al par remoto (mismo mecanismo P2P que ya usaba "Revocar",
+   `notifyRevocation`) para que su lado tambien marque la federacion como terminada de inmediato, en
+   vez de seguir sondeando un vinculo muerto indefinidamente. Cubierto con test nuevo en
+   `delete-federated-instance.usecase.test.ts`.
+3. **Pregunta (no bug): si Google cae en el Nodo 1 pero sigue arriba en el Nodo 2, ¿como se ve eso
+   claramente?** Ya esta resuelto por la vista "Por Nodo" (`federated-comparison.ts`): cada nodo
+   (local + cada region) tiene su propia tarjeta con `<app-badge-status>`, que muestra una pildora
+   roja pulsante "CAIDO" para DOWN vs. una pildora verde "OPERATIVO" para UP — no hay que interpretar
+   el grafico, cada tarjeta ya dice explicitamente el estado de ESE nodo especifico. No requirio
+   cambio de codigo, solo confirmacion.
+
+Validado con `tsc --noEmit` (backend) y la suite completa de tests del backend (234/234). Sigue
+pendiente la verificacion en vivo del usuario con los 2 nodos reales para estos 2 fixes nuevos.
+
+### Nota (2026-07-24, tercera ronda) — alcance exacto de "borrar" confirmado + gap de mesh 3+ nodos corregido
+
+Pregunta del usuario para confirmar el alcance con topologia de 3-4 nodos: al borrar la federacion
+en el Nodo 2 (ej. su vinculo con el Nodo 1), ¿se avisa solo al Nodo 1 o "a los demas" (Nodo 3, Nodo
+4)? Confirmado y verificado contra el codigo: **solo al par especifico que se esta borrando**. Cada
+enrollment es independiente (par a par, ver AZ-049) — borrar la federacion Nodo2↔Nodo1 no notifica,
+no revoca ni toca en absoluto la federacion Nodo2↔Nodo3 ni Nodo2↔Nodo4, que siguen funcionando con
+sus propios datos intactos. Igualmente confirmado: si un nodo simplemente se cae/apaga (no se borra
+la federacion), no se elimina nada — eso ya era el comportamiento existente (`RunFederationSyncUseCase`
+solo marca "sin datos de [instancia] desde [hora]" tras el umbral configurado y notifica, sin borrar
+ni revocar).
+
+Al verificar este alcance se encontro un gap real en el fix de la ronda anterior: si un monitor
+auto-importado desde el Nodo 1 tambien quedo vinculado a un tercer nodo (Nodo 3) como parte del mismo
+grupo de monitoreo equivalente (topologia de malla completa), borrar la federacion con el Nodo 1
+borraba el monitor pero dejaba huerfano el `FederatedMonitorLink` hacia el Nodo 3 (apuntando a un
+`localMonitorId` que ya no existe). Corregido en `DeleteFederatedInstanceUseCase`: antes de borrar
+cada monitor auto-importado, se limpian primero todos sus vinculos con cualquier otra instancia
+federada, no solo con la que se esta eliminando. Cubierto con test nuevo en
+`delete-federated-instance.usecase.test.ts`. Suite completa: 235/235.

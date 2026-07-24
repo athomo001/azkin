@@ -2,6 +2,7 @@
 import { Request, Response } from "express";
 import { ListLocalMonitorsForPeerUseCase } from "../../../application/use-cases/federation/list-local-monitors-for-peer.usecase";
 import { RespondToSyncRequestUseCase } from "../../../application/use-cases/federation/respond-to-sync-request.usecase";
+import { RegisterPeerMonitorLinkUseCase } from "../../../application/use-cases/federation/register-peer-monitor-link.usecase";
 import { ValidationError } from "../../../domain/errors/domain-error";
 
 import { IFederatedInstanceRepository } from "../../../application/ports/repositories/federated-instance-repository";
@@ -15,11 +16,24 @@ export class FederationPeerController {
     private readonly listLocalMonitorsForPeerUseCase: ListLocalMonitorsForPeerUseCase,
     private readonly respondToSyncRequestUseCase: RespondToSyncRequestUseCase,
     private readonly federatedInstancesRepository?: IFederatedInstanceRepository,
+    private readonly registerPeerMonitorLinkUseCase?: RegisterPeerMonitorLinkUseCase,
   ) {}
 
   monitors = async (_req: Request, res: Response): Promise<void> => {
     const monitors = await this.listLocalMonitorsForPeerUseCase.execute();
     res.status(200).json(monitors);
+  };
+
+  registerLink = async (req: Request, res: Response): Promise<void> => {
+    if (!req.federatedInstance || !this.registerPeerMonitorLinkUseCase) {
+      throw new ValidationError("No se pudo registrar el vínculo recíproco");
+    }
+    const link = await this.registerPeerMonitorLinkUseCase.execute(req.federatedInstance, {
+      localMonitorId: req.body.localMonitorId,
+      remoteMonitorId: req.body.remoteMonitorId,
+      remoteMonitorName: req.body.remoteMonitorName,
+    });
+    res.status(201).json({ id: link.id });
   };
 
   sync = async (req: Request, res: Response): Promise<void> => {
