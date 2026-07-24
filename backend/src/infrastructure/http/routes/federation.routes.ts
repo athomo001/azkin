@@ -27,6 +27,7 @@ export function federationRoutes(controller: FederationController, authGuard: Re
   router.post("/tokens", authGuard, requireRole("admin"), asyncHandler(controller.createToken));
   router.post("/instances", authGuard, requireRole("admin"), validateBody(joinFederationSchema), asyncHandler(controller.join));
   router.get("/instances", authGuard, requireRole("admin"), asyncHandler(controller.list));
+  router.post("/instances/:id/approve", authGuard, requireRole("admin"), asyncHandler(controller.approveInstance));
   router.post("/instances/:id/revoke", authGuard, requireRole("admin"), asyncHandler(controller.revoke));
   router.post("/instances/:id/reactivate", authGuard, requireRole("admin"), asyncHandler(controller.reactivate));
   router.delete("/instances/:id", authGuard, requireRole("admin"), asyncHandler(controller.deleteInstance));
@@ -38,6 +39,7 @@ export function federationRoutes(controller: FederationController, authGuard: Re
   router.post("/instances/:id/test-connection", authGuard, requireRole("admin"), asyncHandler(controller.testInstanceConnection));
 
   router.get("/instances/:id/remote-monitors", authGuard, requireRole("admin"), asyncHandler(controller.remoteMonitors));
+  router.post("/instances/:id/auto-link", authGuard, requireRole("admin"), asyncHandler(controller.autoLinkMonitors));
   router.post("/links", authGuard, requireRole("admin"), validateBody(createFederatedMonitorLinkSchema), asyncHandler(controller.createLink));
   router.get("/links", authGuard, requireRole("admin"), asyncHandler(controller.listLinks));
   router.delete("/links/:id", authGuard, requireRole("admin"), asyncHandler(controller.deleteLink));

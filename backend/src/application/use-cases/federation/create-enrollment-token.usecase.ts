@@ -47,7 +47,7 @@ export class CreateEnrollmentTokenUseCase {
 
     await this.tokens.create({ tokenHash, createdById: input.actorId, expiresAt });
 
-    const code = Buffer.from(JSON.stringify({ url: ownUrl, token })).toString("base64url");
+    const code = Buffer.from(JSON.stringify({ url: ownUrl, token, label: ownUrl })).toString("base64url");
 
     await this.auditLog.record({
       actorId: input.actorId,

@@ -58,6 +58,19 @@ export class CreateFederatedMonitorLinkUseCase {
       metadata: { localMonitorId: input.localMonitorId, federatedInstanceId: input.federatedInstanceId },
     });
 
+    // Desencadenar la sincronización inmediata si se proporciona la función de sync
+    if (this.triggerSync) {
+      this.triggerSync().catch(() => {
+        // Silenciar errores asíncronos para no bloquear la respuesta de la API al crear el vínculo
+      });
+    }
+
     return link;
+  }
+
+  private triggerSync?: () => Promise<void>;
+
+  setSyncTrigger(fn: () => Promise<void>): void {
+    this.triggerSync = fn;
   }
 }

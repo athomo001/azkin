@@ -5,7 +5,7 @@ export interface FederatedInstanceDoc {
   label: string;
   remoteUrl: string;
   remoteSecretEncrypted: string;
-  status: "enrolled" | "revoked";
+  status: "enrolled" | "revoked" | "pending_approval";
   createdById: Types.ObjectId;
   createdAt: Date;
   revokedAt: Date | null;
@@ -18,7 +18,7 @@ const federatedInstanceSchema = new Schema<FederatedInstanceDoc>(
     label: { type: String, required: true },
     remoteUrl: { type: String, required: true },
     remoteSecretEncrypted: { type: String, required: true },
-    status: { type: String, enum: ["enrolled", "revoked"], default: "enrolled" },
+    status: { type: String, enum: ["enrolled", "revoked", "pending_approval"], default: "enrolled" },
     createdById: { type: Schema.Types.ObjectId, ref: "User", required: true },
     revokedAt: { type: Date, default: null },
     lastSuccessfulSyncAt: { type: Date, default: null },

@@ -137,6 +137,7 @@ import { ListAuditLogUseCase } from "./application/use-cases/audit-log/list-audi
 import { CreateEnrollmentTokenUseCase } from "./application/use-cases/federation/create-enrollment-token.usecase";
 import { JoinFederationUseCase } from "./application/use-cases/federation/join-federation.usecase";
 import { AcceptEnrollmentUseCase } from "./application/use-cases/federation/accept-enrollment.usecase";
+import { ApproveFederatedInstanceUseCase } from "./application/use-cases/federation/approve-federated-instance.usecase";
 import { GetFederationOwnUrlUseCase } from "./application/use-cases/federation/get-federation-own-url.usecase";
 import { SetFederationOwnUrlUseCase } from "./application/use-cases/federation/set-federation-own-url.usecase";
 import { TestAddressConnectionUseCase } from "./application/use-cases/federation/test-address-connection.usecase";
@@ -148,6 +149,7 @@ import { DeleteFederatedInstanceUseCase } from "./application/use-cases/federati
 import { ListLocalMonitorsForPeerUseCase } from "./application/use-cases/federation/list-local-monitors-for-peer.usecase";
 import { ListRemoteMonitorsUseCase } from "./application/use-cases/federation/list-remote-monitors.usecase";
 import { CreateFederatedMonitorLinkUseCase } from "./application/use-cases/federation/create-federated-monitor-link.usecase";
+import { AutoLinkFederatedMonitorsUseCase } from "./application/use-cases/federation/auto-link-federated-monitors.usecase";
 import { ListFederatedMonitorLinksUseCase } from "./application/use-cases/federation/list-federated-monitor-links.usecase";
 import { DeleteFederatedMonitorLinkUseCase } from "./application/use-cases/federation/delete-federated-monitor-link.usecase";
 import { RunFederationSyncUseCase } from "./application/use-cases/federation/run-federation-sync.usecase";
@@ -488,6 +490,7 @@ export function buildContainer(env: Env): AppContainer {
     encryptPrivateKey,
     federationEncryptionKey,
   );
+  const approveFederatedInstance = new ApproveFederatedInstanceUseCase(federatedInstancesRepo, auditLog);
   const getFederationOwnUrl = new GetFederationOwnUrlUseCase(federationSettingsRepo);
   const setFederationOwnUrl = new SetFederationOwnUrlUseCase(federationSettingsRepo, auditLog);
   const testAddressConnection = new TestAddressConnectionUseCase();
@@ -533,16 +536,28 @@ export function buildContainer(env: Env): AppContainer {
     decryptPrivateKey,
     federationEncryptionKey,
   );
+  const autoLinkFederatedMonitors = new AutoLinkFederatedMonitorsUseCase(
+    federatedInstancesRepo,
+    federatedMonitorLinksRepo,
+    monitors,
+    listRemoteMonitors,
+    auditLog,
+  );
+  autoLinkFederatedMonitors.setSyncTrigger(() => runFederationSync.execute());
+  createFederatedMonitorLink.setSyncTrigger(() => runFederationSync.execute());
+
   const federationController = new FederationController(
     createEnrollmentToken,
     joinFederation,
     acceptEnrollment,
+    approveFederatedInstance,
     listFederatedInstances,
     revokeFederatedInstance,
     reactivateFederatedInstance,
     deleteFederatedInstance,
     listRemoteMonitors,
     createFederatedMonitorLink,
+    autoLinkFederatedMonitors,
     listFederatedMonitorLinks,
     deleteFederatedMonitorLink,
     getFederatedComparison,
