@@ -16,11 +16,13 @@ export interface FederatedComparisonRegion {
   status: MonitorStatus | null;
   ping: number | null;
   lastUpdatedAt: string | null;
+  history: { timestamp: string; ping: number | null }[];
 }
 
 export interface FederatedComparisonResult {
   localMonitorId: string;
   local: { status: MonitorStatus | null; ping: number | null };
+  localHistory: { timestamp: string; ping: number | null }[];
   regions: FederatedComparisonRegion[];
   /**
    * Valor derivado, nunca una medición directa — la UI debe etiquetarlo explícitamente como
@@ -57,12 +59,19 @@ export class GetFederatedComparisonUseCase {
     const localSummary = summaries[localMonitorId];
     const local = { status: localSummary?.lastStatus ?? null, ping: localSummary?.lastPing ?? null };
 
+    // Obtener últimos heartbeats locales (últimos 30 min)
+    const localBeats = await this.heartbeats.findHistory(localMonitorId, 30 * 60 * 1000);
+    const localHistory = localBeats.map((b) => ({ timestamp: b.timestamp.toISOString(), ping: b.ping }));
+
     const links = await this.links.findByLocalMonitorId(localMonitorId);
     const regions: FederatedComparisonRegion[] = [];
 
     for (const link of links) {
       const instance = await this.federatedInstances.findById(link.federatedInstanceId);
       const latest = await this.federatedHeartbeats.findLatest(link.id);
+      const historyBeats = await this.federatedHeartbeats.findHistory(link.id, 20);
+      const history = historyBeats.map((b) => ({ timestamp: b.timestamp.toISOString(), ping: b.ping }));
+
       regions.push({
         linkId: link.id,
         federatedInstanceId: link.federatedInstanceId,
@@ -70,11 +79,12 @@ export class GetFederatedComparisonUseCase {
         status: (latest?.status as MonitorStatus | undefined) ?? null,
         ping: latest?.ping ?? null,
         lastUpdatedAt: latest ? latest.timestamp.toISOString() : null,
+        history,
       });
     }
 
     const combinedStatus = combineMonitorStatus([local.status, ...regions.map((r) => r.status)]);
 
-    return { localMonitorId, local, regions, combinedStatus };
+    return { localMonitorId, local, localHistory, regions, combinedStatus };
   }
 }

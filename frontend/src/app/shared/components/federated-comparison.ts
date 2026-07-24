@@ -144,25 +144,39 @@ export class FederatedComparisonComponent implements OnDestroy {
   }
 
   private updateHistoryData(data: IFederatedComparisonResult): void {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    if (data.localHistory && data.localHistory.length > 0) {
+      this.historyTimestamps = data.localHistory.map(h => new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      this.localHistory = data.localHistory.map(h => h.ping);
 
-    if (this.historyTimestamps.length > 20) {
-      this.historyTimestamps.shift();
-      this.localHistory.shift();
-      for (const [k, v] of this.regionHistories.entries()) {
-        v.shift();
+      for (const r of data.regions) {
+        if (r.history && r.history.length > 0) {
+          const rPings = r.history.map(h => h.ping);
+          this.regionHistories.set(r.federatedInstanceLabel, rPings);
+        } else {
+          this.regionHistories.set(r.federatedInstanceLabel, [r.ping]);
+        }
       }
-    }
+    } else {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    this.historyTimestamps.push(timeStr);
-    this.localHistory.push(data.local.ping);
-
-    for (const r of data.regions) {
-      if (!this.regionHistories.has(r.federatedInstanceLabel)) {
-        this.regionHistories.set(r.federatedInstanceLabel, new Array(this.historyTimestamps.length - 1).fill(null));
+      if (this.historyTimestamps.length > 20) {
+        this.historyTimestamps.shift();
+        this.localHistory.shift();
+        for (const [k, v] of this.regionHistories.entries()) {
+          v.shift();
+        }
       }
-      this.regionHistories.get(r.federatedInstanceLabel)!.push(r.ping);
+
+      this.historyTimestamps.push(timeStr);
+      this.localHistory.push(data.local.ping);
+
+      for (const r of data.regions) {
+        if (!this.regionHistories.has(r.federatedInstanceLabel)) {
+          this.regionHistories.set(r.federatedInstanceLabel, new Array(this.historyTimestamps.length - 1).fill(null));
+        }
+        this.regionHistories.get(r.federatedInstanceLabel)!.push(r.ping);
+      }
     }
   }
 
