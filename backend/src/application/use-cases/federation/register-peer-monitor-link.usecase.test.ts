@@ -76,6 +76,48 @@ test("RegisterPeerMonitorLinkUseCase crea el vinculo reciproco con la etiqueta p
   assert.equal(createdLinks[0].createdById, caller.createdById);
 });
 
+test("RegisterPeerMonitorLinkUseCase avisa por Socket.IO al Admin de este lado (AZ-050: esta llamada la origina el par, no un request del propio Admin)", async () => {
+  const links: IFederatedMonitorLinkRepository = {
+    create: async (data) => ({ id: "link-1", ...data } as IFederatedMonitorLink),
+    findAll: async () => [],
+    findByFederatedInstanceId: async () => [],
+    findByLocalMonitorId: async () => [],
+    findById: async () => null,
+    markSynced: async () => undefined,
+    delete: async () => true,
+    deleteByFederatedInstanceId: async () => 0,
+  };
+  const monitors: IMonitorRepository = {
+    findAll: async () => [],
+    findById: async (id) => (id === "google-on-node1" ? ({ id } as IMonitor) : null),
+    create: async () => ({}) as IMonitor,
+    update: async () => null,
+    delete: async () => true,
+    bulkDelete: async () => 0,
+  };
+  const auditLog: IAuditLogRepository = {
+    record: async (data) => ({ id: "audit-1", createdAt: new Date(), ...data }),
+    listRecent: async () => [],
+    listAll: async () => [],
+    deleteAll: async () => 0,
+  };
+  const publishCalls: string[] = [];
+  const realtimePublisher = {
+    publishHeartbeat: () => {},
+    publishFederationEnrolled: () => {},
+    publishFederationLinksUpdated: (userId: string) => {
+      publishCalls.push(userId);
+    },
+  };
+
+  const useCase = new RegisterPeerMonitorLinkUseCase(links, monitors, auditLog, realtimePublisher);
+  const caller = makeCaller();
+
+  await useCase.execute(caller, { localMonitorId: "google-on-node1", remoteMonitorId: "google-on-node2", remoteMonitorName: "google" });
+
+  assert.deepEqual(publishCalls, [caller.createdById]);
+});
+
 test("RegisterPeerMonitorLinkUseCase lanza NotFoundError si el monitor local no existe", async () => {
   const links: IFederatedMonitorLinkRepository = {
     create: async (data) => ({ id: "link-1", ...data } as IFederatedMonitorLink),

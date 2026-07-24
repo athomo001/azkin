@@ -552,6 +552,7 @@ export function buildContainer(env: Env): AppContainer {
     federationClient,
     decryptPrivateKey,
     federationEncryptionKey,
+    publisher,
   );
   autoLinkFederatedMonitors.setSyncTrigger(() => runFederationSync.execute());
   createFederatedMonitorLink.setSyncTrigger(() => runFederationSync.execute());
@@ -582,7 +583,7 @@ export function buildContainer(env: Env): AppContainer {
     testFederatedInstanceConnection,
   );
   const respondToSyncRequest = new RespondToSyncRequestUseCase(heartbeats);
-  const registerPeerMonitorLink = new RegisterPeerMonitorLinkUseCase(federatedMonitorLinksRepo, monitors, auditLog);
+  const registerPeerMonitorLink = new RegisterPeerMonitorLinkUseCase(federatedMonitorLinksRepo, monitors, auditLog, publisher);
   const federationPeerController = new FederationPeerController(
     listLocalMonitorsForPeer,
     respondToSyncRequest,

@@ -54,6 +54,11 @@ export class SocketIoGateway implements IRealtimePublisher {
     this.io.emit("federation:enrolled", { label });
   }
 
+  publishFederationLinksUpdated(userId: string): void {
+    this.io.to(userId.toString()).emit("federation:links-updated", {});
+    this.io.emit("federation:links-updated", {});
+  }
+
   private extractToken(socket: Socket): string {
     const fromAuth = socket.handshake.auth?.token;
     if (typeof fromAuth === "string" && fromAuth.length > 0) return fromAuth;

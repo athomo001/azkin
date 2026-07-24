@@ -124,6 +124,7 @@ export class FederationController {
       req.userRole!,
       req.permissions ?? [],
       req.params.monitorId as string,
+      parseRangeMs(req.query.rangeMs),
     );
     res.status(200).json(result);
   };
@@ -150,4 +151,17 @@ export class FederationController {
     const result = await this.testFederatedInstanceConnectionUseCase.execute(req.params.id as string);
     res.status(200).json(result);
   };
+}
+
+const MIN_RANGE_MS = 60 * 1000; // 1 minuto
+const MAX_RANGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 días — mismo tope que el TTL de heartbeats
+const DEFAULT_RANGE_MS = 30 * 60 * 1000;
+
+/** Acepta `?rangeMs=<numero>` para el selector 5m/30m/1h/.../30d de la comparación federada; ante
+ * cualquier valor ausente o inválido, usa el default de 30 min de siempre (AZ-050). */
+function parseRangeMs(raw: unknown): number {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const parsed = typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_RANGE_MS;
+  return Math.min(MAX_RANGE_MS, Math.max(MIN_RANGE_MS, parsed));
 }

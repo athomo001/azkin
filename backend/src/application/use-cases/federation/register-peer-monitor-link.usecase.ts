@@ -2,6 +2,7 @@
 import { IFederatedMonitorLinkRepository } from "../../ports/repositories/federated-monitor-link-repository";
 import { IMonitorRepository } from "../../ports/repositories/monitor-repository";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
+import { IRealtimePublisher } from "../../ports/services/realtime-publisher";
 import { IFederatedInstance } from "../../../domain/entities/federated-instance";
 import { IFederatedMonitorLink } from "../../../domain/entities/federated-monitor-link";
 import { NotFoundError } from "../../../domain/errors/domain-error";
@@ -30,6 +31,10 @@ export class RegisterPeerMonitorLinkUseCase {
     private readonly links: IFederatedMonitorLinkRepository,
     private readonly monitors: IMonitorRepository,
     private readonly auditLog: IAuditLogRepository,
+    // Avisa por Socket.IO al Admin de ESTE lado que apareció un vínculo nuevo (ver AZ-050): esta
+    // llamada la origina el par, nunca un request HTTP del propio Admin, así que sin esto su
+    // dashboard nunca se entera hasta que recargue manualmente.
+    private readonly realtimePublisher?: IRealtimePublisher,
   ) {}
 
   async execute(caller: IFederatedInstance, input: RegisterPeerMonitorLinkInput): Promise<IFederatedMonitorLink> {
@@ -53,6 +58,8 @@ export class RegisterPeerMonitorLinkUseCase {
       targetIds: [link.id],
       metadata: { localMonitorId: input.localMonitorId, federatedInstanceId: caller.id, registeredByPeer: true },
     });
+
+    this.realtimePublisher?.publishFederationLinksUpdated(caller.createdById);
 
     return link;
   }

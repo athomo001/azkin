@@ -17,6 +17,16 @@ function statusLabel(status: number | null): MonitorStatusLabel {
   }
 }
 
+interface RangeOption {
+  label: string;
+  durationMs: number;
+}
+
+/** Frecuencia de refresco automático mientras el panel está montado — evita que el gráfico se vea
+ * "congelado" con el snapshot del primer fetch (ver AZ-050): antes solo se pedía una vez al abrir
+ * el monitor y nunca se volvía a actualizar. */
+const AUTO_REFRESH_MS = 30 * 1000;
+
 /**
  * Componente de Comparación Visual Multi-Nodo (AZ-049 / AZ-050).
  * Muestra el gráfico comparativo en tiempo real con las curvas de latencia de cada nodo federado
@@ -58,6 +68,18 @@ function statusLabel(status: number | null): MonitorStatusLabel {
                 class="px-3 py-1 rounded-lg text-[10px] font-bold transition-all">Estado Combinado</button>
             </div>
           </div>
+        </div>
+
+        <!-- Selector de rango del historial (mismo set que el gráfico principal de latencia) -->
+        <div class="flex flex-wrap gap-1">
+          @for (opt of rangeOptions; track opt.durationMs) {
+            <button
+              (click)="onSelectRange(opt.durationMs)"
+              class="px-2 py-1 rounded-md border text-[10px] font-black tracking-wide transition-colors"
+              [class]="selectedRangeMs() === opt.durationMs ? 'border-orange-500/50 bg-orange-500/15 text-orange-300' : 'border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-zinc-300'">
+              {{ opt.label }}
+            </button>
+          }
         </div>
 
         <!-- Contenedor del Gráfico ECharts Multi-Línea -->
@@ -114,33 +136,67 @@ export class FederatedComparisonComponent implements OnDestroy {
   readonly result = signal<IFederatedComparisonResult | null>(null);
   readonly hasData = signal<boolean>(false);
 
+  readonly rangeOptions: RangeOption[] = [
+    { label: '5m', durationMs: 5 * 60 * 1000 },
+    { label: '30m', durationMs: 30 * 60 * 1000 },
+    { label: '1h', durationMs: 60 * 60 * 1000 },
+    { label: '3h', durationMs: 3 * 60 * 60 * 1000 },
+    { label: '6h', durationMs: 6 * 60 * 60 * 1000 },
+    { label: '12h', durationMs: 12 * 60 * 60 * 1000 },
+    { label: '24h', durationMs: 24 * 60 * 60 * 1000 },
+    { label: '48h', durationMs: 48 * 60 * 60 * 1000 },
+    { label: '7d', durationMs: 7 * 24 * 60 * 60 * 1000 },
+    { label: '30d', durationMs: 30 * 24 * 60 * 60 * 1000 },
+  ];
+  readonly selectedRangeMs = signal(this.rangeOptions[1].durationMs);
+
   private chartInstance: echarts.ECharts | null = null;
   private historyTimestamps: string[] = [];
   private localHistory: (number | null)[] = [];
   private regionHistories: Map<string, (number | null)[]> = new Map();
+  private refreshTimer?: ReturnType<typeof setInterval>;
 
   constructor() {
     effect(() => {
       const id = this.monitorId();
-      if (!id) {
+      // Registrar dependencia reactiva: cambiar el rango debe volver a pedir datos.
+      this.selectedRangeMs();
+      this.fetchComparison(id);
+    });
+
+    // El fetch inicial trae un snapshot; sin refresco periódico el gráfico queda "congelado" con
+    // ese snapshot para siempre mientras el panel sigue montado (ver AZ-050).
+    this.refreshTimer = setInterval(() => this.fetchComparison(this.monitorId()), AUTO_REFRESH_MS);
+  }
+
+  private fetchComparison(id: string | undefined): void {
+    if (!id) {
+      this.result.set(null);
+      this.hasData.set(false);
+      return;
+    }
+
+    this.federation.getComparison(id, this.selectedRangeMs()).subscribe({
+      next: (data) => {
+        this.result.set(data);
+        this.hasData.set(true);
+        this.updateHistoryData(data);
+        setTimeout(() => this.renderChart(), 50);
+      },
+      error: () => {
         this.result.set(null);
         this.hasData.set(false);
-        return;
-      }
-
-      this.federation.getComparison(id).subscribe({
-        next: (data) => {
-          this.result.set(data);
-          this.hasData.set(true);
-          this.updateHistoryData(data);
-          setTimeout(() => this.renderChart(), 50);
-        },
-        error: () => {
-          this.result.set(null);
-          this.hasData.set(false);
-        },
-      });
+      },
     });
+  }
+
+  onSelectRange(durationMs: number): void {
+    if (this.selectedRangeMs() === durationMs) return;
+    // Un rango nuevo no debe mezclar timestamps del rango anterior.
+    this.historyTimestamps = [];
+    this.localHistory = [];
+    this.regionHistories = new Map();
+    this.selectedRangeMs.set(durationMs);
   }
 
   private updateHistoryData(data: IFederatedComparisonResult): void {
@@ -280,6 +336,9 @@ export class FederatedComparisonComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+    }
     if (this.chartInstance) {
       this.chartInstance.dispose();
       this.chartInstance = null;

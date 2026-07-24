@@ -61,6 +61,17 @@ export class RealtimeService implements OnDestroy {
       this.monitorService.loadMonitors().subscribe();
     });
 
+    // Escucha cuando terminan de crearse/actualizarse monitores o vínculos federados en segundo
+    // plano (auto-vinculación, o un par que registró su vínculo recíproco) — sin esto, el usuario
+    // tiene que recargar la página (F5) para ver los monitores importados o el gráfico Multi-Nodo
+    // recién aparecido (ver AZ-050). "federation:enrolled" no alcanza: se dispara al momento del
+    // enrollment, antes de que la auto-vinculación (que corre después, en segundo plano) termine.
+    this.socket.on('federation:links-updated', () => {
+      this.federationService.loadInstances().subscribe();
+      this.federationService.loadLinks().subscribe();
+      this.monitorService.loadMonitors().subscribe();
+    });
+
     this.socket.on('disconnect', (reason: string) => {
       console.warn('[Realtime] Desconectado del servidor:', reason);
     });

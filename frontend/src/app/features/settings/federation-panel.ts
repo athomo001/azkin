@@ -391,6 +391,10 @@ export class FederationPanelComponent {
       next: (res) => {
         if (res.linkedCount > 0) {
           this.toast.show(`Se vincularon automáticamente ${res.linkedCount} monitores coincidentes con "${instance.label}".`);
+          // El HTTP de auto-vincular ya refresca los vínculos (ver federation.service.ts), pero no
+          // los monitores nuevos que haya creado — sin esto, quedaban invisibles en el sidebar
+          // hasta recargar la página (ver AZ-050).
+          this.monitorService.loadMonitors().subscribe();
         }
         if (res.failedCount > 0) {
           const detalle = res.failures.map((f) => `${f.remoteMonitorName}: ${f.error}`).join(' · ');
