@@ -50,9 +50,21 @@ export class AutoLinkFederatedMonitorsUseCase {
         return nameMatch || targetMatch;
       });
 
-      // Si no existe un monitor coincidente localmente por nombre o target, no creamos monitores duplicados ni 'PENDING'
+      // Si el monitor del nodo remoto no existe en el nodo local, crearlo automáticamente para sincronizarlo
       if (!local) {
-        continue;
+        local = await this.monitors.create({
+          name: remote.name,
+          type: (remote.type as any) || "http",
+          target: remote.target,
+          userId: actorId,
+          interval: 60,
+          retryInterval: 30,
+          retries: 2,
+          group: null,
+          tags: [],
+          notificationIds: [],
+        });
+        localMonitors.push(local);
       }
 
       // Verificar si ya existe un vínculo activo para este monitor local y el remoto
