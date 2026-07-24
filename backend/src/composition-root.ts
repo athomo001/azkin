@@ -137,7 +137,6 @@ import { ListAuditLogUseCase } from "./application/use-cases/audit-log/list-audi
 import { CreateEnrollmentTokenUseCase } from "./application/use-cases/federation/create-enrollment-token.usecase";
 import { JoinFederationUseCase } from "./application/use-cases/federation/join-federation.usecase";
 import { AcceptEnrollmentUseCase } from "./application/use-cases/federation/accept-enrollment.usecase";
-import { ApproveFederatedInstanceUseCase } from "./application/use-cases/federation/approve-federated-instance.usecase";
 import { GetFederationOwnUrlUseCase } from "./application/use-cases/federation/get-federation-own-url.usecase";
 import { SetFederationOwnUrlUseCase } from "./application/use-cases/federation/set-federation-own-url.usecase";
 import { TestAddressConnectionUseCase } from "./application/use-cases/federation/test-address-connection.usecase";
@@ -491,7 +490,6 @@ export function buildContainer(env: Env): AppContainer {
     federationEncryptionKey,
     publisher,
   );
-  const approveFederatedInstance = new ApproveFederatedInstanceUseCase(federatedInstancesRepo, auditLog);
   const getFederationOwnUrl = new GetFederationOwnUrlUseCase(federationSettingsRepo);
   const setFederationOwnUrl = new SetFederationOwnUrlUseCase(federationSettingsRepo, auditLog);
   const testAddressConnection = new TestAddressConnectionUseCase();
@@ -559,7 +557,6 @@ export function buildContainer(env: Env): AppContainer {
     createEnrollmentToken,
     joinFederation,
     acceptEnrollment,
-    approveFederatedInstance,
     listFederatedInstances,
     revokeFederatedInstance,
     reactivateFederatedInstance,

@@ -18,7 +18,6 @@ export interface IFederatedInstanceRepository {
   findById(id: string): Promise<IFederatedInstance | null>;
   /** Cuenta instancias con status "enrolled" (excluye revocadas) para aplicar la cuota máxima. */
   countActive(): Promise<number>;
-  approve(id: string): Promise<IFederatedInstance | null>;
   revoke(id: string): Promise<IFederatedInstance | null>;
   reactivate(id: string): Promise<IFederatedInstance | null>;
   delete(id: string): Promise<boolean>;

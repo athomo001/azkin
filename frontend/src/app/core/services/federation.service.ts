@@ -3,7 +3,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 
-export type FederatedInstanceStatus = 'enrolled' | 'revoked' | 'pending_approval';
+export type FederatedInstanceStatus = 'enrolled' | 'revoked';
 
 export interface IFederatedInstance {
   id: string;
@@ -99,14 +99,6 @@ export class FederationService {
   join(data: IJoinFederation): Observable<IFederatedInstance> {
     return this.http.post<IFederatedInstance>(`${this.apiUrl}/instances`, data).pipe(
       tap((created) => this.instances.update((list) => [created, ...list])),
-    );
-  }
-
-  approveInstance(id: string): Observable<IFederatedInstance> {
-    return this.http.post<IFederatedInstance>(`${this.apiUrl}/instances/${id}/approve`, {}).pipe(
-      tap((updated) =>
-        this.instances.update((list) => list.map((item) => (item.id === id ? updated : item))),
-      ),
     );
   }
 

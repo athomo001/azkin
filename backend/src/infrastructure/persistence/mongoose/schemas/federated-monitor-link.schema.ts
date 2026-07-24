@@ -25,6 +25,13 @@ const federatedMonitorLinkSchema = new Schema<FederatedMonitorLinkDoc>(
 
 federatedMonitorLinkSchema.index({ localMonitorId: 1 });
 federatedMonitorLinkSchema.index({ federatedInstanceId: 1 });
+// Evita vínculos duplicados ante enrolamientos/auto-vinculaciones concurrentes (ver AZ-050 punto 6):
+// la verificación en memoria del caso de uso no alcanza cuando dos requests distintas (ej. dos
+// admins, o el callback de enrollment y la request HTTP de auto-vincular) corren en paralelo.
+federatedMonitorLinkSchema.index(
+  { localMonitorId: 1, federatedInstanceId: 1, remoteMonitorId: 1 },
+  { unique: true },
+);
 
 export const FederatedMonitorLinkModel = model<FederatedMonitorLinkDoc>(
   "FederatedMonitorLink",
