@@ -82,7 +82,17 @@ export class JoinFederationUseCase {
       targetIds: [instance.id],
     });
 
+    if (this.onEnrolledCallback) {
+      this.onEnrolledCallback(instance.id, input.actorId).catch(() => {});
+    }
+
     return { instance };
+  }
+
+  private onEnrolledCallback?: (instanceId: string, createdById: string) => Promise<void>;
+
+  setOnEnrolledCallback(fn: (instanceId: string, createdById: string) => Promise<void>): void {
+    this.onEnrolledCallback = fn;
   }
 
   private decodeCode(code: string): { url: string; token: string; label: string } {
