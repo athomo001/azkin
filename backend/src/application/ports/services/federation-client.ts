@@ -24,6 +24,8 @@ export interface RemoteMonitorSummary {
   name: string;
   type: string;
   target: string;
+  lastStatus?: number | string | null;
+  lastPing?: number | null;
 }
 
 export interface SyncedHeartbeat {
