@@ -22,3 +22,18 @@ export function normalizeInstanceUrl(input: string): string {
 
   return `https://${trimmed}`;
 }
+
+const DEV_HTTP_PORT_PATTERN = /:(3000|8000|8080|80|5000|8001|8081)\b/;
+
+/**
+ * AZ-066: la federación soporta deliberadamente HTTP plano (ver AZ-049 slice 3 — funciona igual
+ * con o sin TLS nativo), así que esta función NO bloquea `http://`. Sirve solo para que el
+ * llamador decida si vale la pena advertir: una URL ya normalizada que sigue siendo `http://` y
+ * no es localhost/un puerto de desarrollo típico implica que el secreto compartido de federación
+ * (header `X-Federation-Secret`) viaja sin cifrar en la red.
+ */
+export function isInsecureFederationUrl(normalizedUrl: string): boolean {
+  if (!normalizedUrl.startsWith("http://")) return false;
+  const withoutScheme = normalizedUrl.slice("http://".length);
+  return !DEV_HTTP_PORT_PATTERN.test(withoutScheme) && !/^localhost\b/i.test(withoutScheme);
+}

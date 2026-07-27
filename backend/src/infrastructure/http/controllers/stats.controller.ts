@@ -77,7 +77,7 @@ export class StatsController {
       req.permissions!,
       groupName,
     );
-    res.status(200).json(toGroupOverviewResponse(overview));
+    res.status(200).json(toGroupOverviewResponse(overview, req.userRole!));
   };
 
   /**

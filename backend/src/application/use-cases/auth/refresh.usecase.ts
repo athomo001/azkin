@@ -3,7 +3,7 @@ import { IUserRepository } from "../../ports/repositories/user-repository";
 import { ITokenService } from "../../ports/services/security";
 import { AccountBlockedError, UnauthorizedError } from "../../../domain/errors/domain-error";
 import { AuthOutput } from "../../dtos/auth-output";
-import { REFRESH_TOKEN_EXPIRES_IN_SECONDS } from "./login.usecase";
+import { REFRESH_TOKEN_EXPIRES_IN_SECONDS, TV_SESSION_EXPIRES_IN_SECONDS } from "./login.usecase";
 
 export interface RefreshInput {
   token: string; // Token de refresco recibido
@@ -21,7 +21,7 @@ export class RefreshUseCase {
 
   async execute(input: RefreshInput): Promise<AuthOutput> {
     try {
-      const decoded = this.tokens.verify(input.token);
+      const decoded = this.tokens.verify(input.token, "refresh");
       const user = await this.users.findById(decoded.userId);
       if (!user) {
         throw new UnauthorizedError("Usuario inexistente o eliminado");
@@ -33,12 +33,13 @@ export class RefreshUseCase {
 
       // Emite un nuevo access token con claims extendidos actualizados
       // Preserva la sesión larga (1 año) para cuentas TV/Kiosko en cada refresh
-      const tvExpiresIn = user.isTvSessionEnabled ? 31536000 : undefined;
-      const token = this.tokens.sign(user.id, user.role, user.adminId, user.permissions, tvExpiresIn);
+      const tvExpiresIn = user.isTvSessionEnabled ? TV_SESSION_EXPIRES_IN_SECONDS : undefined;
+      const token = this.tokens.sign(user.id, user.role, "access", user.adminId, user.permissions, tvExpiresIn);
       // Rotación del refresh token en cada uso (reduce la ventana de un token filtrado).
       const refreshToken = this.tokens.sign(
         user.id,
         user.role,
+        "refresh",
         user.adminId,
         user.permissions,
         tvExpiresIn ?? REFRESH_TOKEN_EXPIRES_IN_SECONDS,

@@ -11,6 +11,10 @@ import { IAuditLogRepository } from "../../ports/repositories/audit-log-reposito
 import { IMonitor } from "../../../domain/entities/monitor";
 import { IUser } from "../../../domain/entities/user";
 
+// AZ-053: los schemas de import ahora exigen que passwordHash tenga forma de hash bcrypt real.
+const FAKE_BCRYPT_HASH_A = "$2b$10$" + "a".repeat(53);
+const FAKE_BCRYPT_HASH_B = "$2b$10$" + "b".repeat(53);
+
 function makeMonitor(overrides: Partial<IMonitor> = {}): IMonitor {
   return {
     id: "m-existing",
@@ -205,11 +209,11 @@ test("ImportBackupUseCase restaura admins, viewers (resolviendo adminIdentifier)
   const result = await useCase.execute({
     userId: "importer-1",
     monitors: [{ name: "FOSS", type: "http", target: "https://foss.test", interval: 60, retries: 0, retryInterval: 60, group: null, tags: [], notificationIds: [] } as Omit<CreateMonitorData, "userId" | "pushToken">],
-    admins: [{ email: "admin@azkin.test", username: "admin", passwordHash: "hash-admin" }],
+    admins: [{ email: "admin@azkin.test", username: "admin", passwordHash: FAKE_BCRYPT_HASH_A }],
     viewers: [
       {
         email: "viewer@azkin.test",
-        passwordHash: "hash-viewer",
+        passwordHash: FAKE_BCRYPT_HASH_B,
         adminIdentifier: "admin@azkin.test",
         permissions: [{ type: "all" }],
       },
@@ -249,7 +253,7 @@ test("ImportBackupUseCase acumula un error por viewer cuyo adminIdentifier no co
     viewers: [
       {
         email: "huerfano@azkin.test",
-        passwordHash: "hash",
+        passwordHash: FAKE_BCRYPT_HASH_A,
         adminIdentifier: "no-existe@azkin.test",
         permissions: [],
       },
@@ -261,7 +265,7 @@ test("ImportBackupUseCase acumula un error por viewer cuyo adminIdentifier no co
   assert.equal(result.viewers.errors[0].index, 0);
 });
 
-test("ImportBackupUseCase actualiza (no duplica) un admin existente con el mismo email, y respalda su nuevo passwordHash", async () => {
+test("ImportBackupUseCase actualiza (no duplica) un admin existente con el mismo email, pero NUNCA sobrescribe su passwordHash (AZ-053)", async () => {
   const existingAdmin: IUser = {
     id: "admin-1",
     email: "admin@azkin.test",
@@ -282,13 +286,32 @@ test("ImportBackupUseCase actualiza (no duplica) un admin existente con el mismo
   const result = await useCase.execute({
     userId: "importer-1",
     monitors: [],
-    admins: [{ email: "admin@azkin.test", passwordHash: "hash-nuevo" }],
+    admins: [{ email: "admin@azkin.test", passwordHash: FAKE_BCRYPT_HASH_B }],
   });
 
   assert.equal(result.admins.createdCount, 0);
   assert.equal(result.admins.updatedCount, 1);
+  assert.equal(result.admins.passwordsSkipped, 1, "debe reportar que se omitió sobrescribir la contraseña");
   assert.equal(admins.length, 1);
-  assert.equal(admins[0].passwordHash, "hash-nuevo");
+  assert.equal(admins[0].passwordHash, "hash-viejo", "un import no debe poder pisar la contraseña de una cuenta ya existente");
+});
+
+test("ImportBackupUseCase rechaza un passwordHash que no tiene forma de hash bcrypt (AZ-053)", async () => {
+  const { repo: users } = makeUsersRepo();
+  const { repo: notifications } = makeNotificationsRepo();
+  const { repo: tlsConfigs } = makeTlsConfigsRepo();
+  const monitors = makeMonitorsRepo([]);
+
+  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs, auditLog);
+
+  const result = await useCase.execute({
+    userId: "importer-1",
+    monitors: [],
+    admins: [{ email: "atacante@azkin.test", passwordHash: "no-es-un-hash-bcrypt" }],
+  });
+
+  assert.equal(result.admins.createdCount, 0);
+  assert.equal(result.admins.errors.length, 1);
 });
 
 test("ImportBackupUseCase acepta un respaldo v1.0 (solo monitors, sin las demás secciones) sin fallar", async () => {

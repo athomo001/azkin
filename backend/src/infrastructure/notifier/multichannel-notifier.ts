@@ -3,7 +3,7 @@ import { INotifier, NotificationEvent } from "../../application/ports/services/n
 import { INotificationRepository } from "../../application/ports/repositories/notification-repository";
 import { INotification, SlackConfig, DiscordConfig, TelegramConfig, WebhookConfig, EmailConfig } from "../../domain/entities/notification";
 import { MonitorStatus } from "../../domain/value-objects/monitor-status";
-import { renderTemplate, TemplateContext } from "./template-renderer";
+import { renderTemplate, TemplateContext, escapeJsonStringValue, escapeTelegramMarkdown } from "./template-renderer";
 import { defaultTemplateFor } from "./default-templates";
 import { logger } from "../logger";
 import { getErrorMessage } from "../../application/services/get-error-message";
@@ -60,10 +60,16 @@ export class MultichannelNotifier implements INotifier {
           await this.sendDiscord(config, message);
           break;
         case "telegram":
-          await this.sendTelegram(config, message);
+          // AZ-066: escapa caracteres especiales de Markdown en cada valor sustituido — un
+          // nombre de monitor con `_`/`*`/`[texto](url)` no debe poder romper el formato ni
+          // simular un link falso dentro de la alerta.
+          await this.sendTelegram(config, renderTemplate(template.body, context, escapeTelegramMarkdown));
           break;
         case "webhook":
-          await this.sendWebhook(config, message);
+          // AZ-058: el body de un canal webhook es JSON ya serializado con `{{var}}` como
+          // placeholders dentro de valores string — sin este escape, un valor con comillas o
+          // backslashes (ej. un nombre de monitor) rompe o adultera el JSON efectivamente enviado.
+          await this.sendWebhook(config, renderTemplate(template.body, context, escapeJsonStringValue));
           break;
         case "email":
           await this.sendEmail(config, title, message);
@@ -176,14 +182,15 @@ export class MultichannelNotifier implements INotifier {
     if (host && user && pass) {
       try {
         const nodemailer = require("nodemailer");
+        // AZ-052: sin bypass de validación de certificado TLS — usa el default seguro de
+        // nodemailer (rejectUnauthorized: true), igual que smtp-mailer.ts. Antes este transporte
+        // desactivaba la validación de forma incondicional (ni siquiera atada a un toggle de
+        // Admin), permitiendo un MITM contra el relay SMTP configurado para las alertas.
         const transporter = nodemailer.createTransport({
           host,
           port,
           secure,
           auth: { user, pass },
-          tls: {
-            rejectUnauthorized: false // Permite auto-firmados en testing
-          }
         });
 
         await transporter.sendMail({

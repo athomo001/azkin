@@ -80,7 +80,7 @@ test("LoginUseCase pasa los permisos del usuario al firmar el token", async () =
   const useCase = new LoginUseCase(makeUsers(viewer), makeHasher(true), tokens, auditLog);
   await useCase.execute({ identifier: viewer.email!, password: "whatever" });
 
-  assert.deepEqual(signedWith[0]?.[3], viewer.permissions, "el 4º argumento de sign() debe ser permissions del usuario");
+  assert.deepEqual(signedWith[0]?.[4], viewer.permissions, "el 5º argumento de sign() debe ser permissions del usuario");
 });
 
 test("LoginUseCase registra LOGIN_SUCCESS con el actorId del usuario tras un login correcto", async () => {

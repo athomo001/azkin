@@ -1,7 +1,7 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeInstanceUrl } from "./normalize-instance-url";
+import { normalizeInstanceUrl, isInsecureFederationUrl } from "./normalize-instance-url";
 
 test("normalizeInstanceUrl antepone https:// a una IP o dominio simple sin esquema", () => {
   assert.equal(normalizeInstanceUrl("203.0.113.5"), "https://203.0.113.5");
@@ -21,4 +21,15 @@ test("normalizeInstanceUrl deja igual una URL que ya trae esquema", () => {
 
 test("normalizeInstanceUrl recorta espacios en blanco", () => {
   assert.equal(normalizeInstanceUrl("  203.0.113.5  "), "https://203.0.113.5");
+});
+
+test("isInsecureFederationUrl (AZ-066): true para http:// en una dirección pública real", () => {
+  assert.equal(isInsecureFederationUrl("http://203.0.113.5"), true);
+  assert.equal(isInsecureFederationUrl("http://mi-azkin.miempresa.cl"), true);
+});
+
+test("isInsecureFederationUrl (AZ-066): false para https:// y para http:// en localhost/puertos de desarrollo", () => {
+  assert.equal(isInsecureFederationUrl("https://mi-azkin.miempresa.cl"), false);
+  assert.equal(isInsecureFederationUrl("http://localhost:3000"), false);
+  assert.equal(isInsecureFederationUrl("http://192.168.1.50:3000"), false);
 });

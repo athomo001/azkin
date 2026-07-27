@@ -36,8 +36,15 @@ export class RegisterUseCase {
 
     const passwordHash = await this.hasher.hash(input.password);
     const user = await this.users.create({ email: input.email, passwordHash });
-    const token = this.tokens.sign(user.id, user.role, user.adminId, user.permissions);
-    const refreshToken = this.tokens.sign(user.id, user.role, user.adminId, user.permissions, REFRESH_TOKEN_EXPIRES_IN_SECONDS);
+    const token = this.tokens.sign(user.id, user.role, "access", user.adminId, user.permissions);
+    const refreshToken = this.tokens.sign(
+      user.id,
+      user.role,
+      "refresh",
+      user.adminId,
+      user.permissions,
+      REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+    );
 
     return {
       token,

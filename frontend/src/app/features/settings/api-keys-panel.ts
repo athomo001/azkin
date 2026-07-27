@@ -30,6 +30,9 @@ interface ApiKeyEntry {
           <p class="text-[11px] text-zinc-500 mt-0.5">
             Genera API Keys para integrar sistemas externos con Azkin vía <code class="text-orange-400">X-API-Key</code>. Ver <code class="text-orange-400">docs/api-publica.md</code> para ejemplos.
           </p>
+          <p class="text-[11px] text-amber-500/90 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+            ⚠️ Una API Key equivale a acceso total de Admin sobre <b>todos</b> los monitores del pool — no se puede acotar a un subconjunto todavía. Con scope de lectura puede listar/exportar cualquier monitor (incluyendo credenciales SNMP); con escritura puede crear, editar o borrar cualquiera. Compártela solo con integradores en los que confíes al mismo nivel que en un Admin.
+          </p>
         </div>
 
         <div class="flex items-end gap-3 border-t border-zinc-850 pt-4">

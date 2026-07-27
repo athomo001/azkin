@@ -72,6 +72,11 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
 
             <div class="space-y-4">
               <div>
+                <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">{{ lang.t('settings.profile.currentPass') }}</label>
+                <input type="password" [(ngModel)]="profileForm.currentPassword" placeholder="••••••••"
+                  class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
+              </div>
+              <div>
                 <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">{{ lang.t('settings.profile.newPass') }}</label>
                 <input type="password" [(ngModel)]="profileForm.newPassword" placeholder="Mínimo 8 caracteres"
                   class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
@@ -108,7 +113,7 @@ export class ProfileComponent {
   public readonly themeService = inject(ThemeService);
 
   readonly toast = signal<string | null>(null);
-  profileForm = { newPassword: '', confirmPassword: '' };
+  profileForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
 
   private showToastFeedback(msg: string): void {
     this.toast.set(msg);
@@ -116,7 +121,11 @@ export class ProfileComponent {
   }
 
   onChangeOwnPassword(): void {
-    const { newPassword, confirmPassword } = this.profileForm;
+    const { currentPassword, newPassword, confirmPassword } = this.profileForm;
+    if (!currentPassword) {
+      this.showToastFeedback('Debes indicar tu contraseña actual.');
+      return;
+    }
     if (!newPassword || newPassword.length < 8) {
       this.showToastFeedback('La contraseña debe tener al menos 8 caracteres.');
       return;
@@ -125,9 +134,9 @@ export class ProfileComponent {
       this.showToastFeedback('Las contraseñas no coinciden.');
       return;
     }
-    this.http.put('/api/v1/users/profile/password', { newPassword }).subscribe({
+    this.http.put('/api/v1/users/profile/password', { currentPassword, newPassword }).subscribe({
       next: () => {
-        this.profileForm = { newPassword: '', confirmPassword: '' };
+        this.profileForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
         this.showToastFeedback('Contraseña actualizada exitosamente.');
       },
       error: (err) => {

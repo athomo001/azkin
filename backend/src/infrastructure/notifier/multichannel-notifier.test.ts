@@ -183,3 +183,77 @@ test("MultichannelNotifier envía y renderiza la plantilla cuando el canal está
     global.fetch = originalFetch;
   }
 });
+
+test("MultichannelNotifier (AZ-058): un nombre de monitor con comillas no rompe el JSON del webhook", async () => {
+  const channel = makeChannel({ events: ["DOWN"] });
+  const repo: INotificationRepository = {
+    create: async () => channel,
+    findAll: async () => [channel],
+    findById: async () => channel,
+    update: async () => channel,
+    delete: async () => true,
+  };
+
+  let capturedBody: string | undefined;
+  const originalFetch = global.fetch;
+  global.fetch = (async (_url: string, init?: RequestInit) => {
+    capturedBody = init?.body as string;
+    return new Response(null, { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const notifier = new MultichannelNotifier(repo);
+    const event = makeEvent({ eventType: "DOWN" });
+    event.monitor = { ...event.monitor, name: 'test","admin":true,"x":"y' };
+
+    await notifier.notify(event);
+
+    assert.ok(capturedBody, "debería haber enviado el webhook");
+    // Si el body no fuera JSON válido, JSON.parse lanzaría — la aserción en sí ya prueba el fix.
+    const parsed = JSON.parse(capturedBody!);
+    assert.equal(parsed.monitor.name, 'test","admin":true,"x":"y');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("MultichannelNotifier (AZ-066): escapa caracteres especiales de Markdown en Telegram", async () => {
+  const channel = makeChannel({
+    type: "telegram",
+    config: { botToken: "123:ABC", chatId: "chat-1" },
+    events: ["DOWN"],
+  });
+  const repo: INotificationRepository = {
+    create: async () => channel,
+    findAll: async () => [channel],
+    findById: async () => channel,
+    update: async () => channel,
+    delete: async () => true,
+  };
+
+  let capturedBody: string | undefined;
+  const originalFetch = global.fetch;
+  global.fetch = (async (_url: string, init?: RequestInit) => {
+    capturedBody = init?.body as string;
+    return new Response(null, { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const notifier = new MultichannelNotifier(repo);
+    const event = makeEvent({ eventType: "DOWN" });
+    event.monitor = { ...event.monitor, name: "[Click aquí](https://atacante.example)" };
+
+    await notifier.notify(event);
+
+    assert.ok(capturedBody, "debería haber enviado el mensaje de Telegram");
+    const parsed = JSON.parse(capturedBody!);
+    // Solo el `[` de apertura necesita escaparse para neutralizar el enlace: sin él, el parser de
+    // Markdown "clásico" de Telegram no reconoce `[texto](url)` como un link.
+    assert.ok(
+      parsed.text.includes("\\[Click aquí](https://atacante.example)"),
+      "el nombre del monitor debe llegar con el corchete de apertura escapado (sin link falso)",
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

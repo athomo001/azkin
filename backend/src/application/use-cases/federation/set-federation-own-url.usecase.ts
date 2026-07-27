@@ -1,8 +1,9 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { IFederationSettingsRepository } from "../../ports/repositories/federation-settings-repository";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
-import { normalizeInstanceUrl } from "../../services/normalize-instance-url";
+import { normalizeInstanceUrl, isInsecureFederationUrl } from "../../services/normalize-instance-url";
 import { IFederationSettings } from "../../../domain/entities/federation-settings";
+import { logger } from "../../../infrastructure/logger";
 
 export interface SetFederationOwnUrlInput {
   actorId: string;
@@ -23,6 +24,13 @@ export class SetFederationOwnUrlUseCase {
 
   async execute(input: SetFederationOwnUrlInput): Promise<IFederationSettings> {
     const ownUrl = normalizeInstanceUrl(input.ownUrl);
+    // AZ-066: HTTP plano es una opción deliberadamente soportada (no se bloquea), pero el Admin
+    // debe saber que el secreto compartido de federación viaja sin cifrar hacia esa dirección.
+    if (isInsecureFederationUrl(ownUrl)) {
+      logger.warn(
+        `[Federation] La dirección propia configurada (${ownUrl}) usa HTTP sin cifrar — el secreto compartido de federación viajará en texto plano hacia esta instancia. Se recomienda HTTPS nativo (ver /settings → TLS/Sistema) en producción.`,
+      );
+    }
     const settings = await this.settings.upsert({ ownUrl, updatedById: input.actorId });
 
     await this.auditLog.record({
