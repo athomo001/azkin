@@ -31,13 +31,12 @@ export interface IBackupPayload {
   /**
    * Secciones agregadas en la v2.0 del formato de respaldo — opcionales para poder seguir
    * leyendo archivos v1.0 ya descargados (solo monitores) sin que la importación falle.
-   * Contienen credenciales (`passwordHash`, y `tlsConfig.keyPemEncrypted`): un respaldo
-   * completo debe tratarse como secreto, no solo como configuración.
+   * Contienen credenciales (`passwordHash`): un respaldo completo debe tratarse como secreto,
+   * no solo como configuración.
    */
   notifications?: unknown[];
   admins?: IBackupAdmin[];
   viewers?: IBackupViewer[];
-  tlsConfig?: unknown | null;
 }
 
 /**

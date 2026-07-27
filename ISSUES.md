@@ -152,9 +152,11 @@ abierto, es como el Admin ya entra al producto) en vez de uno dedicado.
   `GetFederationPortUseCase`/`ApplyFederationPortUseCase`) — ya no hay puerto que configurar. El
   singleton de "direccion propia" (`SetFederationOwnUrlUseCase`) se mantiene tal cual, renombrado a
   `FederationSettings`.
-- Beneficio adicional no buscado originalmente: la federacion ahora funciona igual con HTTP plano
-  o HTTPS nativo, y si una instancia activa HTTPS nativo mas tarde, la federacion pasa a ir cifrada
-  automaticamente sin cambiar nada de su configuracion.
+- Beneficio adicional no buscado originalmente: la federacion funciona igual con HTTP plano o con
+  HTTPS, sin cambiar nada de su configuracion — **nota (2026-07-27):** "HTTPS nativo" en el backend
+  ya no existe (se elimino, ver nota de esa fecha en esta misma issue); si se quiere cifrar el
+  trafico de una instancia, se hace terminando TLS en nginx (`docs/instalacion-docker.md` §6), y la
+  federacion sigue funcionando igual una vez que la URL propia se actualiza a `https://`.
 - **Limite conocido (ya existia, no cambia):** cambiar la direccion propia no reanuncia el cambio a
   los pares ya enrolados — siguen usando la `remoteUrl` vieja hasta volver a enrolarse.
 

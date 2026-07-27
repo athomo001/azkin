@@ -4,7 +4,6 @@ import { IMonitorRepository } from "../../ports/repositories/monitor-repository"
 import { INotificationRepository } from "../../ports/repositories/notification-repository";
 import { IApiKeyRepository } from "../../ports/repositories/api-key-repository";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
-import { ITlsConfigRepository } from "../../ports/repositories/tls-config-repository";
 import { IBackupRepository } from "../../ports/repositories/backup-repository";
 import { IScheduler } from "../../ports/services/scheduler";
 import { NotFoundError, ValidationError } from "../../../domain/errors/domain-error";
@@ -24,13 +23,12 @@ export interface PurgeInstanceOutput {
   deletedApiKeys: number;
   deletedAuditLogs: number;
   deletedBackups: number;
-  tlsConfigCleared: boolean;
 }
 
 /**
  * Caso de uso para "Purgar instancia": borra TODO (monitores, canales de notificación, API keys,
- * historial de auditoría, respaldos guardados, config TLS, y todas las demás cuentas admin/viewer)
- * dejando únicamente al admin sembrado por AZKIN_FIRST_ADMIN_EMAIL/AZKIN_FIRST_ADMIN_NAME del
+ * historial de auditoría, respaldos guardados, y todas las demás cuentas admin/viewer) dejando
+ * únicamente al admin sembrado por AZKIN_FIRST_ADMIN_EMAIL/AZKIN_FIRST_ADMIN_NAME del
  * .env actual — la instancia queda como recién instalada salvo por esa cuenta.
  *
  * Deliberadamente NO registra un log de auditoría al terminar: el historial completo se borra
@@ -47,7 +45,6 @@ export class PurgeInstanceUseCase {
     private readonly notifications: INotificationRepository,
     private readonly apiKeys: IApiKeyRepository,
     private readonly auditLog: IAuditLogRepository,
-    private readonly tlsConfigs: ITlsConfigRepository,
     private readonly backups: IBackupRepository,
     private readonly scheduler: IScheduler,
   ) {}
@@ -75,7 +72,6 @@ export class PurgeInstanceUseCase {
     const deletedApiKeys = await this.apiKeys.deleteAll();
     const deletedAuditLogs = await this.auditLog.deleteAll();
     const deletedBackups = await this.backups.deleteAll();
-    const tlsConfigCleared = await this.tlsConfigs.deleteActive();
     const { deletedAdmins, deletedViewers } = await this.users.deleteAllUsersExcept(keepAdmin.id);
 
     return {
@@ -88,7 +84,6 @@ export class PurgeInstanceUseCase {
       deletedApiKeys,
       deletedAuditLogs,
       deletedBackups,
-      tlsConfigCleared,
     };
   }
 }

@@ -3,7 +3,6 @@ import { z } from "zod";
 import { IMonitorRepository, CreateMonitorData } from "../../ports/repositories/monitor-repository";
 import { INotificationRepository } from "../../ports/repositories/notification-repository";
 import { IUserRepository } from "../../ports/repositories/user-repository";
-import { ITlsConfigRepository } from "../../ports/repositories/tls-config-repository";
 import { IScheduler } from "../../ports/services/scheduler";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { QuotaExceededError } from "../../../domain/errors/domain-error";
@@ -16,7 +15,6 @@ export interface ImportBackupInput {
   notifications?: unknown[];
   admins?: unknown[];
   viewers?: unknown[];
-  tlsConfig?: unknown | null;
 }
 
 export interface ImportSectionResult {
@@ -34,7 +32,6 @@ export interface ImportBackupOutput {
   admins: ImportSectionResult;
   viewers: ImportSectionResult;
   notifications: ImportSectionResult;
-  tlsConfig: { applied: boolean; skippedReason?: string };
 }
 
 // AZ-053: passwordHash debe tener forma de hash bcrypt real (el formato que produce
@@ -71,19 +68,11 @@ const backupNotificationSchema = z.object({
   templates: z.record(z.object({ subject: z.string().optional(), body: z.string() })).optional(),
 });
 
-const backupTlsConfigSchema = z.object({
-  certPem: z.string().min(1),
-  keyPemEncrypted: z.string().min(1),
-  chainPem: z.string().optional(),
-  port: z.number().int().min(1).max(65535),
-  httpRedirect: z.boolean(),
-});
-
 /**
  * Caso de uso para restaurar un respaldo COMPLETO (create-backup.usecase.ts): admins/viewers
- * (con passwordHash), canales de notificación, configuración TLS y monitores — en ese orden,
- * porque viewers referencian a su admin propietario por email/username (`adminIdentifier`) y los
- * monitores no dependen de ninguno de los anteriores.
+ * (con passwordHash), canales de notificación y monitores — en ese orden, porque viewers
+ * referencian a su admin propietario por email/username (`adminIdentifier`) y los monitores no
+ * dependen de ninguno de los anteriores.
  *
  * Acepta también un respaldo v1.0 (solo `monitors`, sin las demás secciones): las secciones
  * ausentes simplemente no se procesan, no se rechaza el archivo completo.
@@ -98,7 +87,6 @@ export class ImportBackupUseCase {
     private readonly scheduler: IScheduler,
     private readonly notifications: INotificationRepository,
     private readonly users: IUserRepository,
-    private readonly tlsConfigs: ITlsConfigRepository,
     private readonly auditLog: IAuditLogRepository,
   ) {}
 
@@ -106,7 +94,6 @@ export class ImportBackupUseCase {
     const admins = await this.importAdmins(input.admins ?? []);
     const viewers = await this.importViewers(input.viewers ?? [], admins.identifierToId);
     const notificationsResult = await this.importNotifications(input.notifications ?? [], input.userId);
-    const tlsConfig = await this.importTlsConfig(input.tlsConfig, input.userId);
     const { importedCount, updatedCount } = await this.importMonitors(input);
 
     await this.auditLog.record({
@@ -118,7 +105,6 @@ export class ImportBackupUseCase {
         admins: { createdCount: admins.result.createdCount, updatedCount: admins.result.updatedCount },
         viewers: { createdCount: viewers.createdCount, updatedCount: viewers.updatedCount },
         notifications: { createdCount: notificationsResult.createdCount, updatedCount: notificationsResult.updatedCount },
-        tlsConfigApplied: tlsConfig.applied,
       },
     });
 
@@ -128,7 +114,6 @@ export class ImportBackupUseCase {
       admins: admins.result,
       viewers,
       notifications: notificationsResult,
-      tlsConfig,
     };
   }
 
@@ -268,21 +253,6 @@ export class ImportBackupUseCase {
     }
 
     return result;
-  }
-
-  private async importTlsConfig(rawTlsConfig: unknown, updatedById: string): Promise<{ applied: boolean; skippedReason?: string }> {
-    if (rawTlsConfig === undefined) {
-      return { applied: false, skippedReason: "El respaldo no incluye sección TLS (formato v1.0)" };
-    }
-    if (rawTlsConfig === null) {
-      return { applied: false, skippedReason: "El respaldo no tenía TLS configurado" };
-    }
-    const parsed = backupTlsConfigSchema.safeParse(rawTlsConfig);
-    if (!parsed.success) {
-      return { applied: false, skippedReason: parsed.error.issues.map((i) => i.message).join("; ") };
-    }
-    await this.tlsConfigs.upsert({ ...parsed.data, updatedById });
-    return { applied: true };
   }
 
   private async importMonitors(input: ImportBackupInput): Promise<{ importedCount: number; updatedCount: number }> {

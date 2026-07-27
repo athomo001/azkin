@@ -1,7 +1,5 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { Request, Response } from "express";
-import { ApplyTlsConfigUseCase } from "../../../application/use-cases/system/apply-tls-config.usecase";
-import { GetTlsConfigUseCase } from "../../../application/use-cases/system/get-tls-config.usecase";
 import { GetSmtpStatusUseCase } from "../../../application/use-cases/system/get-smtp-status.usecase";
 import { SendTestEmailUseCase } from "../../../application/use-cases/system/send-test-email.usecase";
 import { GetAppSmtpChannelUseCase } from "../../../application/use-cases/system/get-app-smtp-channel.usecase";
@@ -13,8 +11,6 @@ import { ValidationError } from "../../../domain/errors/domain-error";
 
 export class SystemController {
   constructor(
-    private readonly applyTlsConfigUseCase: ApplyTlsConfigUseCase,
-    private readonly getTlsConfigUseCase: GetTlsConfigUseCase,
     private readonly getSmtpStatusUseCase: GetSmtpStatusUseCase,
     private readonly sendTestEmailUseCase: SendTestEmailUseCase,
     private readonly smtpConfigResolver: ISmtpConfigResolver,
@@ -23,28 +19,6 @@ export class SystemController {
     private readonly getMonitoringEngineSettingsUseCase: GetMonitoringEngineSettingsUseCase,
     private readonly setMonitoringEngineSettingsUseCase: SetMonitoringEngineSettingsUseCase,
   ) {}
-
-  getTlsConfig = async (_req: Request, res: Response): Promise<void> => {
-    const status = await this.getTlsConfigUseCase.execute();
-    res.status(200).json(status);
-  };
-
-  applyTlsConfig = async (req: Request, res: Response): Promise<void> => {
-    const actorId = req.adminId!;
-    const result = await this.applyTlsConfigUseCase.execute({
-      actorId,
-      certPem: req.body.certPem,
-      keyPem: req.body.keyPem,
-      chainPem: req.body.chainPem,
-      port: req.body.port,
-      httpRedirect: req.body.httpRedirect,
-    });
-    res.status(200).json({
-      port: result.config.port,
-      httpRedirect: result.config.httpRedirect,
-      updatedAt: result.config.updatedAt,
-    });
-  };
 
   getSmtpStatus = async (_req: Request, res: Response): Promise<void> => {
     const resolved = await this.smtpConfigResolver.resolve();

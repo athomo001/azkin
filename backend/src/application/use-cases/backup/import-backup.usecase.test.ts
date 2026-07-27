@@ -5,7 +5,6 @@ import { ImportBackupUseCase } from "./import-backup.usecase";
 import { IMonitorRepository, CreateMonitorData } from "../../ports/repositories/monitor-repository";
 import { INotificationRepository, CreateNotificationData } from "../../ports/repositories/notification-repository";
 import { IUserRepository, CreateUserData, CreateViewerData } from "../../ports/repositories/user-repository";
-import { ITlsConfigRepository, UpsertTlsConfigData } from "../../ports/repositories/tls-config-repository";
 import { IScheduler } from "../../ports/services/scheduler";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { IMonitor } from "../../../domain/entities/monitor";
@@ -185,26 +184,12 @@ function makeNotificationsRepo() {
   return { repo, created };
 }
 
-function makeTlsConfigsRepo() {
-  const upserts: UpsertTlsConfigData[] = [];
-  const repo: ITlsConfigRepository = {
-    getActive: async () => null,
-    upsert: async (data) => {
-      upserts.push(data);
-      return { id: "tls-1", ...data, updatedAt: new Date() };
-    },
-    deleteActive: async () => false,
-  };
-  return { repo, upserts };
-}
-
-test("ImportBackupUseCase restaura admins, viewers (resolviendo adminIdentifier), canales, TLS y monitores desde un respaldo completo v2.0", async () => {
+test("ImportBackupUseCase restaura admins, viewers (resolviendo adminIdentifier), canales y monitores desde un respaldo completo v2.0", async () => {
   const { repo: users, admins, viewers } = makeUsersRepo();
   const { repo: notifications, created: createdNotifications } = makeNotificationsRepo();
-  const { repo: tlsConfigs, upserts } = makeTlsConfigsRepo();
   const monitors = makeMonitorsRepo([]);
 
-  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs, auditLog);
+  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, auditLog);
 
   const result = await useCase.execute({
     userId: "importer-1",
@@ -219,7 +204,6 @@ test("ImportBackupUseCase restaura admins, viewers (resolviendo adminIdentifier)
       },
     ],
     notifications: [{ name: "Canal Email", type: "email", config: { email: "alerta@azkin.test" } }],
-    tlsConfig: { certPem: "CERT", keyPemEncrypted: "ENC", port: 8443, httpRedirect: true },
   });
 
   assert.equal(result.admins.createdCount, 1);
@@ -233,19 +217,15 @@ test("ImportBackupUseCase restaura admins, viewers (resolviendo adminIdentifier)
   assert.equal(result.notifications.createdCount, 1);
   assert.equal(createdNotifications[0].name, "Canal Email");
 
-  assert.equal(result.tlsConfig.applied, true);
-  assert.equal(upserts[0].certPem, "CERT");
-
   assert.equal(result.importedCount, 1);
 });
 
 test("ImportBackupUseCase acumula un error por viewer cuyo adminIdentifier no corresponde a ningún admin importado ni existente", async () => {
   const { repo: users } = makeUsersRepo();
   const { repo: notifications } = makeNotificationsRepo();
-  const { repo: tlsConfigs } = makeTlsConfigsRepo();
   const monitors = makeMonitorsRepo([]);
 
-  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs, auditLog);
+  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, auditLog);
 
   const result = await useCase.execute({
     userId: "importer-1",
@@ -278,10 +258,9 @@ test("ImportBackupUseCase actualiza (no duplica) un admin existente con el mismo
   };
   const { repo: users, admins } = makeUsersRepo([existingAdmin]);
   const { repo: notifications } = makeNotificationsRepo();
-  const { repo: tlsConfigs } = makeTlsConfigsRepo();
   const monitors = makeMonitorsRepo([]);
 
-  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs, auditLog);
+  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, auditLog);
 
   const result = await useCase.execute({
     userId: "importer-1",
@@ -299,10 +278,9 @@ test("ImportBackupUseCase actualiza (no duplica) un admin existente con el mismo
 test("ImportBackupUseCase rechaza un passwordHash que no tiene forma de hash bcrypt (AZ-053)", async () => {
   const { repo: users } = makeUsersRepo();
   const { repo: notifications } = makeNotificationsRepo();
-  const { repo: tlsConfigs } = makeTlsConfigsRepo();
   const monitors = makeMonitorsRepo([]);
 
-  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs, auditLog);
+  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, auditLog);
 
   const result = await useCase.execute({
     userId: "importer-1",
@@ -317,10 +295,9 @@ test("ImportBackupUseCase rechaza un passwordHash que no tiene forma de hash bcr
 test("ImportBackupUseCase acepta un respaldo v1.0 (solo monitors, sin las demás secciones) sin fallar", async () => {
   const { repo: users } = makeUsersRepo();
   const { repo: notifications } = makeNotificationsRepo();
-  const { repo: tlsConfigs } = makeTlsConfigsRepo();
   const monitors = makeMonitorsRepo([]);
 
-  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs, auditLog);
+  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, auditLog);
 
   const result = await useCase.execute({
     userId: "importer-1",
@@ -332,6 +309,4 @@ test("ImportBackupUseCase acepta un respaldo v1.0 (solo monitors, sin las demás
   assert.equal(result.admins.errors.length, 0);
   assert.equal(result.viewers.createdCount, 0);
   assert.equal(result.notifications.createdCount, 0);
-  assert.equal(result.tlsConfig.applied, false);
-  assert.match(result.tlsConfig.skippedReason ?? "", /v1\.0/);
 });

@@ -12,8 +12,6 @@ import { getErrorMessage } from "./application/services/get-error-message";
 
 import { Env } from "./infrastructure/config/env";
 import { IScheduler } from "./application/ports/services/scheduler";
-import { ITlsServerManager } from "./application/ports/services/tls-server-manager";
-import { ITlsConfigRepository } from "./application/ports/repositories/tls-config-repository";
 
 // Repositories
 import { MongooseUserRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-user.repository";
@@ -22,7 +20,6 @@ import { MongooseHeartbeatRepository } from "./infrastructure/persistence/mongoo
 import { MongooseNotificationRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-notification.repository";
 import { MongooseBackupRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-backup.repository";
 import { MongooseAuditLogRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-audit-log.repository";
-import { MongooseTlsConfigRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-tls-config.repository";
 import { MongooseApiKeyRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-api-key.repository";
 import { MongooseAppSmtpSettingsRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-app-smtp-settings.repository";
 import { MongooseMaintenanceRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-maintenance.repository";
@@ -46,7 +43,9 @@ import { PortChecker } from "./infrastructure/checkers/port.checker";
 import { DnsChecker } from "./infrastructure/checkers/dns.checker";
 import { SnmpChecker } from "./infrastructure/checkers/snmp.checker";
 import { InMemoryScheduler } from "./infrastructure/scheduler/in-memory-scheduler";
-import { HttpsServerManager } from "./infrastructure/http/https-server-manager";
+// encryptPrivateKey/decryptPrivateKey: cifrado AES-256-GCM compartido, usado por la federación de
+// instancias (AZ-049) para cifrar en reposo el secreto compartido entre pares — no queda nada más
+// que lo use desde que se eliminó el listener HTTPS nativo del backend.
 import { encryptPrivateKey, decryptPrivateKey } from "./infrastructure/security/tls-key-cipher";
 import { SmtpMailer } from "./infrastructure/notifier/smtp-mailer";
 import { ResolveAppSmtpConfig } from "./application/services/resolve-app-smtp-config";
@@ -117,9 +116,7 @@ import { UpdateNotificationUseCase } from "./application/use-cases/notifications
 import { DeleteNotificationUseCase } from "./application/use-cases/notifications/delete-notification.usecase";
 import { TestNotificationUseCase } from "./application/use-cases/notifications/test-notification.usecase";
 
-// Use cases de Sistema (TLS/HTTPS)
-import { ApplyTlsConfigUseCase } from "./application/use-cases/system/apply-tls-config.usecase";
-import { GetTlsConfigUseCase } from "./application/use-cases/system/get-tls-config.usecase";
+// Use cases de Sistema (SMTP de aplicación / motor de monitoreo)
 import { GetSmtpStatusUseCase } from "./application/use-cases/system/get-smtp-status.usecase";
 import { SendTestEmailUseCase } from "./application/use-cases/system/send-test-email.usecase";
 import { GetAppSmtpChannelUseCase } from "./application/use-cases/system/get-app-smtp-channel.usecase";
@@ -202,9 +199,6 @@ const appVersion: string = require("../package.json").version;
 export interface AppContainer {
   server: http.Server;
   scheduler: IScheduler;
-  tlsServerManager: ITlsServerManager;
-  tlsConfigs: ITlsConfigRepository;
-  tlsEncryptionKey?: string;
 }
 
 /**
@@ -236,19 +230,6 @@ export function buildContainer(env: Env): AppContainer {
 
   const server = http.createServer(app);
   const io = new Server(server, { cors: { origin: env.corsOrigin } });
-  const tlsServerManager = new HttpsServerManager(app);
-
-  // Redirección opcional HTTP -> HTTPS. Nota operativa: si el backend corre detrás de un
-  // proxy (ej. nginx) que le reenvía tráfico por HTTP interno, habilitar esta opción redirigirá
-  // también ese tráfico interno; solo se recomienda cuando el backend recibe tráfico público directo.
-  app.use((req, res, next) => {
-    const status = tlsServerManager.getStatus();
-    if (status.active && status.httpRedirect && !req.secure) {
-      res.redirect(301, `https://${req.hostname}:${status.port}${req.originalUrl}`);
-      return;
-    }
-    next();
-  });
 
   // Seguridad
   const tokens = new JwtTokenService(env.jwtSecret, env.jwtExpiresInSeconds);
@@ -262,7 +243,6 @@ export function buildContainer(env: Env): AppContainer {
   const backupsRepo = new MongooseBackupRepository();
   const auditLog = new MongooseAuditLogRepository();
   const apiKeysRepo = new MongooseApiKeyRepository();
-  const tlsConfigs = new MongooseTlsConfigRepository();
   const appSmtpSettingsRepo = new MongooseAppSmtpSettingsRepository();
   const maintenanceRepo = new MongooseMaintenanceRepository();
   const monitoringEngineSettingsRepo = new MongooseMonitoringEngineSettingsRepository();
@@ -277,8 +257,8 @@ export function buildContainer(env: Env): AppContainer {
   // se configuró (los use-cases que la necesitan lanzan un error claro pidiendo configurarla).
   const resolveOwnUrl = async (): Promise<string | null> => (await federationSettingsRepo.getActive())?.ownUrl ?? null;
   // Federación de instancias (AZ-049): el secreto compartido de cada par se cifra en reposo con
-  // la misma clave que ya cifra la clave privada TLS (AZKIN_TLS_ENCRYPTION_KEY, derivada sola de
-  // AZKIN_JWT_SECRET si no se configuró explícita) — reutiliza tls-key-cipher.ts tal cual.
+  // AZKIN_TLS_ENCRYPTION_KEY (derivada sola de AZKIN_JWT_SECRET si no se configuró explícita) —
+  // reutiliza tls-key-cipher.ts tal cual.
   const federationEncryptionKey = env.tlsEncryptionKey ?? "";
   const federationClient = new FederationFetchClient();
 
@@ -375,17 +355,16 @@ export function buildContainer(env: Env): AppContainer {
   const deleteAdmin = new DeleteAdminUseCase(users, auditLog);
   const updateViewerPermissions = new UpdateViewerPermissionsUseCase(users, auditLog);
   const deleteViewer = new DeleteViewerUseCase(users, auditLog);
-  const createBackup = new CreateBackupUseCase(monitors, backupsRepo, auditLog, notifications, users, tlsConfigs);
+  const createBackup = new CreateBackupUseCase(monitors, backupsRepo, auditLog, notifications, users);
   const listBackups = new ListBackupsUseCase(backupsRepo);
   const getBackup = new GetBackupUseCase(backupsRepo, auditLog);
-  const importBackup = new ImportBackupUseCase(monitors, scheduler, notifications, users, tlsConfigs, auditLog);
+  const importBackup = new ImportBackupUseCase(monitors, scheduler, notifications, users, auditLog);
   const purgeInstance = new PurgeInstanceUseCase(
     users,
     monitors,
     notifications,
     apiKeysRepo,
     auditLog,
-    tlsConfigs,
     backupsRepo,
     scheduler,
   );
@@ -399,15 +378,7 @@ export function buildContainer(env: Env): AppContainer {
   const deleteNotification = new DeleteNotificationUseCase(notifications, monitors, scheduler, auditLog);
   const testNotification = new TestNotificationUseCase(notifications, notifier);
 
-  // Instanciación de Use cases de Sistema (TLS/HTTPS)
-  const applyTlsConfig = new ApplyTlsConfigUseCase(
-    tlsConfigs,
-    auditLog,
-    tlsServerManager,
-    encryptPrivateKey,
-    env.tlsEncryptionKey ?? "",
-  );
-  const getTlsConfig = new GetTlsConfigUseCase(tlsConfigs, tlsServerManager);
+  // Instanciación de Use cases de Sistema (SMTP de aplicación / motor de monitoreo)
   const getAppSmtpChannel = new GetAppSmtpChannelUseCase(appSmtpSettingsRepo, notifications);
   const setAppSmtpChannel = new SetAppSmtpChannelUseCase(appSmtpSettingsRepo, notifications, auditLog);
   const getMonitoringEngineSettings = new GetMonitoringEngineSettingsUseCase(monitoringEngineSettingsRepo, {
@@ -471,8 +442,6 @@ export function buildContainer(env: Env): AppContainer {
   const getSmtpStatus = new GetSmtpStatusUseCase();
   const sendTestEmail = new SendTestEmailUseCase(mailer);
   const systemController = new SystemController(
-    applyTlsConfig,
-    getTlsConfig,
     getSmtpStatus,
     sendTestEmail,
     smtpConfigResolver,
@@ -692,9 +661,6 @@ export function buildContainer(env: Env): AppContainer {
   return {
     server,
     scheduler,
-    tlsServerManager,
-    tlsConfigs,
-    tlsEncryptionKey: env.tlsEncryptionKey,
   };
 }
 

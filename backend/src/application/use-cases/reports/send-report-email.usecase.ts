@@ -120,7 +120,7 @@ export class SendReportEmailUseCase {
       throw new ValidationError(
         definition.recipientMode === "custom_list"
           ? "El informe no tiene destinatarios configurados en su lista personalizada."
-          : 'No hay un "correo de alertas global" configurado (Settings → TLS/Sistema → SMTP de Aplicación) para usar como destinatario por defecto.',
+          : 'No hay un "correo de alertas global" configurado (Settings → Sistema → SMTP de Aplicación) para usar como destinatario por defecto.',
       );
     }
 
