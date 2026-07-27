@@ -220,6 +220,16 @@ Dos mecanismos, no confundir:
   mecanismo no incluye heartbeats históricos (viven en una colección Time-Series con TTL de 30
   días por diseño).
 
+> **⚠️ Un backup completo es una bóveda de credenciales (AZ-060).** El JSON generado por
+> "Respaldo completo" incluye el `passwordHash` de **todos** los Admins y Viewers de la instancia,
+> la clave privada TLS (cifrada en reposo, pero exportada igual) y los secretos de canales de
+> notificación (`webhookUrl`/`botToken`/`smtpPassword`) **en texto plano** — a diferencia de la API
+> normal, que siempre los enmascara. Cualquier cuenta Admin puede generar y descargar cualquier
+> backup, sin aislamiento entre Admins (mismo modelo que ya aplica al pool de monitores, ver
+> `spec/03-modelo-datos.md` §8). Tratá el archivo descargado con el mismo cuidado que el acceso
+> directo a Mongo o al `.env`: no lo subas a un repositorio, un chat, o un storage compartido sin
+> cifrar.
+
 ---
 
 ## 9. Problemas frecuentes
@@ -228,6 +238,7 @@ Dos mecanismos, no confundir:
 |---|---|---|
 | `port is already allocated` al hacer `up` | Otro proceso usa `80`/`3000`/`8443`/`27017` en el host | Cambia `AZKIN_FRONTEND_PORT`/`AZKIN_BACK_PORT`/`AZKIN_HTTPS_PORT`/`AZKIN_MONGO_PORT` en `.env` — los cuatro son independientes, no hace falta liberar el puerto en uso |
 | No puedo conectar MongoDB Compass / otro cliente externo desde **otra máquina** de la red | Es el comportamiento esperado: el puerto de Mongo está enlazado a `127.0.0.1`, solo accesible desde el propio servidor, por diseño de seguridad | Conéctate por SSH tunnel (`ssh -L 27017:127.0.0.1:27017 usuario@servidor`) o ejecuta el cliente directamente en el servidor. Si de verdad necesitas exponerlo a la red, cambia `127.0.0.1:${AZKIN_MONGO_PORT:-27017}:27017` a `${AZKIN_MONGO_PORT:-27017}:27017` en tu copia local del compose, asumiendo el riesgo |
+| No puedo llegar al backend (`AZKIN_BACK_PORT`/`AZKIN_HTTPS_PORT`) desde **otra máquina** de la red | Es el comportamiento esperado desde AZ-055: ambos puertos están enlazados a `127.0.0.1`, igual que Mongo — el único punto de entrada público soportado es nginx (`AZKIN_FRONTEND_PORT`, 80/443) | Usá el frontend (nginx ya proxya `/api/` y `/socket.io/` al backend). Para depuración directa desde el propio servidor, `curl localhost:3000/health` funciona igual. Si de verdad necesitás exponer el backend directo a la red (ej. un scraper de Prometheus externo), cambiá el binding a mano en tu copia local del compose — asumiendo que eso reabre el riesgo de evadir el rate limiter con `X-Forwarded-For` falsificado (ver AZ-055 en `ISSUES.md`) |
 | El backend no conecta a Mongo (`MongoServerError: Authentication failed`) | Cambiaste `AZKIN_MONGO_USER`/`AZKIN_MONGO_PASSWORD` en `.env` después de que el volumen/bind mount de Mongo ya se había inicializado con las credenciales anteriores | MongoDB solo aplica `MONGO_INITDB_ROOT_*` la **primera vez** que se crea el volumen de datos; si cambias credenciales después, borra `./data/mongodb` (prod) o el volumen `mongo-dev-data` (dev) y vuelve a levantar — perderás los datos existentes |
 | No aparece ningún Admin para iniciar sesión | `AZKIN_FIRST_ADMIN_*` se definió después de que la colección de usuarios ya tenía datos (el seeder no se re-ejecuta) | Crea el primer Admin manualmente o restaura desde un respaldo; el auto-bootstrap solo corre una vez, con la base vacía |
 | `/metrics` responde 401/403 siempre | No configuraste ni Basic Auth (`AZKIN_PROMETHEUS_USER`+`_PASS`) ni `AZKIN_PROMETHEUS_API_KEY` | Es el comportamiento esperado (fail-closed, sin credenciales por defecto desde AZ-010) — define al menos uno de los dos esquemas |
@@ -376,8 +387,8 @@ debe llegar **hacia** el servidor donde corre Azkin (entrada) y lo que Azkin nec
 | Puerto | Protocolo | Variable | ¿Quién lo necesita? |
 |---|---|---|---|
 | 80 (o el que definas) | TCP (HTTP) | `AZKIN_FRONTEND_PORT` | **Obligatorio.** Es el único puerto que necesita cualquier usuario con navegador — Nginx sirve la SPA y hace de proxy interno hacia el backend para `/api/*` y `/socket.io/*` (WebSockets), así que todo el tráfico de usuario normal (UI, API, tiempo real) entra por acá. Si federas esta instancia con otras (ver `ISSUES.md`, AZ-049), el sondeo entre pares también entra por este mismo puerto — no hay un puerto dedicado a federación. |
-| 3000 (o el que definas) | TCP (HTTP) | `AZKIN_BACK_PORT` | Opcional. Solo si necesitas llegar al backend **sin pasar por el proxy del frontend** — ej. un scraper de Prometheus (`/metrics`) o un integrador de la [API pública](./api-publica.md) que prefiera apuntar directo al backend. Si todo tu tráfico entra por el puerto 80, no hace falta abrir este. |
-| 8443 (o el que definas) | TCP (HTTPS) | `AZKIN_HTTPS_PORT` | Solo si activas el listener HTTPS nativo desde `/settings` → **TLS/Sistema** (ver §6). Si no usas esa función, no hace falta abrirlo. |
+| 3000 (o el que definas) | TCP (HTTP) | `AZKIN_BACK_PORT` | **No abrir hacia la red por defecto (AZ-055).** Igual que Mongo, está enlazado a `127.0.0.1` del propio servidor — el único punto de entrada público soportado es nginx (fila de arriba), que ya proxya `/api/*` y `/socket.io/*`. Exponerlo directo a la red permite evadir el rate limiter anti fuerza-bruta falsificando `X-Forwarded-For`. Si necesitás llegar sin pasar por nginx (ej. un scraper de Prometheus externo), cambiá el binding a mano en tu copia local del compose asumiendo ese riesgo — ver la fila de Mongo/§9 para el patrón de túnel SSH como alternativa más segura. |
+| 8443 (o el que definas) | TCP (HTTPS) | `AZKIN_HTTPS_PORT` | Solo si activas el listener HTTPS nativo desde `/settings` → **TLS/Sistema** (ver §6). Igual que `AZKIN_BACK_PORT`, enlazado a `127.0.0.1` por defecto (AZ-055) — no hace falta abrirlo hacia la red salvo que necesites acceso directo sin pasar por nginx. |
 | 27017 (o el que definas) | TCP | `AZKIN_MONGO_PORT` | **No abrir hacia la red.** Está enlazado únicamente a `127.0.0.1` del propio servidor (ver §4) — solo para depurar con Compass/mongosh estando conectado directamente a esa máquina. El backend nunca lo usa: se conecta a Mongo por la red interna de Docker. |
 
 ### Salida (desde el servidor Azkin hacia internet/red interna)

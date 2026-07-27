@@ -45,7 +45,8 @@ Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión d
 - **Módulo de Mantenimiento:** ventanas de silenciado de alertas con alcance granular (todo, un grupo, o monitores puntuales) y modo programado o inmediato — el heartbeat real se sigue registrando, solo se suprimen las notificaciones mientras la ventana está vigente.
 - **Historial de auditoría ampliado:** registro y consulta desde `/settings` de ~39 tipos de acción administrativa (intentos de login, CRUD de monitores/notificaciones/viewers/admins/API Keys/mantenimiento, operaciones de respaldo, cambios de TLS), con el detalle de qué campos cambiaron en cada edición.
 - **Notificaciones multicanal con plantillas:** email, Slack, Discord, Telegram y webhooks genéricos, con plantillas configurables por tipo de evento, cheatsheet de variables clickeable y selector de emojis.
-- **Sesión segura:** el access token vive en memoria (nunca en `localStorage`); la sesión se renueva mediante una cookie `HttpOnly` de refresh, rotada en cada uso.
+- **Sesión segura:** el access token vive en memoria (nunca en `localStorage`); la sesión se renueva mediante una cookie `HttpOnly` de refresh, rotada en cada uso. Cada token lleva un claim `typ` (`access`/`refresh`) que impide usar uno en lugar del otro, y bloquear/eliminar una cuenta corta su acceso en la siguiente petición (no hay que esperar a que el token expire solo).
+- **Hardening de seguridad (AZ-052 a AZ-066):** batch de correcciones de una auditoría de seguridad completa — validación de certificado TLS restaurada en las alertas por email, contraseña actual exigida para cambiar la propia y protección contra IDOR al resetear la de otro Admin, escape de HTML/JSON/Markdown en informes y notificaciones, neutralización de inyección de fórmulas en CSV, credenciales SNMP enmascaradas para Viewers, cabeceras de seguridad (`helmet`) y contenedor backend sin privilegios de root. Detalle completo en [`ISSUES.md`](./ISSUES.md).
 
 ---
 

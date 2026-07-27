@@ -14,6 +14,15 @@ export interface LoginInput {
 export const REFRESH_TOKEN_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
 
 /**
+ * Expiración de sesiones TV/Kiosko (1 año) — deliberadamente larga porque ese modo está pensado
+ * para pantallas sin teclado donde volver a iniciar sesión es incómodo. Antes de AZ-054 esta
+ * duración no tenía forma de revocarse antes de tiempo; ahora `auth-guard.ts` revisa `isBlocked`
+ * en cada request, así que bloquear la cuenta corta el acceso de inmediato sin depender de que
+ * el token expire solo — por eso se mantiene el valor en vez de acortarlo.
+ */
+export const TV_SESSION_EXPIRES_IN_SECONDS = 365 * 24 * 60 * 60;
+
+/**
  * Caso de uso para autenticar un usuario en el sistema.
  * Valida credenciales de Admins y Viewers de forma centralizada sin revelar la existencia de correos.
  */
@@ -64,12 +73,13 @@ export class LoginUseCase {
     }
 
     // Sesiones TV/Kiosko usan un token de larga duración (1 año) en vez del expiresIn por defecto.
-    const tvExpiresIn = user.isTvSessionEnabled ? 31536000 : undefined;
-    const token = this.tokens.sign(user.id, user.role, user.adminId, user.permissions, tvExpiresIn);
+    const tvExpiresIn = user.isTvSessionEnabled ? TV_SESSION_EXPIRES_IN_SECONDS : undefined;
+    const token = this.tokens.sign(user.id, user.role, "access", user.adminId, user.permissions, tvExpiresIn);
     // Refresh token de larga duración, persistido solo como cookie HttpOnly por el controller.
     const refreshToken = this.tokens.sign(
       user.id,
       user.role,
+      "refresh",
       user.adminId,
       user.permissions,
       tvExpiresIn ?? REFRESH_TOKEN_EXPIRES_IN_SECONDS,

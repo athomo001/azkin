@@ -6,8 +6,28 @@ import {
 import { IScheduler } from "../../ports/services/scheduler";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { diffFields } from "../../services/diff-fields";
+import { SENSITIVE_MONITOR_FIELDS } from "../../services/monitor-secrets";
+import { maskSecret } from "../../services/notification-secrets";
 import { IMonitor } from "../../../domain/entities/monitor";
 import { NotFoundError } from "../../../domain/errors/domain-error";
+
+/** AZ-062: enmascara los valores from/to de campos sensibles (credenciales SNMP) antes de que
+ * queden persistidos en texto plano dentro de `metadata.changes` del audit log — mismo criterio
+ * ya usado para los secretos de canales de notificación. */
+function redactSensitiveDiff(
+  changes: Record<string, { from: unknown; to: unknown }>,
+): Record<string, { from: unknown; to: unknown }> {
+  const redacted = { ...changes };
+  for (const key of SENSITIVE_MONITOR_FIELDS) {
+    const change = redacted[key];
+    if (!change) continue;
+    redacted[key] = {
+      from: typeof change.from === "string" && change.from ? maskSecret(change.from) : change.from,
+      to: typeof change.to === "string" && change.to ? maskSecret(change.to) : change.to,
+    };
+  }
+  return redacted;
+}
 
 /**
  * Caso de uso para actualizar la configuración de un monitor de red.
@@ -39,7 +59,11 @@ export class UpdateMonitorUseCase {
       action: "MONITOR_UPDATE",
       targetType: "monitor",
       targetIds: [id],
-      metadata: { changes: diffFields((before as unknown as Record<string, unknown>) ?? {}, data as unknown as Record<string, unknown>) },
+      metadata: {
+        changes: redactSensitiveDiff(
+          diffFields((before as unknown as Record<string, unknown>) ?? {}, data as unknown as Record<string, unknown>),
+        ),
+      },
     });
 
     return updated;

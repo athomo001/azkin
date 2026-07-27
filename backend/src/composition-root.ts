@@ -3,6 +3,7 @@ import http from "http";
 import cors from "cors";
 import express from "express";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import pLimit from "p-limit";
 import cron from "node-cron";
 import { Server } from "socket.io";
@@ -217,6 +218,17 @@ export function buildContainer(env: Env): AppContainer {
   // cliente desde X-Forwarded-For — requerido para que express-rate-limit limite
   // por IP de cliente real y no por la IP interna del proxy.
   app.set("trust proxy", 1);
+  // AZ-065: cabeceras de seguridad básicas. El backend solo sirve JSON (nunca HTML), así que una
+  // CSP `default-src 'none'` es segura de aplicar sin romper nada; `frameAncestors: 'none'` cubre
+  // clickjacking. HSTS queda con el default de helmet (inofensivo sobre HTTP plano, solo tiene
+  // efecto si el cliente llega por HTTPS).
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
+      },
+    }),
+  );
   app.use(cors({ origin: env.corsOrigin }));
   app.use(express.json());
   app.use(cookieParser());
@@ -625,7 +637,7 @@ export function buildContainer(env: Env): AppContainer {
   const metricsController = new MetricsController(getMetrics);
 
   // Rutas
-  const authGuard = makeAuthGuard(tokens);
+  const authGuard = makeAuthGuard(tokens, users);
   const apiKeyAuth = makeApiKeyAuth(apiKeysRepo);
   const metricsAuth = makeMetricsAuth(env);
   app.get("/health", (_req, res) => {

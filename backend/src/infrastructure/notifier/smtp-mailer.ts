@@ -55,6 +55,17 @@ export class SmtpMailer implements IMailer {
   private logMock(input: SendMailInput): void {
     logger.warn(`[SMTP MOCK] Para: ${input.to}`);
     logger.warn(`[SMTP MOCK] Asunto: ${input.subject}`);
-    logger.warn(`[SMTP MOCK] Mensaje:\n${input.text}`);
+    logger.warn(`[SMTP MOCK] Mensaje:\n${redactTokens(input.text)}`);
   }
+}
+
+// AZ-056: en modo mock (sin SMTP configurado) el cuerpo completo del correo va al log —
+// incluido, para el flujo de recuperación de contraseña, el token/link válido en texto plano.
+// Se redacta cualquier `token=<hex>` de query string y cualquier token hexadecimal suelto
+// (formato usado por request-password-reset.usecase.ts) antes de loguear.
+const TOKEN_QUERY_PATTERN = /token=[0-9a-f]{16,}/gi;
+const BARE_HEX_TOKEN_PATTERN = /\b[0-9a-f]{32,}\b/gi;
+
+function redactTokens(text: string): string {
+  return text.replace(TOKEN_QUERY_PATTERN, "token=[REDACTED]").replace(BARE_HEX_TOKEN_PATTERN, "[REDACTED]");
 }

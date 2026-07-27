@@ -1506,7 +1506,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private downloadEventsCsv(rows: MonitorEvent[], label: string): void {
-    const escapeCsv = (value: string): string => (/[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+    // AZ-059: neutraliza el prefijo de inyección de fórmulas (=, +, -, @) anteponiendo un `'`
+    // antes de aplicar el escape de comillas/comas ya existente — sin esto, un monitor nombrado
+    // p.ej. `=HYPERLINK(...)` se abre como fórmula ejecutable en Excel/Sheets al abrir el CSV.
+    const neutralizeFormulaPrefix = (value: string): string => (/^[=+\-@]/.test(value) ? `'${value}` : value);
+    const escapeCsv = (value: string): string => {
+      const safe = neutralizeFormulaPrefix(value);
+      return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+    };
     const header = ['monitor', 'target', 'status', 'timestamp', 'ping_ms', 'message'];
     const lines = rows.map((r) => [
       escapeCsv(r.monitorName),

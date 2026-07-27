@@ -16,6 +16,18 @@ import {
   formatUptimePercent,
 } from "../../services/report-format";
 
+const HTML_ESCAPE_MAP: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+/**
+ * AZ-058: escapa entidades HTML antes de interpolar texto libre (nombre de informe, nombre de
+ * monitor) dentro del cuerpo HTML del correo — ninguno de esos campos tiene restricción de
+ * caracteres en su schema, así que sin este escape un nombre como
+ * `<img src=x onerror="...">` llegaba intacto al cliente de correo del destinatario.
+ */
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char]);
+}
+
 function slugify(value: string): string {
   return value
     .toLowerCase()
@@ -39,19 +51,21 @@ function buildSummaryText(data: IReportData): string {
   ].join("\n");
 }
 
-function buildSummaryHtml(data: IReportData): string {
+/** Exportada para poder testear el escape HTML (AZ-058) directamente, sin tener que construir
+ * todo el árbol de dependencias de SendReportEmailUseCase. */
+export function buildSummaryHtml(data: IReportData): string {
   const { uptimeRatio, totalIncidents, totalDowntimeSeconds } = data.kpis;
   const topRows = data.topOffenders
     .slice(0, 5)
     .map(
       (row) =>
-        `<tr><td>${row.monitorName}</td><td>${row.incidents}</td><td>${formatDurationSeconds(row.downtimeSeconds)}</td></tr>`,
+        `<tr><td>${escapeHtml(row.monitorName)}</td><td>${row.incidents}</td><td>${formatDurationSeconds(row.downtimeSeconds)}</td></tr>`,
     )
     .join("");
 
   return `
     <div style="font-family: Arial, sans-serif; color: #111827;">
-      <h2 style="margin-bottom: 4px;">${data.definitionName}</h2>
+      <h2 style="margin-bottom: 4px;">${escapeHtml(data.definitionName)}</h2>
       <p style="color:#6b7280; margin-top: 0;">${formatDateRange(data.from, data.to)}</p>
       <table cellpadding="6" style="border-collapse: collapse; margin: 12px 0;">
         <tr>

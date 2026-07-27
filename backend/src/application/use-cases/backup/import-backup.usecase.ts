@@ -22,6 +22,9 @@ export interface ImportBackupInput {
 export interface ImportSectionResult {
   createdCount: number;
   updatedCount: number;
+  /** AZ-053: cuentas ya existentes cuya contraseña NO se sobrescribió durante el import (ver nota
+   * en `importAdmins`) — solo aplica a la sección de admins. */
+  passwordsSkipped?: number;
   errors: { index: number; message: string }[];
 }
 
@@ -34,10 +37,16 @@ export interface ImportBackupOutput {
   tlsConfig: { applied: boolean; skippedReason?: string };
 }
 
+// AZ-053: passwordHash debe tener forma de hash bcrypt real (el formato que produce
+// bcrypt-password-hasher.ts) — sin esto, un backup podía plantar cualquier string arbitrario como
+// si fuera el hash de una cuenta nueva.
+const BCRYPT_HASH_PATTERN = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+const passwordHashSchema = z.string().regex(BCRYPT_HASH_PATTERN, "passwordHash debe ser un hash bcrypt válido");
+
 const backupAdminSchema = z.object({
   email: z.string().email(),
   username: z.string().min(1).max(100).optional(),
-  passwordHash: z.string().min(1),
+  passwordHash: passwordHashSchema,
   isBlocked: z.boolean().optional(),
   preferences: z.object({ nyanCatMode: z.boolean() }).optional(),
 });
@@ -46,7 +55,7 @@ const backupViewerSchema = z
   .object({
     email: z.string().email().optional(),
     username: z.string().min(1).max(100).optional(),
-    passwordHash: z.string().min(1),
+    passwordHash: passwordHashSchema,
     adminIdentifier: z.string().min(1),
     permissions: z.array(z.object({ type: z.enum(["all", "group", "monitor"]), value: z.string().optional() })).default([]),
     isTvSessionEnabled: z.boolean().optional(),
@@ -143,10 +152,15 @@ export class ImportBackupUseCase {
       try {
         const existingId = identifierToId.get(key);
         if (existingId) {
-          await this.users.changePassword(existingId, data.passwordHash);
+          // AZ-053: nunca sobrescribir el passwordHash de una cuenta ya existente durante un
+          // import — un backup no trae ninguna firma que pruebe que salió de esta misma
+          // instancia, así que restaurar la contraseña "en silencio" permitía tomar el control de
+          // cualquier Admin subiendo un backup con un passwordHash elegido a mano. El resto de
+          // campos no sensibles (bloqueo, preferencias) sí se sigue aplicando.
           if (data.isBlocked !== undefined) await this.users.setAdminBlocked(existingId, data.isBlocked);
           if (data.preferences) await this.users.updatePreferences(existingId, data.preferences);
           result.updatedCount++;
+          result.passwordsSkipped = (result.passwordsSkipped ?? 0) + 1;
         } else {
           const created = await this.users.create({ email: data.email, username: data.username, passwordHash: data.passwordHash });
           identifierToId.set(key, created.id);

@@ -131,6 +131,7 @@ const TRANSLATIONS = {
       // Perfil
       'settings.profile.changeTitle': { es: 'Cambiar Contraseña Administrativa', en: 'Change Admin Password' },
       'settings.profile.changeDesc': { es: 'Establece una nueva clave para resguardar la seguridad de la consola.', en: 'Set a new key to protect console access.' },
+      'settings.profile.currentPass': { es: 'Contraseña Actual', en: 'Current Password' },
       'settings.profile.newPass': { es: 'Nueva Contraseña', en: 'New Password' },
       'settings.profile.confirmPass': { es: 'Confirmar Nueva Contraseña', en: 'Confirm New Password' },
       'settings.profile.saveBtn': { es: 'Actualizar Contraseña', en: 'Update Password' },

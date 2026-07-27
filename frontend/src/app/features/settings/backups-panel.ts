@@ -32,6 +32,8 @@ interface AssetImportResult {
 interface ImportSectionResult {
   createdCount: number;
   updatedCount: number;
+  /** Cuentas ya existentes cuya contraseña NO se sobrescribió durante el import (AZ-053). */
+  passwordsSkipped?: number;
   errors: { index: number; message: string }[];
 }
 
@@ -129,6 +131,7 @@ interface PurgeResult {
               <p class="text-zinc-300">
                 Admins: <span class="font-bold text-emerald-500">{{ result.admins.createdCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.admins.updatedCount }}</span> actualizados
                 @if (result.admins.errors.length > 0) { · <span class="font-bold text-rose-500">{{ result.admins.errors.length }} con error</span> }
+                @if (result.admins.passwordsSkipped) { · <span class="font-bold text-sky-400">{{ result.admins.passwordsSkipped }} con contraseña sin modificar (ya existían)</span> }
               </p>
               <p class="text-zinc-300">
                 Viewers: <span class="font-bold text-emerald-500">{{ result.viewers.createdCount }}</span> nuevos, <span class="font-bold text-orange-400">{{ result.viewers.updatedCount }}</span> actualizados

@@ -32,14 +32,14 @@ export class MonitorController {
       req.adminId!,
       req.permissions!,
     );
-    res.status(200).json(monitors.map(toMonitorResponse));
+    res.status(200).json(monitors.map((m) => toMonitorResponse(m, req.userRole!)));
   };
 
   create = async (req: Request, res: Response): Promise<void> => {
     // req.adminId resuelve al propietario efectivo (para un admin, es su propio id;
     // requireRole("admin") ya bloquea a los viewers antes de llegar aquí).
     const monitor = await this.createUseCase.execute({ userId: req.adminId!, ...req.body });
-    res.status(201).json(toMonitorResponse(monitor));
+    res.status(201).json(toMonitorResponse(monitor, req.userRole!));
   };
 
   update = async (req: Request, res: Response): Promise<void> => {
@@ -47,7 +47,7 @@ export class MonitorController {
     // los parámetros de ruta pueden resolverse como string | string[].
     const id = req.params.id as string;
     const monitor = await this.updateUseCase.execute(req.adminId!, id, req.body);
-    res.status(200).json(toMonitorResponse(monitor));
+    res.status(200).json(toMonitorResponse(monitor, req.userRole!));
   };
 
   remove = async (req: Request, res: Response): Promise<void> => {

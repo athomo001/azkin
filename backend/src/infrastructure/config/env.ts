@@ -14,7 +14,9 @@ const emptyToUndefined = (val: unknown): unknown => (val === "" ? undefined : va
 const schema = z.object({
   AZKIN_PORT: z.coerce.number().int().positive().default(3000),
   AZKIN_MONGO_URI: z.string().min(1).default("mongodb://localhost:27017/azkin"),
-  AZKIN_JWT_SECRET: z.string().min(1, "AZKIN_JWT_SECRET is required"),
+  AZKIN_JWT_SECRET: z
+    .string()
+    .min(32, "AZKIN_JWT_SECRET debe tener al menos 32 caracteres (ej. 'openssl rand -hex 32') — de él se deriva también la clave de cifrado en reposo de TLS/federación"),
   AZKIN_JWT_EXPIRES_IN: z.coerce.number().int().positive().default(7200),
   AZKIN_CHECK_CONCURRENCY: z.coerce.number().int().positive().default(50),
   AZKIN_FIRST_CHECK_DELAY_MS: z.coerce.number().int().nonnegative().default(1000),
@@ -141,4 +143,43 @@ if (env.corsOrigin === "*") {
 }
 if (!env.prometheusApiKey && !(env.prometheusUser && env.prometheusPass)) {
   console.warn("[env] /metrics quedará inaccesible: no hay AZKIN_PROMETHEUS_API_KEY ni AZKIN_PROMETHEUS_USER+PASS configurados.");
+}
+if (env.bcryptCost < 10) {
+  console.warn(`[env] AZKIN_BCRYPT_COST=${env.bcryptCost} está por debajo del mínimo recomendado (10) para producción — usar valores bajos solo para acelerar tests.`);
+}
+if (!(env.smtp.host && env.smtp.user && env.smtp.password)) {
+  console.warn(
+    "[env] AZKIN_SMTP_HOST/USER/PASSWORD incompletos: los correos (incluida la recuperación de contraseña) se registrarán en el log en vez de enviarse, salvo que configures un canal de notificación tipo Email como fuente de SMTP en /settings → TLS/Sistema.",
+  );
+}
+
+// AZ-064: credenciales de ejemplo de .env.example son placeholders con forma de contraseña real
+// (no un valor obviamente falso como "CHANGE_ME"), así que un despliegue que las copie sin
+// cambiarlas no lo nota a simple vista. Se detectan por comparación literal contra los valores
+// exactos documentados en .env.example/backend/.env.example y se advierte fuerte al arrancar.
+const KNOWN_EXAMPLE_CREDENTIALS = {
+  AZKIN_MONGO_PASSWORD: "CambiarEstaContrasenaDeMongoSegura123!",
+  AZKIN_FIRST_ADMIN_PASSWORD: "CambiarEstaContrasenaSegura123!",
+  AZKIN_PROMETHEUS_PASS: "PrometheusScraperSecurePass123!",
+} as const;
+
+const usedExampleCredentials: string[] = [];
+// AZKIN_MONGO_PASSWORD no se recibe como variable propia en el backend (compose la interpola
+// directo dentro de AZKIN_MONGO_URI) — se detecta buscando el valor de ejemplo dentro de la URI.
+if (env.mongoUri.includes(KNOWN_EXAMPLE_CREDENTIALS.AZKIN_MONGO_PASSWORD)) {
+  usedExampleCredentials.push("AZKIN_MONGO_PASSWORD");
+}
+if (env.firstAdminPassword === KNOWN_EXAMPLE_CREDENTIALS.AZKIN_FIRST_ADMIN_PASSWORD) {
+  usedExampleCredentials.push("AZKIN_FIRST_ADMIN_PASSWORD");
+}
+if (env.prometheusPass === KNOWN_EXAMPLE_CREDENTIALS.AZKIN_PROMETHEUS_PASS) {
+  usedExampleCredentials.push("AZKIN_PROMETHEUS_PASS");
+}
+if (usedExampleCredentials.length > 0) {
+  console.warn("=".repeat(78));
+  console.warn("[env] ¡ADVERTENCIA DE SEGURIDAD! Estás usando credenciales de EJEMPLO del repositorio");
+  console.warn(`[env] público sin cambiar: ${usedExampleCredentials.join(", ")}.`);
+  console.warn("[env] Cualquiera que haya visto este repo (es público) conoce estos valores. Cámbialos");
+  console.warn("[env] antes de exponer esta instancia fuera de tu red local/de confianza.");
+  console.warn("=".repeat(78));
 }

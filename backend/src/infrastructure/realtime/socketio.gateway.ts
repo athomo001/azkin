@@ -17,7 +17,7 @@ export class SocketIoGateway implements IRealtimePublisher {
     this.io.use((socket, next) => {
       try {
         const token = this.extractToken(socket);
-        const payload = this.tokens.verify(token);
+        const payload = this.tokens.verify(token, "access");
 
         // Si es viewer, se une a la room del Admin propietario; si no, a la propia.
         const roomToJoin = (payload.role === "viewer" && payload.adminId ? payload.adminId : payload.userId).toString();
@@ -68,9 +68,9 @@ export class SocketIoGateway implements IRealtimePublisher {
       return header.slice("Bearer ".length);
     }
 
-    const fromQuery = socket.handshake.query?.token;
-    if (typeof fromQuery === "string" && fromQuery.length > 0) return fromQuery;
-
+    // AZ-066: sin fallback por query string (?token=...) — el frontend nunca lo usa
+    // (realtime.service.ts solo manda `auth: { token }`) y un JWT en la URL queda expuesto en
+    // logs de acceso/historial del navegador, mismo riesgo que ya evita metrics-auth.ts a propósito.
     throw new Error("missing token");
   }
 }

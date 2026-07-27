@@ -1,12 +1,15 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { z } from "zod";
+import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from "../../../application/services/password-policy";
+
+const passwordSchema = z.string().refine(isPasswordStrong, PASSWORD_POLICY_MESSAGE);
 
 export const registerSchema = z.object({
   email: z
     .string()
     .email()
     .transform((e) => e.toLowerCase()),
-  password: z.string().min(8),
+  password: passwordSchema,
 });
 
 export const forgotPasswordSchema = z.object({
@@ -18,7 +21,7 @@ export const forgotPasswordSchema = z.object({
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(1),
-  newPassword: z.string().min(8),
+  newPassword: passwordSchema,
 });
 
 export const loginSchema = z.object({

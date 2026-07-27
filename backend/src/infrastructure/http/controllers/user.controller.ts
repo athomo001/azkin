@@ -12,6 +12,7 @@ import { DeleteAdminUseCase } from "../../../application/use-cases/users/delete-
 import { IUserRepository } from "../../../application/ports/repositories/user-repository";
 import { IPasswordHasher } from "../../../application/ports/services/security";
 import { IAuditLogRepository } from "../../../application/ports/repositories/audit-log-repository";
+import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from "../../../application/services/password-policy";
 
 export class UserController {
   constructor(
@@ -134,8 +135,17 @@ export class UserController {
   resetAdminPassword = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
     const { newPassword } = req.body;
-    if (!newPassword || newPassword.length < 8) {
-      res.status(400).json({ error: "La contraseña debe tener al menos 8 caracteres" });
+    if (!isPasswordStrong(newPassword)) {
+      res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
+      return;
+    }
+    // AZ-053: sin este chequeo, este endpoint (pensado solo para resetear la contraseña de OTRO
+    // ADMIN) aceptaba igual el id de un Viewer — incluso de un Admin distinto — porque
+    // `changePassword` no filtra por rol. Se verifica explícitamente que el id objetivo sea un
+    // Admin antes de tocar su contraseña.
+    const target = await this.usersRepo.findById(id);
+    if (!target || target.role !== "admin") {
+      res.status(404).json({ error: "Administrador no encontrado" });
       return;
     }
     const passwordHash = await this.hasher.hash(newPassword);
@@ -175,17 +185,37 @@ export class UserController {
 
   changeOwnPassword = async (req: Request, res: Response): Promise<void> => {
     const userId = req.userId!;
-    const { newPassword } = req.body;
-    if (!newPassword || newPassword.length < 8) {
-      res.status(400).json({ error: "La contraseña debe tener al menos 8 caracteres" });
+    const { currentPassword, newPassword } = req.body;
+    if (!isPasswordStrong(newPassword)) {
+      res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
       return;
     }
-    const passwordHash = await this.hasher.hash(newPassword);
-    const success = await this.usersRepo.changePassword(userId, passwordHash);
-    if (!success) {
+    // AZ-057: exigir la contraseña actual antes de aplicar el cambio — sin esto, un token de
+    // acceso expuesto brevemente (XSS, log filtrado, sesión abierta en un equipo compartido)
+    // alcanzaba para tomar control permanente de la cuenta sin haber conocido nunca la
+    // contraseña original.
+    if (typeof currentPassword !== "string" || currentPassword.length === 0) {
+      res.status(400).json({ error: "Debes indicar tu contraseña actual" });
+      return;
+    }
+    const user = await this.usersRepo.findById(userId);
+    if (!user) {
       res.status(404).json({ error: "Usuario no encontrado" });
       return;
     }
+    const matches = await this.hasher.compare(currentPassword, user.passwordHash);
+    if (!matches) {
+      res.status(401).json({ error: "La contraseña actual no es correcta" });
+      return;
+    }
+    const passwordHash = await this.hasher.hash(newPassword);
+    await this.usersRepo.changePassword(userId, passwordHash);
+    await this.auditLog.record({
+      actorId: userId,
+      action: "OWN_PASSWORD_CHANGE",
+      targetType: "user",
+      targetIds: [userId],
+    });
     res.status(200).json({ message: "Contraseña actualizada exitosamente" });
   };
 
@@ -193,8 +223,8 @@ export class UserController {
     const adminId = req.userId!;
     const viewerId = req.params.id as string;
     const { newPassword } = req.body;
-    if (!newPassword || newPassword.length < 8) {
-      res.status(400).json({ error: "La contraseña debe tener al menos 8 caracteres" });
+    if (!isPasswordStrong(newPassword)) {
+      res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
       return;
     }
 
