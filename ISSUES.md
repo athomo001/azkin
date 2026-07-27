@@ -1153,6 +1153,21 @@ no se envía. Se agregó también el registro de auditoría (`OWN_PASSWORD_CHANG
 en este método. Frontend: el formulario "Cambiar Contraseña" en `/profile` agrega el campo
 "Contraseña Actual" y lo envía junto al resto. Cubierto en `user.controller.test.ts`.
 
+### Nota (2026-07-27) — bug real encontrado por el usuario al probar: el toast de error no mostraba el motivo real
+
+Reporte del usuario probando el modal "Cambiar Contraseña" de un Viewer: "el botón no funciona o
+si funciona nunca sé si cambió la clave o no". Causa raíz: `resetAdminPassword`/
+`changeOwnPassword`/`changeViewerPassword` (mismo archivo, afecta también AZ-053/AZ-066.3)
+respondían sus validaciones con `res.json({ error: "mensaje" })` armado a mano — un envelope
+distinto al `{ error: { code, message } }` que produce `errorHandler` para el resto de la API. El
+frontend (`extractApiErrorMessage`) solo sabe leer ese segundo formato, así que cualquier rechazo
+de estos 3 endpoints (password débil, cuenta no encontrada, contraseña actual incorrecta) mostraba
+siempre el toast genérico de fallback en vez del motivo real — más fácil de disparar tras subir la
+exigencia de la política de contraseña (letra + número) en esta misma ronda. Corregido: los 3
+métodos (y `updatePreferences`, mismo patrón) ahora lanzan `ValidationError`/`NotFoundError`/
+`UnauthorizedError`, que `errorHandler` traduce correctamente. Cubierto con un test end-to-end
+(controller → `errorHandler`) en `user.controller.test.ts`. Suite completa 269/269.
+
 ### Descripcion
 
 `PUT /api/v1/users/profile/password` (`user.routes.ts:31`) →
