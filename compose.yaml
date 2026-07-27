@@ -38,7 +38,7 @@ services:
       - azkin-db
     networks:
       - azkin-network
-    # AZ-055: sin publicar ningún puerto por defecto — azkin-back, azkin-front y azkin-db se hablan
+    # sin publicar ningún puerto por defecto — azkin-back, azkin-front y azkin-db se hablan
     # entre sí por nombre de servicio dentro de `azkin-network` (nginx → `http://backend:3000` en
     # nginx.conf), lo cual nunca requiere publicar nada al host. El backend ya no tiene ninguna
     # función que necesite ser alcanzada directamente (el listener HTTPS nativo se eliminó — TLS se
@@ -49,7 +49,7 @@ services:
     # ports:
     #   - "127.0.0.1:${AZKIN_BACK_PORT:-3000}:3000"
     cap_add:
-      # AZ-065: necesario para que el checker de Ping (socket ICMP raw vía `iputils`) siga
+      # necesario para que el checker de Ping (socket ICMP raw vía `iputils`) siga
       # funcionando ahora que el proceso corre como usuario no-root dentro del contenedor.
       - NET_RAW
     extra_hosts:
