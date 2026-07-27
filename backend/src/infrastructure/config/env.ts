@@ -149,7 +149,7 @@ if (env.bcryptCost < 10) {
 }
 if (!(env.smtp.host && env.smtp.user && env.smtp.password)) {
   console.warn(
-    "[env] AZKIN_SMTP_HOST/USER/PASSWORD incompletos: los correos (incluida la recuperación de contraseña) se registrarán en el log en vez de enviarse, salvo que configures un canal de notificación tipo Email como fuente de SMTP en /settings → TLS/Sistema.",
+    "[env] AZKIN_SMTP_HOST/USER/PASSWORD incompletos: los correos (incluida la recuperación de contraseña) se registrarán en el log en vez de enviarse, salvo que configures un canal de notificación tipo Email como fuente de SMTP en /settings → Sistema.",
   );
 }
 

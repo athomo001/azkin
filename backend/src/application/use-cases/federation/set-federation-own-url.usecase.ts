@@ -28,7 +28,7 @@ export class SetFederationOwnUrlUseCase {
     // debe saber que el secreto compartido de federación viaja sin cifrar hacia esa dirección.
     if (isInsecureFederationUrl(ownUrl)) {
       logger.warn(
-        `[Federation] La dirección propia configurada (${ownUrl}) usa HTTP sin cifrar — el secreto compartido de federación viajará en texto plano hacia esta instancia. Se recomienda HTTPS nativo (ver /settings → TLS/Sistema) en producción.`,
+        `[Federation] La dirección propia configurada (${ownUrl}) usa HTTP sin cifrar — el secreto compartido de federación viajará en texto plano hacia esta instancia. Se recomienda servir HTTPS terminándolo en nginx (ver docs/instalacion-docker.md §6) en producción.`,
       );
     }
     const settings = await this.settings.upsert({ ownUrl, updatedById: input.actorId });

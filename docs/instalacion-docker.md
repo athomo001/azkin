@@ -3,7 +3,7 @@
 Azkin está pensado para desplegarse completamente vía Docker Compose: no requiere instalar
 Node.js, pnpm ni MongoDB en el host. Este documento cubre la instalación paso a paso, tanto para
 producción como para desarrollo con hot-reload, además de las tareas operativas más comunes
-(actualizar, respaldar datos, activar HTTPS nativo) y problemas frecuentes.
+(actualizar, respaldar datos, servir HTTPS) y problemas frecuentes.
 
 ---
 
@@ -15,11 +15,12 @@ producción como para desarrollo con hot-reload, además de las tareas operativa
   docker --version
   docker compose version
   ```
-- Puertos libres en el host: `80` (frontend), `3000` (API backend) y opcionalmente `8443`
-  (HTTPS nativo del backend, ver [§6](#6-https-nativo-opcional)). MongoDB también publica un
-  puerto (`27017` por defecto) pero solo en la interfaz `127.0.0.1` — no compite con otros
-  servicios accesibles desde la red, solo con otro Mongo local en el mismo puerto (ver §4). Todos
-  son configurables si están ocupados — ver [§3](#3-configurar-las-variables-de-entorno).
+- Puerto libre en el host: `80` (frontend) — es el único punto de entrada público por defecto
+  (AZ-055). El backend no publica ningún puerto salvo que lo habilites explícitamente para
+  depuración (ver [§12](#12-requisitos-de-red-puertos-y-protocolos)); MongoDB publica un puerto
+  (`27017` por defecto) solo en la interfaz `127.0.0.1` — no compite con otros servicios
+  accesibles desde la red, solo con otro Mongo local en el mismo puerto (ver §4). Todos son
+  configurables — ver [§3](#3-configurar-las-variables-de-entorno).
 - No se necesita clonar `spec/` para levantar el sistema: es documentación funcional local, no
   código.
 
@@ -51,9 +52,10 @@ para el listado completo y comentado):
 | `AZKIN_MONGO_USER` / `AZKIN_MONGO_PASSWORD` | Credenciales root de MongoDB. El compose construye `AZKIN_MONGO_URI` automáticamente a partir de estas dos — no se define a mano en `.env`. La URI se arma por interpolación directa de texto (sin URL-encoding), así que una contraseña con caracteres especiales (`@ : / % ? #`) rompe el parseo de forma silenciosa; genera una solo alfanumérica con `openssl rand -hex 24`. | credenciales de ejemplo — **cámbialas** |
 | `AZKIN_JWT_SECRET` | Firma los tokens de sesión. | placeholder — **obligatorio cambiar** |
 | `AZKIN_FIRST_ADMIN_NAME` / `_EMAIL` / `_PASSWORD` | Cuenta Admin creada automáticamente al primer arranque (seeder), si no existe ningún Admin aún. | credenciales de ejemplo — **cámbialas** |
-| `AZKIN_TLS_ENCRYPTION_KEY` | Cifra en reposo la clave privada TLS y el secreto compartido de federación de instancias. Opcional: vacío = se deriva automáticamente de `AZKIN_JWT_SECRET` (ambas funciones quedan disponibles sin configurar nada). Fijarla solo si querés una clave independiente. | vacío (se deriva sola) |
+| `AZKIN_TLS_ENCRYPTION_KEY` | Cifra en reposo el secreto compartido de federación de instancias (AZ-049). Opcional: vacío = se deriva automáticamente de `AZKIN_JWT_SECRET`, sin configurar nada. Fijarla solo si querés una clave independiente. | vacío (se deriva sola) |
 | `AZKIN_CORS_ORIGIN` | Orígenes permitidos para HTTP/Socket.io. `*` es válido en desarrollo, pero como decisión consciente. | `*` |
-| `AZKIN_BACK_PORT` / `AZKIN_FRONTEND_PORT` / `AZKIN_HTTPS_PORT` | Puertos publicados en el host. Cambia estos valores si ya usas `3000`/`80`/`8443`. | `3000` / `80` / `8443` |
+| `AZKIN_FRONTEND_PORT` | Puerto público publicado en el host — el único por defecto (ver [§12](#12-requisitos-de-red-puertos-y-protocolos)). Cambialo si ya usas `80`. | `80` |
+| `AZKIN_BACK_PORT` | Solo tiene efecto si descomentás el bloque `ports:` del backend en `compose.yaml` (depuración directa, sin pasar por nginx). | `3000` |
 | `AZKIN_MONGO_PORT` | Puerto de MongoDB en el host, solo para depuración/administración directa (Compass, mongosh, migraciones). Enlazado únicamente a `127.0.0.1` — no queda alcanzable desde la red externa (ver §4). El backend nunca usa esta variable, siempre se conecta internamente vía `azkin-db:27017`. | `27017` |
 | `AZKIN_PROMETHEUS_USER` / `_PASS` / `_API_KEY` | Credenciales para `/metrics`. Sin ninguna configurada, el endpoint queda **inaccesible** (fail-closed) — no hay credenciales por defecto. | vacío |
 
@@ -160,36 +162,74 @@ docker compose -f compose.dev.yaml build --no-cache && docker compose -f compose
 
 ---
 
-## 6. HTTPS nativo (opcional)
+## 6. HTTPS (terminado en nginx)
 
-El backend puede servir HTTPS directamente (sin terminar TLS en un proxy externo), configurable
-desde la UI de administración (`/settings` → pestaña **TLS**), no por variables de entorno de
-certificado:
+Azkin **no** sirve HTTPS él mismo — el backend eliminó su listener HTTPS nativo (antes
+configurable desde `/settings`) porque publicarlo directo al host reabría el mismo riesgo que
+[AZ-055](../ISSUES.md) ya cerró para el puerto plano (evadir el rate limiter falsificando
+`X-Forwarded-For`), y en Docker Desktop (Windows/Mac, no Linux nativo) no hay forma de exponer ese
+puerto sin publicarlo explícitamente a todas las interfaces. La forma soportada de servir HTTPS es
+terminarlo en `nginx` (el contenedor `frontend`), delante de todo — igual que ya hace con el
+puerto 80.
 
-1. No hace falta ningún paso previo: el cifrado en reposo de la clave privada ya funciona solo,
-   derivado automáticamente de `AZKIN_JWT_SECRET` (que ya es obligatorio). Opcional: si preferís
-   una clave independiente del JWT secret, usa el botón "Generar clave independiente" en
-   `/settings` → **TLS/Sistema** — genera un valor de 64 caracteres hex enteramente en el
-   navegador (no llama al backend ni lo persiste en Mongo) y lo muestra en un modal con botón de
-   copiar, para pegarlo en `AZKIN_TLS_ENCRYPTION_KEY` en `.env`. Alternativa manual:
-   ```bash
-   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+Esto es opcional: si no lo necesitás, no hace falta tocar nada (el stack funciona igual de bien
+por HTTP plano en el puerto `80`, protegido por el resto de tu infraestructura de red).
+
+**Para activarlo:**
+
+1. Conseguí tu certificado (`fullchain.pem` o `.crt`) y tu clave privada (`privkey.pem` o `.key`)
+   — de una CA real (Let's Encrypt, tu CA interna) o autofirmado para pruebas. Guardalos en una
+   carpeta del servidor que **no** sea la del repo, ej. `/etc/azkin/certs/`.
+2. Montá esa carpeta como volumen de solo lectura en el servicio `frontend` de tu copia local de
+   `compose.yaml`:
+   ```yaml
+     frontend:
+       # ...
+       volumes:
+         - /etc/azkin/certs:/etc/nginx/certs:ro
+       ports:
+         - "${AZKIN_FRONTEND_PORT:-80}:80"
+         - "443:443"
    ```
-   (no necesitas Node en el host: puedes ejecutarlo dentro del contenedor con
-   `docker compose exec backend node -e "..."`).
-2. Levanta el stack normalmente; el puerto `AZKIN_HTTPS_PORT` (default `8443`) ya está publicado
-   en ambos `compose.yaml`/`compose.dev.yaml` aunque el listener HTTPS esté inactivo.
-3. Sube certificado, clave privada y (opcionalmente) cadena intermedia desde `/settings` → **TLS**
-   — como texto PEM o como archivo. Ver [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) para el
-   diseño de esta función.
-4. El listener HTTPS se activa sin reiniciar el contenedor.
+3. Agregá un `server {}` para 443 en `frontend/nginx.conf` (podés duplicar el bloque existente y
+   ajustarlo), por ejemplo:
+   ```nginx
+   server {
+       listen 443 ssl;
+       server_name _;
+       ssl_certificate     /etc/nginx/certs/fullchain.pem;
+       ssl_certificate_key /etc/nginx/certs/privkey.pem;
 
-Si fijaste `AZKIN_TLS_ENCRYPTION_KEY` a mano y queda mal formada (no son 64 caracteres hex), la
-pestaña TLS sigue visible pero la configuración no puede cifrarse en reposo — el backend arranca
-con normalidad (imprime una advertencia clara en el log) y solo rechaza guardar certificados hasta
-que corrijas o quites la variable (al quitarla, vuelve a derivarse sola de `AZKIN_JWT_SECRET`). Un
-valor mal formado **no** tumba el resto del backend (antes sí lo hacía — un typo en esta variable
-secundaria bastaba para que login, monitoreo y todo lo demás dejaran de arrancar).
+       root /usr/share/nginx/html;
+       index index.html;
+
+       location / {
+           try_files $uri $uri/ /index.html;
+       }
+       location /api/ {
+           proxy_pass         http://backend:3000;
+           proxy_http_version 1.1;
+           proxy_set_header   Host              $host;
+           proxy_set_header   X-Real-IP         $remote_addr;
+           proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+           proxy_set_header   X-Forwarded-Proto $scheme;
+       }
+       location /socket.io/ {
+           proxy_pass         http://backend:3000;
+           proxy_http_version 1.1;
+           proxy_set_header   Upgrade    $http_upgrade;
+           proxy_set_header   Connection "upgrade";
+           proxy_set_header   Host       $host;
+           proxy_cache_bypass $http_upgrade;
+       }
+   }
+   ```
+   (opcional: agregá un `server { listen 80; return 301 https://$host$request_uri; }` para forzar
+   HTTPS, en vez del bloque HTTP existente).
+4. Reconstruí y recreá solo el frontend: `docker compose build frontend && docker compose up -d frontend`.
+
+El backend no necesita ningún cambio — sigue sin publicar ningún puerto propio (§1/§12), nginx es
+quien termina TLS y le habla por HTTP interno dentro de `azkin-network`, como ya hace hoy.
 
 ---
 
@@ -236,9 +276,9 @@ Dos mecanismos, no confundir:
 
 | Síntoma | Causa probable | Solución |
 |---|---|---|
-| `port is already allocated` al hacer `up` | Otro proceso usa `80`/`27017` en el host, o descomentaste los puertos opcionales del backend (`3000`/`8443`) y chocan con otra cosa | Cambia `AZKIN_FRONTEND_PORT`/`AZKIN_MONGO_PORT` en `.env` (los `ports:` del backend en `compose.yaml` están comentados por defecto desde AZ-055 — ver fila de abajo, así que por defecto no reservan ningún puerto del host) |
+| `port is already allocated` al hacer `up` | Otro proceso usa `80`/`27017` en el host, o descomentaste el puerto opcional del backend (`3000`) y choca con otra cosa | Cambia `AZKIN_FRONTEND_PORT`/`AZKIN_MONGO_PORT` en `.env` (el `ports:` del backend en `compose.yaml` está comentado por defecto desde AZ-055 — ver fila de abajo, así que por defecto no reserva ningún puerto del host) |
 | No puedo conectar MongoDB Compass / otro cliente externo desde **otra máquina** de la red | Es el comportamiento esperado: el puerto de Mongo está enlazado a `127.0.0.1`, solo accesible desde el propio servidor, por diseño de seguridad | Conéctate por SSH tunnel (`ssh -L 27017:127.0.0.1:27017 usuario@servidor`) o ejecuta el cliente directamente en el servidor. Si de verdad necesitas exponerlo a la red, cambia `127.0.0.1:${AZKIN_MONGO_PORT:-27017}:27017` a `${AZKIN_MONGO_PORT:-27017}:27017` en tu copia local del compose, asumiendo el riesgo |
-| No puedo llegar al backend (`AZKIN_BACK_PORT`/`AZKIN_HTTPS_PORT`) ni desde el propio servidor ni desde otra máquina | Es el comportamiento esperado desde AZ-055: en producción (`compose.yaml`) el backend **no publica ningún puerto por defecto** — `azkin-db`, `azkin-back` y `azkin-front` se hablan entre sí por nombre de servicio dentro de `azkin-network` (nginx → `http://backend:3000`), y eso nunca requiere publicar nada al host. Si tu único punto de entrada real es el frontend, no hay nada que arreglar. | Si de verdad necesitás llegar al backend sin pasar por nginx (depuración directa, un scraper de Prometheus externo, un integrador de la API pública), descomentá el bloque `ports:` del servicio `backend` en tu copia local de `compose.yaml` — queda enlazado a `127.0.0.1` (no a todas las interfaces), para no abrir una vía de evadir el rate limiter con `X-Forwarded-For` falsificado. En desarrollo (`compose.dev.yaml`) el puerto **sí** viene publicado por defecto, porque el dev-server de Angular (`ng serve`) necesita llegar al backend directo (ver §5) |
+| No puedo llegar al backend en `AZKIN_BACK_PORT` (3000 plano) ni desde el propio servidor ni desde otra máquina | Es el comportamiento esperado desde AZ-055: en producción (`compose.yaml`) ese puerto específico **no se publica por defecto** — `azkin-db`, `azkin-back` y `azkin-front` se hablan entre sí por nombre de servicio dentro de `azkin-network` (nginx → `http://backend:3000`), y eso nunca requiere publicar nada al host. Si tu único punto de entrada real es el frontend, no hay nada que arreglar. | Si de verdad necesitás llegar al backend plano sin pasar por nginx (depuración directa, un scraper de Prometheus externo), descomentá esa línea de `ports:` del servicio `backend` en tu copia local de `compose.yaml` — queda enlazada a `127.0.0.1` (no a todas las interfaces), para no abrir una vía de evadir el rate limiter con `X-Forwarded-For` falsificado |
 | El backend no conecta a Mongo (`MongoServerError: Authentication failed`) | Cambiaste `AZKIN_MONGO_USER`/`AZKIN_MONGO_PASSWORD` en `.env` después de que el volumen/bind mount de Mongo ya se había inicializado con las credenciales anteriores | MongoDB solo aplica `MONGO_INITDB_ROOT_*` la **primera vez** que se crea el volumen de datos; si cambias credenciales después, borra `./data/mongodb` (prod) o el volumen `mongo-dev-data` (dev) y vuelve a levantar — perderás los datos existentes |
 | No aparece ningún Admin para iniciar sesión | `AZKIN_FIRST_ADMIN_*` se definió después de que la colección de usuarios ya tenía datos (el seeder no se re-ejecuta) | Crea el primer Admin manualmente o restaura desde un respaldo; el auto-bootstrap solo corre una vez, con la base vacía |
 | `/metrics` responde 401/403 siempre | No configuraste ni Basic Auth (`AZKIN_PROMETHEUS_USER`+`_PASS`) ni `AZKIN_PROMETHEUS_API_KEY` | Es el comportamiento esperado (fail-closed, sin credenciales por defecto desde AZ-010) — define al menos uno de los dos esquemas |
@@ -388,7 +428,7 @@ debe llegar **hacia** el servidor donde corre Azkin (entrada) y lo que Azkin nec
 |---|---|---|---|
 | 80 (o el que definas) | TCP (HTTP) | `AZKIN_FRONTEND_PORT` | **Obligatorio.** Es el único puerto que necesita cualquier usuario con navegador — Nginx sirve la SPA y hace de proxy interno hacia el backend para `/api/*` y `/socket.io/*` (WebSockets), así que todo el tráfico de usuario normal (UI, API, tiempo real) entra por acá. Si federas esta instancia con otras (ver `ISSUES.md`, AZ-049), el sondeo entre pares también entra por este mismo puerto — no hay un puerto dedicado a federación. |
 | 3000 (o el que definas) | TCP (HTTP) | `AZKIN_BACK_PORT` | **Ni siquiera publicado por defecto en producción (AZ-055).** El bloque `ports:` del servicio `backend` viene comentado en `compose.yaml` — `azkin-front`/`azkin-back`/`azkin-db` se hablan por nombre de servicio dentro de `azkin-network`, sin necesitar ningún puerto publicado al host. Solo descomentalo (queda enlazado a `127.0.0.1`, no a todas las interfaces) si necesitás llegar sin pasar por nginx — ej. un scraper de Prometheus externo. Exponerlo a todas las interfaces permite evadir el rate limiter anti fuerza-bruta falsificando `X-Forwarded-For`. |
-| 8443 (o el que definas) | TCP (HTTPS) | `AZKIN_HTTPS_PORT` | Solo si activas el listener HTTPS nativo desde `/settings` → **TLS/Sistema** (ver §6) **y** además necesitás llegar a él sin pasar por nginx. Igual que `AZKIN_BACK_PORT`: el mapeo viene comentado por defecto en `compose.yaml`, descomentalo (enlazado a `127.0.0.1`) solo si de verdad lo necesitás. |
+| 443 (opcional) | TCP (HTTPS) | — | Solo si terminás HTTPS en nginx (ver [§6](#6-https-terminado-en-nginx)) — no es un puerto que Azkin publique por defecto, lo agregás vos en tu copia local de `compose.yaml` junto con el certificado. |
 | 27017 (o el que definas) | TCP | `AZKIN_MONGO_PORT` | **No abrir hacia la red.** Está enlazado únicamente a `127.0.0.1` del propio servidor (ver §4) — solo para depurar con Compass/mongosh estando conectado directamente a esa máquina. El backend nunca lo usa: se conecta a Mongo por la red interna de Docker. |
 
 ### Salida (desde el servidor Azkin hacia internet/red interna)
@@ -403,7 +443,7 @@ que configures. Qué protocolos/puertos exactos dependen de qué tipos de monito
 | TCP (el puerto que configures por monitor) | Conexión TCP saliente hacia el puerto vigilado | Monitor **Puerto (TCP)** |
 | UDP/TCP 53 | Consultas DNS — al servidor configurado en el monitor (`dnsResolver`), o al DNS del contenedor si no se especifica ninguno | Monitor **DNS Resolver**, y resolución de nombres en general para el resto de los monitores |
 | UDP 161 (o el puerto que configures, `snmpPort`) | Consultas SNMP v1/v2c/v3 | Monitor **SNMP** |
-| TCP 587/465/25 (según cómo configures el canal) | Envío de correo SMTP saliente | Canal de notificación **Email**, y el **SMTP de Aplicación** (recuperación de contraseña, `/settings` → TLS/Sistema) |
+| TCP 587/465/25 (según cómo configures el canal) | Envío de correo SMTP saliente | Canal de notificación **Email**, y el **SMTP de Aplicación** (recuperación de contraseña, `/settings` → Sistema) |
 | TCP 443 (HTTPS saliente) | Llamadas a la API del servicio | Canales **Slack**, **Discord**, **Telegram** y **Webhook genérico** (cada uno llama a su propia URL vía HTTPS — `hooks.slack.com`, `discord.com`, `api.telegram.org`, o el host que definas en un webhook) |
 | El mismo puerto de entrada del par (80/443 u otro que hayan definido) | Sondeo periódico saliente hacia cada instancia federada | Ver `ISSUES.md`, AZ-049. El tráfico es bidireccional: cada instancia federada abre conexión hacia sus pares y también recibe la de ellos, hasta un máximo de 5 instancias federadas por decisión de alcance, no por límite técnico. No hay un puerto propio de federación: viaja por el mismo puerto que cada instancia ya usa para su API/frontend. |
 

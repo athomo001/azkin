@@ -7,11 +7,9 @@ import { IBackupRepository } from "../../ports/repositories/backup-repository";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { INotificationRepository } from "../../ports/repositories/notification-repository";
 import { IUserRepository } from "../../ports/repositories/user-repository";
-import { ITlsConfigRepository } from "../../ports/repositories/tls-config-repository";
 import { IMonitor } from "../../../domain/entities/monitor";
 import { INotification } from "../../../domain/entities/notification";
 import { IUser } from "../../../domain/entities/user";
-import { ITlsConfig } from "../../../domain/entities/tls-config";
 import { IBackup } from "../../../domain/entities/backup";
 
 function makeMonitor(overrides: Partial<IMonitor> = {}): IMonitor {
@@ -125,12 +123,6 @@ const noopNotifications: INotificationRepository = {
   deleteAll: async () => 0,
 };
 
-const noopTlsConfigs: ITlsConfigRepository = {
-  getActive: async () => null,
-  upsert: async () => { throw new Error("not implemented"); },
-  deleteActive: async () => false,
-};
-
 function makeBackupsRepo(overrides: Partial<IBackupRepository> = {}) {
   const created: { userId: string; strategy: string; payload: unknown }[] = [];
   const repo: IBackupRepository = {
@@ -153,7 +145,7 @@ const noopAuditLog: IAuditLogRepository = {
   deleteAll: async () => 0,
 };
 
-test("CreateBackupUseCase incluye monitores, canales, admins/viewers y config TLS en el mismo respaldo (atómico)", async () => {
+test("CreateBackupUseCase incluye monitores, canales y admins/viewers en el mismo respaldo (atómico)", async () => {
   const monitors: IMonitorRepository = { ...noopMonitors, findAll: async () => [makeMonitor()] };
   const notifications: INotificationRepository = { ...noopNotifications, findAll: async () => [makeNotification()] };
   const users: IUserRepository = {
@@ -161,19 +153,9 @@ test("CreateBackupUseCase incluye monitores, canales, admins/viewers y config TL
     findAllAdmins: async () => [makeAdmin()],
     findAllViewersGlobal: async () => [makeViewer()],
   };
-  const tlsConfig: ITlsConfig = {
-    id: "tls-1",
-    certPem: "CERT",
-    keyPemEncrypted: "ENCRYPTED_KEY",
-    port: 8443,
-    httpRedirect: true,
-    updatedAt: new Date(),
-    updatedById: "admin-1",
-  };
-  const tlsConfigs: ITlsConfigRepository = { ...noopTlsConfigs, getActive: async () => tlsConfig };
   const { repo: backups, created } = makeBackupsRepo();
 
-  const useCase = new CreateBackupUseCase(monitors, backups, noopAuditLog, notifications, users, tlsConfigs);
+  const useCase = new CreateBackupUseCase(monitors, backups, noopAuditLog, notifications, users);
   await useCase.execute({ userId: "admin-1", strategy: "accumulate" });
 
   assert.equal(created.length, 1);
@@ -189,18 +171,15 @@ test("CreateBackupUseCase incluye monitores, canales, admins/viewers y config TL
   assert.equal(payload.viewers.length, 1);
   assert.equal(payload.viewers[0].email, "viewer@azkin.test");
   assert.equal(payload.viewers[0].adminIdentifier, "admin@azkin.test");
-  assert.equal(payload.tlsConfig.certPem, "CERT");
-  assert.equal(payload.tlsConfig.keyPemEncrypted, "ENCRYPTED_KEY");
 });
 
-test("CreateBackupUseCase deja tlsConfig en null si no hay HTTPS configurado", async () => {
+test("CreateBackupUseCase deja admins/viewers/notifications vacíos si no hay nada configurado", async () => {
   const { repo: backups, created } = makeBackupsRepo();
-  const useCase = new CreateBackupUseCase(noopMonitors, backups, noopAuditLog, noopNotifications, noopUsers, noopTlsConfigs);
+  const useCase = new CreateBackupUseCase(noopMonitors, backups, noopAuditLog, noopNotifications, noopUsers);
 
   await useCase.execute({ userId: "admin-1", strategy: "accumulate" });
 
   const payload = created[0].payload as any;
-  assert.equal(payload.tlsConfig, null);
   assert.deepEqual(payload.admins, []);
   assert.deepEqual(payload.viewers, []);
   assert.deepEqual(payload.notifications, []);

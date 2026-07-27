@@ -93,7 +93,7 @@ delega cada dominio a un subcomponente propio:
 
 | Subcomponente | Pestaña / dominio |
 |---|---|
-| `TlsPanelComponent` | Certificados TLS (texto o archivo), puerto HTTPS, SMTP de Aplicación y Motor de Monitoreo (umbrales DEGRADADO/polling adaptativo) |
+| `SystemPanelComponent` | SMTP de Aplicación, Motor de Monitoreo (umbrales DEGRADADO/polling adaptativo) y generador de `AZKIN_TLS_ENCRYPTION_KEY` (cifrado en reposo de la federación de instancias) |
 | `AuditLogPanelComponent` | Consulta del historial de auditoría (`GET /api/v1/audit-log`), incluyendo el diff de campos modificados |
 | `ApiKeysPanelComponent` | Generación, listado, revocación y borrado permanente de API Keys |
 | `BackupsPanelComponent` | Respaldos JSON, restauración, purga de instancia e importación masiva de monitores vía CSV |
@@ -226,7 +226,7 @@ metadata? })` justo antes de retornar.
 | API Keys | `API_KEY_CREATE`, `API_KEY_REVOKE`, `API_KEY_DELETE` |
 | Mantenimiento | `MAINTENANCE_CREATE`/`UPDATE`/`END`/`DELETE` |
 | Respaldos | `BACKUP_CREATE`, `BACKUP_REPLACE`, `BACKUP_DELETE`, `BACKUP_DOWNLOAD`, `BACKUP_IMPORT` (la purga de instancia queda deliberadamente sin auditar: borra todo el historial de auditoría, así que registrarla ahí sería contradictorio) |
-| Sistema | `TLS_CONFIG_UPDATE`, `APP_SMTP_CHANNEL_SET`, `MONITORING_ENGINE_SETTINGS_SET` |
+| Sistema | `APP_SMTP_CHANNEL_SET`, `MONITORING_ENGINE_SETTINGS_SET` |
 
 Para las ediciones (monitor, notificación, permisos de viewer, email de admin, ventana de
 mantenimiento), `metadata.changes` guarda el diff exacto de qué campos cambiaron (`{ from, to }`
@@ -354,10 +354,10 @@ diferencia de MAINTENANCE (§12), que se excluye del todo. Badge color **naranja
 frontend (dashboard, quick-stats, heatmap).
 
 **Configuración editable desde la UI:** ambos umbrales no viven solo en `.env` — nueva entidad
-singleton `MonitoringEngineSettings` (mismo patrón que `AppSmtpSettings`/`TlsConfig`) con
+singleton `MonitoringEngineSettings` (mismo patrón que `AppSmtpSettings`) con
 `ResolveMonitoringEngineConfig` (caché en memoria de 30s para no golpear Mongo en cada chequeo)
 resolviendo un override guardado en Mongo por encima del valor de `.env`. UI en `/settings` →
-**TLS/Sistema** → "Motor de Monitoreo", con botón "Restablecer" por campo que vuelve al valor de
+**Sistema** → "Motor de Monitoreo", con botón "Restablecer" por campo que vuelve al valor de
 `.env` sin reiniciar el contenedor.
 
 ## 14. Federación de instancias (multi-región)
@@ -417,8 +417,9 @@ solo por el token de un solo uso (mismo nivel de confianza que el intercambio de
 reemplaza). Cada lado guarda ese mismo secreto **cifrado en reposo** (no solo un hash como las API
 Keys: al ser el sondeo bidireccional, cada lado necesita poder recuperarlo en texto plano para
 presentarlo cuando es él quien inicia el sondeo hacia el otro) con el mismo cifrado simétrico
-AES-256-GCM que ya protege la clave privada TLS (`infrastructure/security/tls-key-cipher.ts`,
-`AZKIN_TLS_ENCRYPTION_KEY`).
+AES-256-GCM ya usado en el proyecto (`infrastructure/security/tls-key-cipher.ts`,
+`AZKIN_TLS_ENCRYPTION_KEY` — hoy su único consumidor, desde que se eliminó el listener HTTPS
+nativo que originalmente compartía esta clave, ver §8.1 de `spec/02-arquitectura.md`).
 
 **La clave de cifrado se deriva sola, sin configuración manual por nodo:** `AZKIN_TLS_ENCRYPTION_KEY`
 no necesita fijarse a mano — si no está configurada, `resolve-tls-encryption-key.ts` deriva una
@@ -459,13 +460,14 @@ sequenceDiagram
     Note over A: Si B no responde por más del umbral (3x el intervalo del tick),<br/>A marca notifiedDown y envía un correo (mismo mecanismo que los Informes)
 ```
 
-**Mismo puerto que la API principal, con o sin HTTPS nativo:** el sondeo y la exploración de
-monitores del par (`GET /federation/peer/monitors`) corren sobre el mismo `app`/puerto Express que
-el resto de la API (`/api/v1/federation/peer/*`) — no hay listener ni puerto dedicado. El cliente
-saliente (`infrastructure/security/federation-fetch-client.ts`) es un `fetch()` liso con el header
+**Mismo puerto que la API principal:** el sondeo y la exploración de monitores del par
+(`GET /federation/peer/monitors`) corren sobre el mismo `app`/puerto Express que el resto de la
+API (`/api/v1/federation/peer/*`) — no hay listener ni puerto dedicado. El cliente saliente
+(`infrastructure/security/federation-fetch-client.ts`) es un `fetch()` liso con el header
 `X-Federation-Secret`, sin agente ni certificado especial; funciona igual si el destino sirve HTTP
-plano o HTTPS nativo, y si una instancia activa HTTPS más tarde (subiendo un certificado en
-`/settings` → TLS/Sistema), la federación pasa a ir cifrada sin ningún cambio de configuración.
+plano o HTTPS terminado en nginx delante del backend (ver `docs/instalacion-docker.md` §6) —
+`SetFederationOwnUrlUseCase` avisa en el log si la dirección propia configurada usa `http://` fuera
+de un entorno de desarrollo, ya que en ese caso el secreto compartido viaja sin cifrar.
 **Límite conocido:** cambiar la dirección pública propia (`/settings` → Multi-Región) no reanuncia
 el cambio a los pares ya enrolados — cada uno guardó el `remoteUrl` de esta instancia al enrolarse,
 y seguirá usando ese valor viejo hasta que se vuelva a enrolar (no existe protocolo de re-anuncio;

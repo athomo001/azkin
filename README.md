@@ -43,7 +43,7 @@ Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión d
 - **Importación masiva de monitores (CSV):** carga por arrastrar y soltar con reporte de errores por fila, sin descartar el resto del lote ante una fila inválida.
 - **Estado DEGRADADO y monitoreo adaptativo:** un monitor HTTP que responde con latencia alta, o que cae pero cuyo host sigue vivo a nivel de red (ping/TCP), se distingue de una caída total en vez de marcarse como DOWN puro; mientras está DOWN o DEGRADADO, el intervalo de chequeo se acelera automáticamente hasta que se recupera. Umbrales configurables desde `/settings`.
 - **Módulo de Mantenimiento:** ventanas de silenciado de alertas con alcance granular (todo, un grupo, o monitores puntuales) y modo programado o inmediato — el heartbeat real se sigue registrando, solo se suprimen las notificaciones mientras la ventana está vigente.
-- **Historial de auditoría ampliado:** registro y consulta desde `/settings` de ~39 tipos de acción administrativa (intentos de login, CRUD de monitores/notificaciones/viewers/admins/API Keys/mantenimiento, operaciones de respaldo, cambios de TLS), con el detalle de qué campos cambiaron en cada edición.
+- **Historial de auditoría ampliado:** registro y consulta desde `/settings` de tipos de acción administrativa (intentos de login, CRUD de monitores/notificaciones/viewers/admins/API Keys/mantenimiento, operaciones de respaldo), con el detalle de qué campos cambiaron en cada edición.
 - **Notificaciones multicanal con plantillas:** email, Slack, Discord, Telegram y webhooks genéricos, con plantillas configurables por tipo de evento, cheatsheet de variables clickeable y selector de emojis.
 - **Sesión segura:** el access token vive en memoria (nunca en `localStorage`); la sesión se renueva mediante una cookie `HttpOnly` de refresh, rotada en cada uso. Cada token lleva un claim `typ` (`access`/`refresh`) que impide usar uno en lugar del otro, y bloquear/eliminar una cuenta corta su acceso en la siguiente petición (no hay que esperar a que el token expire solo).
 - **Hardening de seguridad (AZ-052 a AZ-066):** batch de correcciones de una auditoría de seguridad completa — validación de certificado TLS restaurada en las alertas por email, contraseña actual exigida para cambiar la propia y protección contra IDOR al resetear la de otro Admin, escape de HTML/JSON/Markdown en informes y notificaciones, neutralización de inyección de fórmulas en CSV, credenciales SNMP enmascaradas para Viewers, cabeceras de seguridad (`helmet`) y contenedor backend sin privilegios de root. Detalle completo en [`ISSUES.md`](./ISSUES.md).
@@ -96,7 +96,7 @@ Calculados a partir de la arquitectura real del proyecto (3 contenedores: `azkin
 
 | Documento                                                  | Contenido                                                                                                                                     |
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| [docs/instalacion-docker.md](./docs/instalacion-docker.md) | Manual de instalación con Docker: variables de entorno, producción, desarrollo con hot-reload, HTTPS nativo, respaldos, problemas frecuentes. |
+| [docs/instalacion-docker.md](./docs/instalacion-docker.md) | Manual de instalación con Docker: variables de entorno, producción, desarrollo con hot-reload, HTTPS (terminado en nginx), respaldos, problemas frecuentes. |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)             | Clean Architecture, bypass de Cloudflare WAF, modo Nyan Cat, autenticación, API pública, auditoría.                                           |
 | [docs/api-publica.md](./docs/api-publica.md)               | Autenticación por `X-API-Key`, endpoints disponibles, gestión de keys, ejemplos `curl`.                                                       |
 | `spec/` (local, no versionado en git)                      | Especificaciones funcionales por fase (Spec-Driven Development): modelo de datos, contratos de API, arquitectura.                             |
@@ -123,7 +123,7 @@ docker compose build --no-cache && docker compose up -d
 docker compose -f compose.dev.yaml build --no-cache && docker compose -f compose.dev.yaml up -d
 ```
 
-Guía completa (variables de entorno, verificación, HTTPS nativo, respaldos, problemas frecuentes) en [`docs/instalacion-docker.md`](./docs/instalacion-docker.md).
+Guía completa (variables de entorno, verificación, HTTPS, respaldos, problemas frecuentes) en [`docs/instalacion-docker.md`](./docs/instalacion-docker.md).
 
 ---
 

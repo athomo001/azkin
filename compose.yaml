@@ -38,25 +38,18 @@ services:
       - azkin-db
     networks:
       - azkin-network
-    # AZ-055: sin publicar ningún puerto por defecto. azkin-back, azkin-front y azkin-db se hablan
-    # entre sí por nombre de servicio dentro de `azkin-network` (ej. nginx → `http://backend:3000`
-    # en nginx.conf) — eso NUNCA requiere publicar un puerto al host, publicar solo sirve para que
-    # algo FUERA de esta red Docker (tu host, otra máquina) llegue directo. Si tu único punto de
-    # entrada real es el frontend (nginx), no hace falta descomentar nada de abajo — así además no
-    # reservás ningún puerto del host, evitando choques con otros servicios que corras ahí.
-    # Descomentá SOLO si necesitás llegar al backend sin pasar por nginx (depuración directa desde
-    # el host, un scraper de Prometheus externo, o un integrador de la API pública que prefiera
-    # apuntar directo al backend) — enlazado a 127.0.0.1 (no a todas las interfaces) para no abrir
-    # una vía de evadir el rate limiter anti fuerza-bruta falsificando X-Forwarded-For (`trust
-    # proxy` asume que nginx es el único hop).
+    # sin publicar ningún puerto por defecto — azkin-back, azkin-front y azkin-db se hablan
+    # entre sí por nombre de servicio dentro de `azkin-network` (nginx → `http://backend:3000` en
+    # nginx.conf), lo cual nunca requiere publicar nada al host. El backend ya no tiene ninguna
+    # función que necesite ser alcanzada directamente (el listener HTTPS nativo se eliminó — TLS se
+    # termina en nginx si hace falta, ver `docs/instalacion-docker.md` §6). Descomentá la línea de
+    # abajo SOLO si necesitás depuración directa o un scraper de Prometheus externo sin pasar por
+    # nginx — enlazada a 127.0.0.1 (no a todas las interfaces), para no abrir una vía de evadir el
+    # rate limiter falsificando X-Forwarded-For (`trust proxy` asume que nginx es el único hop).
     # ports:
     #   - "127.0.0.1:${AZKIN_BACK_PORT:-3000}:3000"
-    #   # Puerto HTTPS nativo (solo si activás esa función desde /settings → TLS/Sistema). Ambos
-    #   # lados deben usar la MISMA variable: el backend escucha internamente en el puerto que el
-    #   # admin eligió ahí, no un valor fijo del Dockerfile.
-    #   - "127.0.0.1:${AZKIN_HTTPS_PORT:-8443}:${AZKIN_HTTPS_PORT:-8443}"
     cap_add:
-      # AZ-065: necesario para que el checker de Ping (socket ICMP raw vía `iputils`) siga
+      # necesario para que el checker de Ping (socket ICMP raw vía `iputils`) siga
       # funcionando ahora que el proceso corre como usuario no-root dentro del contenedor.
       - NET_RAW
     extra_hosts:
@@ -90,8 +83,7 @@ services:
       AZKIN_PROMETHEUS_USER: ${AZKIN_PROMETHEUS_USER}
       AZKIN_PROMETHEUS_PASS: ${AZKIN_PROMETHEUS_PASS}
       AZKIN_PROMETHEUS_API_KEY: ${AZKIN_PROMETHEUS_API_KEY}
-      # Clave de cifrado en reposo para la clave privada TLS subida desde la UI, y para el
-      # secreto compartido de federación de instancias (AZ-049) — corre sobre este mismo puerto.
+      # Clave de cifrado en reposo para el secreto compartido de federación de instancias (AZ-049).
       AZKIN_TLS_ENCRYPTION_KEY: ${AZKIN_TLS_ENCRYPTION_KEY}
 
   frontend:

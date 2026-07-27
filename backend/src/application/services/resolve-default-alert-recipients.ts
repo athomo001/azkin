@@ -7,7 +7,7 @@ import { EmailConfig } from "../../domain/entities/notification";
  * Resuelve el "correo global de alertas" para `recipientMode: "default_alert_email"` (AZ-045).
  * No existe un concepto de destinatario global único en el sistema — los destinatarios viven por
  * canal de notificación. Se reutiliza el mismo canal ya referenciado por `IAppSmtpSettings`
- * (Settings → TLS/Sistema → "SMTP de Aplicación"), tomando el/los destinatario(s) configurados en
+ * (Settings → Sistema → "SMTP de Aplicación"), tomando el/los destinatario(s) configurados en
  * ESE canal — mismo criterio de resolución que `ResolveAppSmtpConfig` usa para el transporte SMTP.
  */
 export class ResolveDefaultAlertRecipients {

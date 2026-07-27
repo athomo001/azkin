@@ -53,7 +53,6 @@ export class BackupController {
       notifications: req.body.notifications,
       admins: req.body.admins,
       viewers: req.body.viewers,
-      tlsConfig: req.body.tlsConfig,
     });
     res.status(200).json(result);
   };

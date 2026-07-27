@@ -7,7 +7,6 @@ import { IMonitorRepository } from "../../ports/repositories/monitor-repository"
 import { INotificationRepository } from "../../ports/repositories/notification-repository";
 import { IApiKeyRepository } from "../../ports/repositories/api-key-repository";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
-import { ITlsConfigRepository } from "../../ports/repositories/tls-config-repository";
 import { IBackupRepository } from "../../ports/repositories/backup-repository";
 import { IScheduler } from "../../ports/services/scheduler";
 import { IMonitor } from "../../../domain/entities/monitor";
@@ -80,7 +79,6 @@ function makeDeps(overrides: {
   notifications?: Partial<INotificationRepository>;
   apiKeys?: Partial<IApiKeyRepository>;
   auditLog?: Partial<IAuditLogRepository>;
-  tlsConfigs?: Partial<ITlsConfigRepository>;
   backups?: Partial<IBackupRepository>;
   scheduler?: Partial<IScheduler>;
 }) {
@@ -123,12 +121,6 @@ function makeDeps(overrides: {
     deleteAll: async () => 5,
     ...overrides.auditLog,
   };
-  const tlsConfigs: ITlsConfigRepository = {
-    getActive: async () => null,
-    upsert: async () => { throw new Error("not implemented"); },
-    deleteActive: async () => true,
-    ...overrides.tlsConfigs,
-  };
   const backups: IBackupRepository = {
     create: async () => { throw new Error("not implemented"); },
     findAll: async () => [],
@@ -145,19 +137,19 @@ function makeDeps(overrides: {
     receivePushHeartbeat: async () => undefined,
     ...overrides.scheduler,
   };
-  return { monitors, notifications, apiKeys, auditLog, tlsConfigs, backups, scheduler, unscheduled };
+  return { monitors, notifications, apiKeys, auditLog, backups, scheduler, unscheduled };
 }
 
-test("PurgeInstanceUseCase borra todo (monitores, canales, api keys, auditoría, respaldos, TLS y demás cuentas) conservando solo al admin de AZKIN_FIRST_ADMIN_EMAIL", async () => {
+test("PurgeInstanceUseCase borra todo (monitores, canales, api keys, auditoría, respaldos y demás cuentas) conservando solo al admin de AZKIN_FIRST_ADMIN_EMAIL", async () => {
   const seedAdmin = makeSeedAdmin();
   let purgeExceptCalledWith: string | undefined;
   const users = makeUsersRepo(seedAdmin, async (keepUserId) => {
     purgeExceptCalledWith = keepUserId;
     return { deletedAdmins: 2, deletedViewers: 3 };
   });
-  const { monitors, notifications, apiKeys, auditLog, tlsConfigs, backups, scheduler, unscheduled } = makeDeps({ users });
+  const { monitors, notifications, apiKeys, auditLog, backups, scheduler, unscheduled } = makeDeps({ users });
 
-  const useCase = new PurgeInstanceUseCase(users, monitors, notifications, apiKeys, auditLog, tlsConfigs, backups, scheduler);
+  const useCase = new PurgeInstanceUseCase(users, monitors, notifications, apiKeys, auditLog, backups, scheduler);
   const result = await useCase.execute({ firstAdminEmail: "seed@azkin.test" });
 
   assert.equal(result.keptAdminId, "admin-seed");
@@ -169,20 +161,19 @@ test("PurgeInstanceUseCase borra todo (monitores, canales, api keys, auditoría,
   assert.equal(result.deletedApiKeys, 1);
   assert.equal(result.deletedAuditLogs, 5);
   assert.equal(result.deletedBackups, 4);
-  assert.equal(result.tlsConfigCleared, true);
   assert.deepEqual(unscheduled, ["m-1"]);
 });
 
 test("PurgeInstanceUseCase rechaza la purga si no hay AZKIN_FIRST_ADMIN_EMAIL ni AZKIN_FIRST_ADMIN_NAME configurado, sin borrar nada", async () => {
   const users = makeUsersRepo(null);
-  const { monitors, notifications, apiKeys, auditLog, tlsConfigs, backups, scheduler } = makeDeps({ users });
+  const { monitors, notifications, apiKeys, auditLog, backups, scheduler } = makeDeps({ users });
   let monitorsDeleted = false;
   monitors.deleteAll = async () => {
     monitorsDeleted = true;
     return 0;
   };
 
-  const useCase = new PurgeInstanceUseCase(users, monitors, notifications, apiKeys, auditLog, tlsConfigs, backups, scheduler);
+  const useCase = new PurgeInstanceUseCase(users, monitors, notifications, apiKeys, auditLog, backups, scheduler);
 
   await assert.rejects(() => useCase.execute({}), ValidationError);
   assert.equal(monitorsDeleted, false);
@@ -190,14 +181,14 @@ test("PurgeInstanceUseCase rechaza la purga si no hay AZKIN_FIRST_ADMIN_EMAIL ni
 
 test("PurgeInstanceUseCase cancela la purga si el admin de AZKIN_FIRST_ADMIN_EMAIL/NAME no existe, sin borrar nada", async () => {
   const users = makeUsersRepo(null);
-  const { monitors, notifications, apiKeys, auditLog, tlsConfigs, backups, scheduler } = makeDeps({ users });
+  const { monitors, notifications, apiKeys, auditLog, backups, scheduler } = makeDeps({ users });
   let monitorsDeleted = false;
   monitors.deleteAll = async () => {
     monitorsDeleted = true;
     return 0;
   };
 
-  const useCase = new PurgeInstanceUseCase(users, monitors, notifications, apiKeys, auditLog, tlsConfigs, backups, scheduler);
+  const useCase = new PurgeInstanceUseCase(users, monitors, notifications, apiKeys, auditLog, backups, scheduler);
 
   await assert.rejects(() => useCase.execute({ firstAdminEmail: "no-existe@azkin.test" }), NotFoundError);
   assert.equal(monitorsDeleted, false);

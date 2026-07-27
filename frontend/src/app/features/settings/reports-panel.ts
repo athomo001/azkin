@@ -156,7 +156,7 @@ const EMAIL_RE = /^\S+@\S+\.\S+$/;
                 </label>
               </div>
               @if (form.recipientMode === 'default_alert_email') {
-                <p class="text-[10px] text-zinc-500">Usa el destinatario configurado en "SMTP de Aplicación" (pestaña TLS/Sistema).</p>
+                <p class="text-[10px] text-zinc-500">Usa el destinatario configurado en "SMTP de Aplicación" (pestaña Sistema).</p>
               } @else {
                 <input type="text" [(ngModel)]="form.recipientEmailsText" placeholder="correo1@empresa.com, correo2@empresa.com"
                   class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">

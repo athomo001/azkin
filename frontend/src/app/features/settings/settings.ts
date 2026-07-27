@@ -8,7 +8,7 @@ import { LanguageService } from '../../core/services/language.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { ConfirmModalComponent } from '../../shared/components/confirm-modal';
 import { ToastComponent } from '../../shared/components/toast';
-import { TlsPanelComponent } from './tls-panel';
+import { SystemPanelComponent } from './system-panel';
 import { AuditLogPanelComponent } from './audit-log-panel';
 import { ApiKeysPanelComponent } from './api-keys-panel';
 import { BackupsPanelComponent } from './backups-panel';
@@ -21,7 +21,7 @@ import { FederationPanelComponent } from './federation-panel';
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, ConfirmModalComponent, ToastComponent, TlsPanelComponent, AuditLogPanelComponent, ApiKeysPanelComponent, BackupsPanelComponent, ViewersPanelComponent, AlertsPanelComponent, MaintenancePanelComponent, ReportsPanelComponent, FederationPanelComponent],
+  imports: [CommonModule, RouterModule, FormsModule, ConfirmModalComponent, ToastComponent, SystemPanelComponent, AuditLogPanelComponent, ApiKeysPanelComponent, BackupsPanelComponent, ViewersPanelComponent, AlertsPanelComponent, MaintenancePanelComponent, ReportsPanelComponent, FederationPanelComponent],
   template: `
     <div class="min-h-screen bg-zinc-950 text-white flex flex-col font-sans">
       <!-- Navbar -->
@@ -88,10 +88,10 @@ import { FederationPanelComponent } from './federation-panel';
             class="transition-all relative z-10 px-1">
             Multi-Región
           </button>
-          <button (click)="activeTab.set('tls')"
-            [class]="activeTab() === 'tls' ? 'border-b-2 border-orange-500 text-white font-bold pb-3 -mb-[2px]' : 'text-zinc-400 hover:text-zinc-200 pb-3 -mb-[2px] transition-colors'"
+          <button (click)="activeTab.set('system')"
+            [class]="activeTab() === 'system' ? 'border-b-2 border-orange-500 text-white font-bold pb-3 -mb-[2px]' : 'text-zinc-400 hover:text-zinc-200 pb-3 -mb-[2px] transition-colors'"
             class="transition-all relative z-10 px-1">
-            TLS / Sistema
+            Sistema
           </button>
           <button (click)="activeTab.set('api')"
             [class]="activeTab() === 'api' ? 'border-b-2 border-orange-500 text-white font-bold pb-3 -mb-[2px]' : 'text-zinc-400 hover:text-zinc-200 pb-3 -mb-[2px] transition-colors'"
@@ -137,9 +137,9 @@ import { FederationPanelComponent } from './federation-panel';
             <app-federation-panel />
           }
 
-          <!-- ================= PESTAÑA: TLS / SISTEMA ================= -->
-          @if (activeTab() === 'tls') {
-            <app-tls-panel />
+          <!-- ================= PESTAÑA: SISTEMA ================= -->
+          @if (activeTab() === 'system') {
+            <app-system-panel />
           }
 
           <!-- ================= PESTAÑA: API PÚBLICA ================= -->
@@ -188,7 +188,7 @@ export class SettingsComponent implements OnInit {
   public readonly lang = inject(LanguageService);
   public readonly themeService = inject(ThemeService);
 
-  readonly activeTab = signal<'alerts' | 'viewers' | 'backups' | 'maintenance' | 'reports' | 'federation' | 'tls' | 'api' | 'audit'>('alerts');
+  readonly activeTab = signal<'alerts' | 'viewers' | 'backups' | 'maintenance' | 'reports' | 'federation' | 'system' | 'api' | 'audit'>('alerts');
 
   ngOnInit(): void {
     // Estado compartido leido por varios paneles (Viewers, Backups) — se carga aqui, a nivel de
@@ -196,7 +196,7 @@ export class SettingsComponent implements OnInit {
     this.monitorService.loadMonitors().subscribe();
 
     const requestedTab = this.route.snapshot.queryParamMap.get('tab');
-    const validTabs = ['alerts', 'viewers', 'backups', 'maintenance', 'reports', 'federation', 'tls', 'api', 'audit'] as const;
+    const validTabs = ['alerts', 'viewers', 'backups', 'maintenance', 'reports', 'federation', 'system', 'api', 'audit'] as const;
     if (requestedTab && (validTabs as readonly string[]).includes(requestedTab)) {
       this.activeTab.set(requestedTab as (typeof validTabs)[number]);
     }

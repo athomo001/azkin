@@ -4,12 +4,10 @@ import { SystemController } from "../controllers/system.controller";
 import { asyncHandler } from "../middlewares/async-handler";
 import { requireRole } from "../middlewares/require-role";
 import { validateBody } from "../middlewares/validate";
-import { applyTlsConfigSchema, monitoringEngineSettingsSchema } from "../schemas/system.schema";
+import { monitoringEngineSettingsSchema } from "../schemas/system.schema";
 
 export function systemRoutes(controller: SystemController): Router {
   const router = Router();
-  router.get("/tls", requireRole("admin"), asyncHandler(controller.getTlsConfig));
-  router.put("/tls", requireRole("admin"), validateBody(applyTlsConfigSchema), asyncHandler(controller.applyTlsConfig));
   router.get("/smtp", requireRole("admin"), asyncHandler(controller.getSmtpStatus));
   router.post("/smtp/test", requireRole("admin"), asyncHandler(controller.sendTestEmail));
   router.get("/smtp/channel", requireRole("admin"), asyncHandler(controller.getAppSmtpChannel));

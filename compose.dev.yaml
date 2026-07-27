@@ -35,11 +35,9 @@ services:
     networks:
       - azkin-network
     ports:
-      # AZ-055: enlazado a 127.0.0.1 — mismo criterio que compose.yaml (ver ese archivo para el
-      # detalle de por qué). AZKIN_BACK_PORT sigue sirviendo para depuración local.
+      # En dev el dev-server de Angular necesita llegar directo al backend (ver §5), así que este
+      # sigue publicado (enlazado a 127.0.0.1, mismo criterio de AZ-055 que compose.yaml).
       - "127.0.0.1:${AZKIN_BACK_PORT:-3000}:3000"
-      # Puerto HTTPS nativo, solo se usa si se aplica una configuración TLS desde la UI.
-      - "127.0.0.1:${AZKIN_HTTPS_PORT:-8443}:${AZKIN_HTTPS_PORT:-8443}"
     cap_add:
       - NET_RAW
     extra_hosts:

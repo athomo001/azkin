@@ -4,7 +4,6 @@ import { IBackupRepository } from "../../ports/repositories/backup-repository";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 import { INotificationRepository } from "../../ports/repositories/notification-repository";
 import { IUserRepository } from "../../ports/repositories/user-repository";
-import { ITlsConfigRepository } from "../../ports/repositories/tls-config-repository";
 import { BackupStrategy, IBackup, IBackupAdmin, IBackupViewer } from "../../../domain/entities/backup";
 
 export interface CreateBackupInput {
@@ -19,8 +18,8 @@ export interface CreateBackupOutput {
 
 /**
  * Caso de uso para generar un respaldo COMPLETO y atómico de la instancia: monitores, canales de
- * notificación, cuentas (admins/viewers, con `passwordHash`) y configuración TLS — todo en un
- * mismo snapshot, para que restaurarlo no deje la instancia a medias (sin usuarios ni canales).
+ * notificación y cuentas (admins/viewers, con `passwordHash`) — todo en un mismo snapshot, para
+ * que restaurarlo no deje la instancia a medias (sin usuarios ni canales).
  * En modo "replace", borra atómicamente los respaldos previos del usuario antes de insertar el nuevo.
  */
 export class CreateBackupUseCase {
@@ -30,7 +29,6 @@ export class CreateBackupUseCase {
     private readonly auditLog: IAuditLogRepository,
     private readonly notifications: INotificationRepository,
     private readonly users: IUserRepository,
-    private readonly tlsConfigs: ITlsConfigRepository,
   ) {}
 
   async execute(input: CreateBackupInput): Promise<CreateBackupOutput> {
@@ -69,17 +67,6 @@ export class CreateBackupUseCase {
       isTvSessionEnabled: v.isTvSessionEnabled,
     }));
 
-    const tlsConfig = await this.tlsConfigs.getActive();
-    const mappedTlsConfig = tlsConfig
-      ? {
-          certPem: tlsConfig.certPem,
-          keyPemEncrypted: tlsConfig.keyPemEncrypted,
-          chainPem: tlsConfig.chainPem,
-          port: tlsConfig.port,
-          httpRedirect: tlsConfig.httpRedirect,
-        }
-      : null;
-
     let deletedCount = 0;
     if (input.strategy === "replace") {
       deletedCount = await this.backups.deleteAll();
@@ -95,7 +82,6 @@ export class CreateBackupUseCase {
         notifications: mappedNotifications,
         admins: mappedAdmins,
         viewers: mappedViewers,
-        tlsConfig: mappedTlsConfig,
       },
     });
 
