@@ -7,6 +7,8 @@ import { IUserRepository } from "../../../application/ports/repositories/user-re
 import { IPasswordHasher } from "../../../application/ports/services/security";
 import { IAuditLogRepository, RecordAuditLogData } from "../../../application/ports/repositories/audit-log-repository";
 import { IUser } from "../../../domain/entities/user";
+import { NotFoundError, UnauthorizedError, ValidationError } from "../../../domain/errors/domain-error";
+import { errorHandler } from "../middlewares/error-handler";
 
 function makeUser(overrides: Partial<IUser> = {}): IUser {
   return {
@@ -83,9 +85,11 @@ test("resetAdminPassword devuelve 404 si el id objetivo no es un Admin (AZ-053)"
   const req = { params: { id: "viewer-1" }, body: { newPassword: "nuevaPass123" }, userId: "admin-actor" } as unknown as Request;
   const res = makeRes();
 
-  await controller.resetAdminPassword(req, res);
-
-  assert.equal(res.statusCode, 404);
+  // AZ-053 + fix de bug: el controller lanza NotFoundError (en vez de escribir la respuesta a
+  // mano) para que errorHandler la traduzca al envelope real `{error:{code,message}}` — antes
+  // devolvía `{error: "string"}`, que el frontend no sabía leer (mostraba siempre el mensaje
+  // genérico de fallback, dando la sensación de que "no pasaba nada").
+  await assert.rejects(() => controller.resetAdminPassword(req, res), NotFoundError);
   assert.equal(calls.length, 0, "no debe auditar un reset que en realidad no ocurrió");
 });
 
@@ -119,9 +123,7 @@ test("changeOwnPassword rechaza sin currentPassword", async () => {
   const req = { userId: "user-1", body: { newPassword: "nuevaPass123" } } as unknown as Request;
   const res = makeRes();
 
-  await controller.changeOwnPassword(req, res);
-
-  assert.equal(res.statusCode, 400);
+  await assert.rejects(() => controller.changeOwnPassword(req, res), ValidationError);
   assert.equal(calls.length, 0);
 });
 
@@ -135,9 +137,7 @@ test("changeOwnPassword rechaza con currentPassword incorrecta (401, AZ-057)", a
   const req = { userId: "user-1", body: { currentPassword: "incorrecta", newPassword: "nuevaPass123" } } as unknown as Request;
   const res = makeRes();
 
-  await controller.changeOwnPassword(req, res);
-
-  assert.equal(res.statusCode, 401);
+  await assert.rejects(() => controller.changeOwnPassword(req, res), UnauthorizedError);
   assert.equal(calls.length, 0);
 });
 
@@ -164,4 +164,43 @@ test("changeOwnPassword aplica el cambio y audita cuando currentPassword es corr
   assert.equal(changedTo, "hashed:nuevaPass123");
   assert.equal(calls.length, 1);
   assert.equal(calls[0].action, "OWN_PASSWORD_CHANGE");
+});
+
+test("bug real reportado: una contraseña sin número/letra ya llega al frontend con el mensaje real, no el genérico de fallback", async () => {
+  // Antes de este fix, resetAdminPassword/changeOwnPassword/changeViewerPassword respondían con
+  // `res.json({ error: "mensaje" })` a mano — un envelope distinto al que produce `errorHandler`
+  // para el resto de la API (`{ error: { code, message } }`). El frontend (`extractApiErrorMessage`)
+  // solo sabe leer este último, así que cualquier rechazo de estos 3 endpoints mostraba siempre el
+  // toast genérico ("Error al cambiar contraseña.") sin explicar el motivo real — de ahí el reporte
+  // "el botón no funciona, nunca sé si cambió la clave". Este test reproduce el flujo completo
+  // controller → errorHandler → JSON final, como lo vería el navegador.
+  const viewer = makeUser({ id: "viewer-1", role: "viewer", adminId: "admin-1" });
+  const usersRepo: IUserRepository = {
+    findViewerById: async () => viewer,
+  } as unknown as IUserRepository;
+  const hasher: IPasswordHasher = { hash: async (p) => p, compare: async () => true };
+  const { auditLog } = makeAuditLogSpy();
+
+  const controller = makeController(usersRepo, hasher, auditLog);
+  const req = {
+    userId: "admin-1",
+    params: { id: "viewer-1" },
+    body: { newPassword: "12345678" }, // 8 caracteres, pasa el viejo check de longitud, pero sin letra
+  } as unknown as Request;
+  const res = makeRes();
+
+  let caught: unknown;
+  try {
+    await controller.changeViewerPassword(req, res);
+  } catch (err) {
+    caught = err;
+  }
+  assert.ok(caught instanceof ValidationError);
+
+  errorHandler(caught, req, res, () => undefined);
+
+  assert.equal(res.statusCode, 400);
+  const body = res.body as { error: { code: string; message: string } };
+  assert.equal(body.error.code, "VALIDATION_ERROR");
+  assert.match(body.error.message, /letra.*número|número.*letra/);
 });

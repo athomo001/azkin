@@ -13,6 +13,7 @@ import { IUserRepository } from "../../../application/ports/repositories/user-re
 import { IPasswordHasher } from "../../../application/ports/services/security";
 import { IAuditLogRepository } from "../../../application/ports/repositories/audit-log-repository";
 import { isPasswordStrong, PASSWORD_POLICY_MESSAGE } from "../../../application/services/password-policy";
+import { NotFoundError, UnauthorizedError, ValidationError } from "../../../domain/errors/domain-error";
 
 export class UserController {
   constructor(
@@ -136,8 +137,7 @@ export class UserController {
     const id = req.params.id as string;
     const { newPassword } = req.body;
     if (!isPasswordStrong(newPassword)) {
-      res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
-      return;
+      throw new ValidationError(PASSWORD_POLICY_MESSAGE);
     }
     // AZ-053: sin este chequeo, este endpoint (pensado solo para resetear la contraseña de OTRO
     // ADMIN) aceptaba igual el id de un Viewer — incluso de un Admin distinto — porque
@@ -145,14 +145,12 @@ export class UserController {
     // Admin antes de tocar su contraseña.
     const target = await this.usersRepo.findById(id);
     if (!target || target.role !== "admin") {
-      res.status(404).json({ error: "Administrador no encontrado" });
-      return;
+      throw new NotFoundError("Administrador no encontrado");
     }
     const passwordHash = await this.hasher.hash(newPassword);
     const success = await this.usersRepo.changePassword(id, passwordHash);
     if (!success) {
-      res.status(404).json({ error: "Administrador no encontrado" });
-      return;
+      throw new NotFoundError("Administrador no encontrado");
     }
     await this.auditLog.record({
       actorId: req.userId!,
@@ -187,26 +185,22 @@ export class UserController {
     const userId = req.userId!;
     const { currentPassword, newPassword } = req.body;
     if (!isPasswordStrong(newPassword)) {
-      res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
-      return;
+      throw new ValidationError(PASSWORD_POLICY_MESSAGE);
     }
     // AZ-057: exigir la contraseña actual antes de aplicar el cambio — sin esto, un token de
     // acceso expuesto brevemente (XSS, log filtrado, sesión abierta en un equipo compartido)
     // alcanzaba para tomar control permanente de la cuenta sin haber conocido nunca la
     // contraseña original.
     if (typeof currentPassword !== "string" || currentPassword.length === 0) {
-      res.status(400).json({ error: "Debes indicar tu contraseña actual" });
-      return;
+      throw new ValidationError("Debes indicar tu contraseña actual");
     }
     const user = await this.usersRepo.findById(userId);
     if (!user) {
-      res.status(404).json({ error: "Usuario no encontrado" });
-      return;
+      throw new NotFoundError("Usuario no encontrado");
     }
     const matches = await this.hasher.compare(currentPassword, user.passwordHash);
     if (!matches) {
-      res.status(401).json({ error: "La contraseña actual no es correcta" });
-      return;
+      throw new UnauthorizedError("La contraseña actual no es correcta");
     }
     const passwordHash = await this.hasher.hash(newPassword);
     await this.usersRepo.changePassword(userId, passwordHash);
@@ -224,15 +218,13 @@ export class UserController {
     const viewerId = req.params.id as string;
     const { newPassword } = req.body;
     if (!isPasswordStrong(newPassword)) {
-      res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
-      return;
+      throw new ValidationError(PASSWORD_POLICY_MESSAGE);
     }
 
     // Verificar que el viewer pertenece a este admin
     const viewer = await this.usersRepo.findViewerById(adminId, viewerId);
     if (!viewer) {
-      res.status(404).json({ error: "Viewer no encontrado o no autorizado" });
-      return;
+      throw new NotFoundError("Viewer no encontrado o no autorizado");
     }
 
     const passwordHash = await this.hasher.hash(newPassword);
@@ -254,8 +246,7 @@ export class UserController {
     const { nyanCatMode } = req.body;
 
     if (typeof nyanCatMode !== 'boolean') {
-      res.status(400).json({ error: "nyanCatMode debe ser booleano" });
-      return;
+      throw new ValidationError("nyanCatMode debe ser booleano");
     }
 
     // Actualizar directamente en el repositorio
