@@ -1,5 +1,5 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
-import { Component, inject, signal, computed } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -273,6 +273,7 @@ interface MonitoringEngineSettings {
 export class TlsPanelComponent {
   private readonly http = inject(HttpClient);
   private readonly toast = inject(ToastService);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly notificationService = inject(NotificationService);
   public readonly lang = inject(LanguageService);
 
@@ -420,10 +421,18 @@ export class TlsPanelComponent {
     reader.onload = (e: any) => {
       this.tlsForm[field] = String(e.target.result).trim();
       event.target.value = '';
+      // Bug real reportado: esta app corre sin zone.js (Angular 21, no está en package.json), así
+      // que una mutación hecha dentro de un callback async nativo del navegador (FileReader.onload,
+      // no un binding de plantilla) no dispara detección de cambios por sí sola — el textarea
+      // quedaba "un click atrasado" (el contenido de un archivo recién subido solo se veía
+      // reflejado después de interactuar con OTRO campo), dando la sensación de que el botón
+      // "no funcionaba" o que el archivo se subía al campo equivocado.
+      this.cdr.detectChanges();
     };
     reader.onerror = () => {
       this.toast.show('No se pudo leer el archivo seleccionado.');
       event.target.value = '';
+      this.cdr.detectChanges();
     };
     reader.readAsText(file);
   }
