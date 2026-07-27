@@ -38,21 +38,23 @@ services:
       - azkin-db
     networks:
       - azkin-network
-    ports:
-      # AZ-055: enlazado a 127.0.0.1, igual que ya hace Mongo más arriba — el único punto de
-      # entrada público soportado es nginx (contenedor `frontend`, puerto 80/443). Publicar el
-      # backend en todas las interfaces permitía saltarse nginx y, con eso, falsificar
-      # X-Forwarded-For para evadir el rate limiter anti fuerza-bruta (trust proxy asume que
-      # nginx es el único hop). AZKIN_BACK_PORT sigue sirviendo para depuración local
-      # (ej. Postman/curl desde el propio servidor); si de verdad necesitás exponerlo a la red,
-      # cambiá el binding a mano sabiendo que eso reabre ese riesgo.
-      - "127.0.0.1:${AZKIN_BACK_PORT:-3000}:3000"
-      # Puerto HTTPS nativo, solo se usa si se aplica una configuración TLS
-      # desde la UI. Ambos lados deben usar la MISMA variable: el backend escucha
-      # internamente en el puerto que el admin eligió en /settings (no un valor
-      # fijo del Dockerfile), así que el mapeo host:contenedor debe coincidir con
-      # ese mismo número en ambos lados. Mismo criterio de binding a 127.0.0.1 que arriba.
-      - "127.0.0.1:${AZKIN_HTTPS_PORT:-8443}:${AZKIN_HTTPS_PORT:-8443}"
+    # AZ-055: sin publicar ningún puerto por defecto. azkin-back, azkin-front y azkin-db se hablan
+    # entre sí por nombre de servicio dentro de `azkin-network` (ej. nginx → `http://backend:3000`
+    # en nginx.conf) — eso NUNCA requiere publicar un puerto al host, publicar solo sirve para que
+    # algo FUERA de esta red Docker (tu host, otra máquina) llegue directo. Si tu único punto de
+    # entrada real es el frontend (nginx), no hace falta descomentar nada de abajo — así además no
+    # reservás ningún puerto del host, evitando choques con otros servicios que corras ahí.
+    # Descomentá SOLO si necesitás llegar al backend sin pasar por nginx (depuración directa desde
+    # el host, un scraper de Prometheus externo, o un integrador de la API pública que prefiera
+    # apuntar directo al backend) — enlazado a 127.0.0.1 (no a todas las interfaces) para no abrir
+    # una vía de evadir el rate limiter anti fuerza-bruta falsificando X-Forwarded-For (`trust
+    # proxy` asume que nginx es el único hop).
+    # ports:
+    #   - "127.0.0.1:${AZKIN_BACK_PORT:-3000}:3000"
+    #   # Puerto HTTPS nativo (solo si activás esa función desde /settings → TLS/Sistema). Ambos
+    #   # lados deben usar la MISMA variable: el backend escucha internamente en el puerto que el
+    #   # admin eligió ahí, no un valor fijo del Dockerfile.
+    #   - "127.0.0.1:${AZKIN_HTTPS_PORT:-8443}:${AZKIN_HTTPS_PORT:-8443}"
     cap_add:
       # AZ-065: necesario para que el checker de Ping (socket ICMP raw vía `iputils`) siga
       # funcionando ahora que el proceso corre como usuario no-root dentro del contenedor.

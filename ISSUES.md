@@ -1030,12 +1030,21 @@ larga duracion, extendiendo la ventana de un access token robado mas alla de su 
 
 ### Progreso (2026-07-27)
 
-`compose.yaml`/`compose.dev.yaml`: los puertos del backend (`AZKIN_BACK_PORT`,
-`AZKIN_HTTPS_PORT`) ahora se publican enlazados a `127.0.0.1`, mismo patrón que ya usaba Mongo —
-el único punto de entrada público soportado es nginx (`AZKIN_FRONTEND_PORT`). Documentado en
-`docs/instalacion-docker.md` (§8 nota de bóveda de credenciales del backup no aplica aquí; ver §9
-tabla de problemas frecuentes y §12 tabla de puertos, ambas actualizadas) que exponer el backend
-directo a la red reabre el riesgo de evadir el rate limiter falsificando `X-Forwarded-For`. No se
+`compose.dev.yaml`: los puertos del backend (`AZKIN_BACK_PORT`, `AZKIN_HTTPS_PORT`) se publican
+enlazados a `127.0.0.1`, mismo patrón que ya usaba Mongo (en dev el dev-server de Angular necesita
+llegar al backend directo, ver §5).
+
+`compose.yaml` (producción) va un paso más allá tras una consulta del usuario sobre un despliegue
+de 3 máquinas donde solo el frontend debe ser alcanzable: el bloque `ports:` del servicio
+`backend` queda **comentado por defecto**, sin publicar nada al host — `azkin-db`/`azkin-back`/
+`azkin-front` ya se hablan entre sí por nombre de servicio dentro de `azkin-network` (nginx →
+`http://backend:3000`), lo cual nunca requirió un puerto publicado. Publicar solo hacía falta para
+acceso *externo* a esa red (depuración directa, un scraper de Prometheus, un integrador de la API
+pública) — casos opcionales, no el camino feliz. El bloque queda documentado y listo para
+descomentar (enlazado a `127.0.0.1`, no a todas las interfaces) para quien sí lo necesite. Esto de
+paso resuelve choques de puerto en hosts con muchos servicios Docker corriendo, ya que por defecto
+no se reserva ningún puerto para el backend. Documentado en `docs/instalacion-docker.md` (§9 tabla
+de problemas frecuentes y §12 tabla de puertos, ambas actualizadas) y en `.env.example`. No se
 tocó `trust proxy: 1` en `composition-root.ts` — sigue siendo correcto una vez que nginx es la
 única forma de llegar al backend desde la red.
 
