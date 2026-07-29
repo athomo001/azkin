@@ -4,6 +4,8 @@ import { IMonitoringEngineSettings } from "../../../domain/entities/monitoring-e
 export interface UpsertMonitoringEngineSettingsData {
   degradedLatencyMs: number | null;
   acceleratedIntervalSeconds: number | null;
+  flapThreshold: number | null;
+  flapWindowSeconds: number | null;
   updatedById: string;
 }
 

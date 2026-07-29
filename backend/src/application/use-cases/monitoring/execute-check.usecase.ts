@@ -17,6 +17,13 @@ import { logger } from "../../../infrastructure/logger";
 export interface CheckContext {
   lastStatus: MonitorStatus | null;
   retryAttempts: number;
+  // Timestamps (epoch ms) de transiciones UP/DOWN/DEGRADADO confirmadas recientes — ver
+  // guarda anti-flapping en `execute()`. `undefined` en el primer beat de un monitor recién
+  // agendado (equivale a "sin historial", igual que `lastStatus: null`).
+  recentTransitionTimestamps?: number[];
+  // Último estado sobre el que sí se envió una notificación (puede quedar rezagado de
+  // `lastStatus` mientras el monitor está "flapping" y las alertas se suprimen).
+  lastNotifiedStatus?: MonitorStatus | null;
 }
 
 export interface CheckOutcome {
@@ -24,6 +31,8 @@ export interface CheckOutcome {
   lastStatus: MonitorStatus | null;
   retryAttempts: number;
   nextDelaySeconds: number;
+  recentTransitionTimestamps: number[];
+  lastNotifiedStatus: MonitorStatus | null;
 }
 
 /**
@@ -37,6 +46,16 @@ export class ExecuteCheckUseCase {
     private readonly realtime: IRealtimePublisher,
     private readonly notifier: INotifier,
     private readonly maintenance: IMaintenanceRepository,
+    // Fuente de `degradedLatencyMs`/`acceleratedIntervalSeconds` y de la guarda anti-flapping
+    // (`flapThreshold`/`flapWindowSeconds`, AZ-071): sitios detrás de un CDN/WAF (Cloudflare,
+    // Vercel) pueden oscilar UP/DEGRADADO/DOWN varias veces en pocos minutos por ruido del borde
+    // (revalidación de challenge, cold start de función serverless, ruteo a otro POP) sin que el
+    // origen real haya dejado de funcionar. Más de `flapThreshold` transiciones confirmadas
+    // dentro de `flapWindowSeconds` suprime nuevas alertas (el heartbeat SIGUE guardándose y
+    // publicándose en tiempo real — solo se calla el correo/Slack/etc.) hasta que el monitor deja
+    // de oscilar por una ventana completa; en ese momento se envía UNA alerta de "estado actual"
+    // para que el usuario quede al tanto del veredicto final, en vez de perderse la resolución.
+    // Configurable en caliente desde /settings → Sistema (mismo patrón que los otros dos campos).
     private readonly monitoringConfig: IMonitoringEngineConfigResolver,
   ) {}
 
@@ -46,7 +65,8 @@ export class ExecuteCheckUseCase {
       return this.recordMaintenanceBeat(monitor, ctx, activeMaintenance.name);
     }
 
-    const { degradedLatencyMs, acceleratedIntervalSeconds } = await this.monitoringConfig.resolve();
+    const { degradedLatencyMs, acceleratedIntervalSeconds, flapThreshold, flapWindowSeconds } =
+      await this.monitoringConfig.resolve();
     // El acelerado nunca es más rápido que el propio retryInterval del monitor: si un admin
     // configuró reintentos cada 30s para confirmar una caída, no tiene sentido que, una vez
     // confirmada, Azkin la revise más seguido (cada 15s) que durante la fase de verificación.
@@ -105,12 +125,53 @@ export class ExecuteCheckUseCase {
     this.realtime.publishHeartbeat(monitor.userId, beat);
 
     // Alerta solo en transición confirmada UP/DOWN/DEGRADED (PENDING no dispara).
-    let lastStatus = ctx.lastStatus;
+    const prevStatus = ctx.lastStatus;
+    let lastStatus = prevStatus;
+    let recentTransitionTimestamps = ctx.recentTransitionTimestamps ? [...ctx.recentTransitionTimestamps] : [];
+    // `undefined` (campo ausente en el ctx, ej. llamador que no rastrea esta guarda) se trata
+    // como "sin deuda de notificación pendiente" → equivale a `prevStatus`, NO a `null`. `null`
+    // explícito sí es un valor válido y distinto: significa "hubo flapping suprimido y todavía
+    // no se notificó el estado ya confirmado en `prevStatus`".
+    let lastNotifiedStatus = ctx.lastNotifiedStatus !== undefined ? ctx.lastNotifiedStatus : prevStatus;
+
     if (status === MonitorStatus.UP || status === MonitorStatus.DOWN || status === MonitorStatus.DEGRADED) {
-      if (lastStatus !== null && lastStatus !== status) {
-        // Si el fallo es por una caída confirmada de la red local, evitamos enviar alertas
-        // para no generar falsos positivos spameando al usuario.
-        if (!isLocalNetworkDown) {
+      if (prevStatus !== null) {
+        const isTransition = prevStatus !== status;
+        const now = Date.now();
+        const flapWindowMs = flapWindowSeconds * 1000;
+
+        if (isTransition && !isLocalNetworkDown) {
+          recentTransitionTimestamps.push(now);
+        }
+        // Poda por ventana en CADA beat (no solo en los que transicionan): así, si el monitor
+        // deja de oscilar, las transiciones viejas van "caducando" solas y `isFlapping` se
+        // apaga sin depender de una transición nueva — eso es lo que dispara la alerta de
+        // "estado actual" de abajo cuando el ruido finalmente cesa.
+        recentTransitionTimestamps = recentTransitionTimestamps.filter((t) => now - t <= flapWindowMs);
+        const isFlapping = recentTransitionTimestamps.length > flapThreshold;
+
+        if (isLocalNetworkDown) {
+          // Si el fallo es por una caída confirmada de la red local, evitamos enviar alertas
+          // para no generar falsos positivos spameando al usuario.
+          if (isTransition) {
+            logger.warn(
+              `[Diagnóstico de Red] Alerta omitida para monitor ${monitor.name} debido a ISP Outage local.`
+            );
+          }
+        } else if (isFlapping) {
+          if (isTransition) {
+            logger.warn(
+              `[Anti-flapping] Monitor ${monitor.name} osciló ${recentTransitionTimestamps.length} veces en ` +
+              `${flapWindowSeconds}s — alerta suprimida hasta que se estabilice (umbral: ${flapThreshold}).`,
+            );
+          }
+        } else if (lastNotifiedStatus !== status) {
+          // Cubre tanto la transición "normal" (se dispara en el mismo beat) como la alerta de
+          // "estado actual" tras un período de flapping ya calmado (se dispara en un beat sin
+          // transición, una vez que `isFlapping` vuelve a false). `?? prevStatus`: solo satisface
+          // al type-checker (prevStatus está narrowed no-nulo en este bloque) — por invariante
+          // `lastNotifiedStatus` ya no debería ser `null` aquí una vez que el monitor tuvo un
+          // primer estado confirmado (ver rama `else` de abajo).
           const eventType: AlertEventType =
             status === MonitorStatus.DOWN ? "DOWN" : status === MonitorStatus.DEGRADED ? "DEGRADED" : "RECOVERED";
           for (const notifId of monitor.notificationIds) {
@@ -118,11 +179,12 @@ export class ExecuteCheckUseCase {
               notificationId: notifId,
               eventType,
               monitor,
-              from: lastStatus,
+              from: lastNotifiedStatus ?? prevStatus,
               to: status,
               beat,
             });
           }
+          lastNotifiedStatus = status;
 
           // Heurística post-caída (fire-and-forget, solo HTTP): un DOWN confirmado puede en
           // realidad ser un servidor vivo a nivel de red cuya app dejó de responder. No se
@@ -132,16 +194,17 @@ export class ExecuteCheckUseCase {
               logger.error(`Error en heurística de degradación para monitor ${monitor.name}: ${err}`),
             );
           }
-        } else {
-          logger.warn(
-            `[Diagnóstico de Red] Alerta omitida para monitor ${monitor.name} debido a ISP Outage local.`
-          );
         }
+      } else {
+        // Primer beat con historial (recién agendado/reiniciado el servidor): no hay nada que
+        // notificar todavía, así que tampoco hay "deuda" de notificación pendiente sobre este
+        // estado inicial — evita que el próximo beat calmado se confunda con un settle real.
+        lastNotifiedStatus = status;
       }
       lastStatus = status;
     }
 
-    return { status, lastStatus, retryAttempts, nextDelaySeconds };
+    return { status, lastStatus, retryAttempts, nextDelaySeconds, recentTransitionTimestamps, lastNotifiedStatus };
   }
 
   /**
@@ -227,6 +290,8 @@ export class ExecuteCheckUseCase {
       lastStatus: ctx.lastStatus,
       retryAttempts: ctx.retryAttempts,
       nextDelaySeconds: monitor.interval,
+      recentTransitionTimestamps: ctx.recentTransitionTimestamps ?? [],
+      lastNotifiedStatus: ctx.lastNotifiedStatus !== undefined ? ctx.lastNotifiedStatus : ctx.lastStatus,
     };
   }
 }

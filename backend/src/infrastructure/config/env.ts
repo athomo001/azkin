@@ -26,6 +26,13 @@ const schema = z.object({
   // Intervalo de chequeo (segundos) mientras un monitor está DOWN o DEGRADED — permite
   // registrar la curva de recuperación sin esperar el intervalo normal configurado.
   AZKIN_ACCELERATED_INTERVAL_SECONDS: z.coerce.number().int().positive().default(15),
+  // Guarda anti-flapping (AZ-071): más de este número de transiciones UP/DOWN/DEGRADADO
+  // confirmadas dentro de AZKIN_FLAP_WINDOW_SECONDS suprime nuevas alertas (el heartbeat sigue
+  // guardándose) hasta que el monitor se estabiliza por una ventana completa. Pensado para
+  // sitios detrás de un CDN/WAF (Cloudflare, Vercel) cuyo borde puede oscilar por ruido propio
+  // sin que el origen real esté afectado.
+  AZKIN_FLAP_THRESHOLD: z.coerce.number().int().positive().default(4),
+  AZKIN_FLAP_WINDOW_SECONDS: z.coerce.number().int().positive().default(300),
   // Sin default permisivo — se exige configuración explícita (puede ser "*" a propósito
   // en desarrollo, pero debe ser una decisión consciente, no un fallback silencioso del código).
   AZKIN_CORS_ORIGIN: z.string().min(1, "AZKIN_CORS_ORIGIN es requerido (usa '*' solo si es intencional)"),
@@ -86,6 +93,8 @@ export interface Env {
   firstCheckDelayMs: number;
   degradedLatencyMs: number;
   acceleratedIntervalSeconds: number;
+  flapThreshold: number;
+  flapWindowSeconds: number;
   corsOrigin: string;
   bcryptCost: number;
   prometheusUser?: string;
@@ -116,6 +125,8 @@ export const env: Env = {
   firstCheckDelayMs: raw.AZKIN_FIRST_CHECK_DELAY_MS,
   degradedLatencyMs: raw.AZKIN_DEGRADED_LATENCY_MS,
   acceleratedIntervalSeconds: raw.AZKIN_ACCELERATED_INTERVAL_SECONDS,
+  flapThreshold: raw.AZKIN_FLAP_THRESHOLD,
+  flapWindowSeconds: raw.AZKIN_FLAP_WINDOW_SECONDS,
   corsOrigin: raw.AZKIN_CORS_ORIGIN,
   bcryptCost: raw.AZKIN_BCRYPT_COST,
   prometheusUser: raw.AZKIN_PROMETHEUS_USER,

@@ -277,6 +277,8 @@ export function buildContainer(env: Env): AppContainer {
   const monitoringConfigResolver = new ResolveMonitoringEngineConfig(monitoringEngineSettingsRepo, {
     degradedLatencyMs: env.degradedLatencyMs,
     acceleratedIntervalSeconds: env.acceleratedIntervalSeconds,
+    flapThreshold: env.flapThreshold,
+    flapWindowSeconds: env.flapWindowSeconds,
   });
 
   // Tiempo real + alertas
@@ -384,6 +386,8 @@ export function buildContainer(env: Env): AppContainer {
   const getMonitoringEngineSettings = new GetMonitoringEngineSettingsUseCase(monitoringEngineSettingsRepo, {
     degradedLatencyMs: env.degradedLatencyMs,
     acceleratedIntervalSeconds: env.acceleratedIntervalSeconds,
+    flapThreshold: env.flapThreshold,
+    flapWindowSeconds: env.flapWindowSeconds,
   });
   const setMonitoringEngineSettings = new SetMonitoringEngineSettingsUseCase(monitoringEngineSettingsRepo, auditLog);
 

@@ -4,6 +4,8 @@ import { Schema, Types, model } from "mongoose";
 export interface MonitoringEngineSettingsDoc {
   degradedLatencyMs: number | null;
   acceleratedIntervalSeconds: number | null;
+  flapThreshold: number | null;
+  flapWindowSeconds: number | null;
   updatedById: Types.ObjectId;
   updatedAt: Date;
 }
@@ -16,6 +18,8 @@ const monitoringEngineSettingsSchema = new Schema<MonitoringEngineSettingsDoc>(
   {
     degradedLatencyMs: { type: Number, default: null },
     acceleratedIntervalSeconds: { type: Number, default: null },
+    flapThreshold: { type: Number, default: null },
+    flapWindowSeconds: { type: Number, default: null },
     updatedById: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   { timestamps: { createdAt: false, updatedAt: true }, versionKey: false },

@@ -5,6 +5,8 @@ import { MonitoringEngineConfig } from "../../ports/services/monitoring-engine-c
 export interface MonitoringEngineSettingsOutput {
   degradedLatencyMs: number | null; // override activo, o null si usa el valor de entorno
   acceleratedIntervalSeconds: number | null;
+  flapThreshold: number | null;
+  flapWindowSeconds: number | null;
   defaults: MonitoringEngineConfig; // valores de .env, para mostrarlos como placeholder/fallback
 }
 
@@ -24,6 +26,8 @@ export class GetMonitoringEngineSettingsUseCase {
     return {
       degradedLatencyMs: settings?.degradedLatencyMs ?? null,
       acceleratedIntervalSeconds: settings?.acceleratedIntervalSeconds ?? null,
+      flapThreshold: settings?.flapThreshold ?? null,
+      flapWindowSeconds: settings?.flapWindowSeconds ?? null,
       defaults: this.envDefaults,
     };
   }

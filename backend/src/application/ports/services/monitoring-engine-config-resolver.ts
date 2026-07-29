@@ -2,6 +2,9 @@
 export interface MonitoringEngineConfig {
   degradedLatencyMs: number;
   acceleratedIntervalSeconds: number;
+  // Guarda anti-flapping (AZ-071): ver ExecuteCheckUseCase.
+  flapThreshold: number;
+  flapWindowSeconds: number;
 }
 
 /**

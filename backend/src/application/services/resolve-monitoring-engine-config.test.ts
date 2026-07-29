@@ -5,7 +5,7 @@ import { ResolveMonitoringEngineConfig } from "./resolve-monitoring-engine-confi
 import { IMonitoringEngineSettingsRepository } from "../ports/repositories/monitoring-engine-settings-repository";
 import { IMonitoringEngineSettings } from "../../domain/entities/monitoring-engine-settings";
 
-const ENV_DEFAULTS = { degradedLatencyMs: 5000, acceleratedIntervalSeconds: 15 };
+const ENV_DEFAULTS = { degradedLatencyMs: 5000, acceleratedIntervalSeconds: 15, flapThreshold: 4, flapWindowSeconds: 300 };
 
 function makeSettingsRepo(active: IMonitoringEngineSettings | null, onGetActive?: () => void): IMonitoringEngineSettingsRepository {
   return {
@@ -31,6 +31,8 @@ test("ResolveMonitoringEngineConfig usa el override guardado por sobre el valor 
       id: "s1",
       degradedLatencyMs: 8000,
       acceleratedIntervalSeconds: 20,
+      flapThreshold: null,
+      flapWindowSeconds: null,
       updatedAt: new Date(),
       updatedById: "admin-1",
     }),
@@ -49,6 +51,8 @@ test("ResolveMonitoringEngineConfig combina un override parcial con el default d
       id: "s1",
       degradedLatencyMs: 8000,
       acceleratedIntervalSeconds: null,
+      flapThreshold: null,
+      flapWindowSeconds: null,
       updatedAt: new Date(),
       updatedById: "admin-1",
     }),
@@ -59,6 +63,27 @@ test("ResolveMonitoringEngineConfig combina un override parcial con el default d
 
   assert.equal(result.degradedLatencyMs, 8000, "usa el override");
   assert.equal(result.acceleratedIntervalSeconds, ENV_DEFAULTS.acceleratedIntervalSeconds, "cae al default de .env");
+});
+
+test("ResolveMonitoringEngineConfig también resuelve el override de la guarda anti-flapping", async () => {
+  const resolver = new ResolveMonitoringEngineConfig(
+    makeSettingsRepo({
+      id: "s1",
+      degradedLatencyMs: null,
+      acceleratedIntervalSeconds: null,
+      flapThreshold: 8,
+      flapWindowSeconds: 600,
+      updatedAt: new Date(),
+      updatedById: "admin-1",
+    }),
+    ENV_DEFAULTS,
+  );
+
+  const result = await resolver.resolve();
+
+  assert.equal(result.flapThreshold, 8, "usa el override");
+  assert.equal(result.flapWindowSeconds, 600, "usa el override");
+  assert.equal(result.degradedLatencyMs, ENV_DEFAULTS.degradedLatencyMs, "campo sin override cae al default de .env");
 });
 
 test("ResolveMonitoringEngineConfig cachea el resultado: no consulta el repositorio en cada resolve()", async () => {

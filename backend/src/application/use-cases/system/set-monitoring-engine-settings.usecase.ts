@@ -5,6 +5,8 @@ import { IAuditLogRepository } from "../../ports/repositories/audit-log-reposito
 export interface SetMonitoringEngineSettingsInput {
   degradedLatencyMs: number | null;
   acceleratedIntervalSeconds: number | null;
+  flapThreshold: number | null;
+  flapWindowSeconds: number | null;
 }
 
 /**

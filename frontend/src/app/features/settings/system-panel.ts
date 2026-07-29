@@ -23,11 +23,15 @@ interface AppSmtpChannel {
 interface MonitoringEngineDefaults {
   degradedLatencyMs: number;
   acceleratedIntervalSeconds: number;
+  flapThreshold: number;
+  flapWindowSeconds: number;
 }
 
 interface MonitoringEngineSettings {
   degradedLatencyMs: number | null;
   acceleratedIntervalSeconds: number | null;
+  flapThreshold: number | null;
+  flapWindowSeconds: number | null;
   defaults: MonitoringEngineDefaults;
 }
 
@@ -135,7 +139,7 @@ interface MonitoringEngineSettings {
           <div>
             <h3 class="text-sm font-bold text-white tracking-tight">Motor de Monitoreo</h3>
             <p class="text-[11px] text-zinc-500 mt-0.5">
-              Por defecto se configuran vía variables de entorno del servidor (<code class="font-mono">AZKIN_DEGRADED_LATENCY_MS</code> / <code class="font-mono">AZKIN_ACCELERATED_INTERVAL_SECONDS</code>). Ajustarlos aquí aplica en caliente, sin reiniciar el contenedor.
+              Por defecto se configuran vía variables de entorno del servidor (<code class="font-mono">AZKIN_DEGRADED_LATENCY_MS</code> / <code class="font-mono">AZKIN_ACCELERATED_INTERVAL_SECONDS</code> / <code class="font-mono">AZKIN_FLAP_THRESHOLD</code> / <code class="font-mono">AZKIN_FLAP_WINDOW_SECONDS</code>). Ajustarlos aquí aplica en caliente, sin reiniciar el contenedor.
             </p>
           </div>
 
@@ -173,6 +177,44 @@ interface MonitoringEngineSettings {
                 Usando el valor por defecto: {{ monitoringDefaults()?.acceleratedIntervalSeconds }}s.
               } @else {
                 Nunca corre más rápido que el "Int. reintento" configurado en cada monitor individual.
+              }
+            </p>
+          </div>
+
+          <div class="border-t border-zinc-850 pt-4">
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Guarda anti-flapping: umbral de transiciones</label>
+            <div class="flex items-center gap-2">
+              <input type="number" [(ngModel)]="monitoringForm.flapThreshold" [placeholder]="monitoringDefaults()?.flapThreshold + ''"
+                class="flex-1 bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500">
+              <button (click)="resetMonitoringField('flapThreshold')" title="Restablecer a valor por defecto"
+                class="text-[10px] text-zinc-500 hover:text-orange-400 font-bold px-2 py-2 rounded-lg border border-zinc-800 hover:border-orange-500/40 transition-colors">
+                Restablecer
+              </button>
+            </div>
+            <p class="text-[10px] text-zinc-600 mt-1">
+              @if (monitoringForm.flapThreshold === null) {
+                Usando el valor por defecto: {{ monitoringDefaults()?.flapThreshold }} transiciones.
+              } @else {
+                Más de este número de transiciones UP/DOWN/DEGRADADO dentro de la ventana suprime nuevas alertas (útil para sitios detrás de Cloudflare/Vercel que oscilan por ruido del borde).
+              }
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Guarda anti-flapping: ventana (segundos)</label>
+            <div class="flex items-center gap-2">
+              <input type="number" [(ngModel)]="monitoringForm.flapWindowSeconds" [placeholder]="monitoringDefaults()?.flapWindowSeconds + ''"
+                class="flex-1 bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500">
+              <button (click)="resetMonitoringField('flapWindowSeconds')" title="Restablecer a valor por defecto"
+                class="text-[10px] text-zinc-500 hover:text-orange-400 font-bold px-2 py-2 rounded-lg border border-zinc-800 hover:border-orange-500/40 transition-colors">
+                Restablecer
+              </button>
+            </div>
+            <p class="text-[10px] text-zinc-600 mt-1">
+              @if (monitoringForm.flapWindowSeconds === null) {
+                Usando el valor por defecto: {{ monitoringDefaults()?.flapWindowSeconds }}s.
+              } @else {
+                Cuando el monitor deja de oscilar por una ventana completa, se envía una alerta final con el estado ya confirmado.
               }
             </p>
           </div>
@@ -228,9 +270,16 @@ export class SystemPanelComponent {
 
   readonly monitoringDefaults = signal<MonitoringEngineDefaults | null>(null);
   readonly isSavingMonitoringSettings = signal(false);
-  monitoringForm: { degradedLatencyMs: number | null; acceleratedIntervalSeconds: number | null } = {
+  monitoringForm: {
+    degradedLatencyMs: number | null;
+    acceleratedIntervalSeconds: number | null;
+    flapThreshold: number | null;
+    flapWindowSeconds: number | null;
+  } = {
     degradedLatencyMs: null,
     acceleratedIntervalSeconds: null,
+    flapThreshold: null,
+    flapWindowSeconds: null,
   };
 
   constructor() {
@@ -277,6 +326,8 @@ export class SystemPanelComponent {
         this.monitoringForm = {
           degradedLatencyMs: res.degradedLatencyMs,
           acceleratedIntervalSeconds: res.acceleratedIntervalSeconds,
+          flapThreshold: res.flapThreshold,
+          flapWindowSeconds: res.flapWindowSeconds,
         };
         this.monitoringDefaults.set(res.defaults);
       },
@@ -284,7 +335,7 @@ export class SystemPanelComponent {
     });
   }
 
-  resetMonitoringField(field: 'degradedLatencyMs' | 'acceleratedIntervalSeconds'): void {
+  resetMonitoringField(field: 'degradedLatencyMs' | 'acceleratedIntervalSeconds' | 'flapThreshold' | 'flapWindowSeconds'): void {
     this.monitoringForm[field] = null;
   }
 
@@ -293,6 +344,8 @@ export class SystemPanelComponent {
     this.http.put<{ message: string }>('/api/v1/system/monitoring-settings', {
       degradedLatencyMs: this.monitoringForm.degradedLatencyMs,
       acceleratedIntervalSeconds: this.monitoringForm.acceleratedIntervalSeconds,
+      flapThreshold: this.monitoringForm.flapThreshold,
+      flapWindowSeconds: this.monitoringForm.flapWindowSeconds,
     }).subscribe({
       next: (res) => {
         this.isSavingMonitoringSettings.set(false);

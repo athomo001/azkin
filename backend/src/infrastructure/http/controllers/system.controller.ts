@@ -61,8 +61,9 @@ export class SystemController {
   };
 
   /**
-   * Devuelve los overrides vigentes de latencia de degradación / intervalo acelerado, junto con
-   * los valores de `.env` que aplican si no hay override (para mostrarlos en la UI).
+   * Devuelve los overrides vigentes de latencia de degradación / intervalo acelerado / guarda
+   * anti-flapping, junto con los valores de `.env` que aplican si no hay override (para
+   * mostrarlos en la UI).
    */
   getMonitoringEngineSettings = async (_req: Request, res: Response): Promise<void> => {
     const result = await this.getMonitoringEngineSettingsUseCase.execute();
@@ -71,13 +72,15 @@ export class SystemController {
 
   /**
    * Fija (o restablece, con `null`) los overrides de latencia de degradación / intervalo
-   * acelerado del motor de monitoreo.
+   * acelerado / guarda anti-flapping del motor de monitoreo.
    */
   setMonitoringEngineSettings = async (req: Request, res: Response): Promise<void> => {
     const actorId = req.adminId!;
     await this.setMonitoringEngineSettingsUseCase.execute(actorId, {
       degradedLatencyMs: req.body.degradedLatencyMs,
       acceleratedIntervalSeconds: req.body.acceleratedIntervalSeconds,
+      flapThreshold: req.body.flapThreshold,
+      flapWindowSeconds: req.body.flapWindowSeconds,
     });
     res.status(200).json({ message: "Configuración del motor de monitoreo actualizada." });
   };

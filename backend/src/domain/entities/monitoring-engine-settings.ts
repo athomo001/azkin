@@ -8,6 +8,9 @@ export interface IMonitoringEngineSettings {
   id: string;
   degradedLatencyMs: number | null;
   acceleratedIntervalSeconds: number | null;
+  // Guarda anti-flapping (AZ-071): ver ExecuteCheckUseCase.
+  flapThreshold: number | null;
+  flapWindowSeconds: number | null;
   updatedAt: Date;
   updatedById: string;
 }

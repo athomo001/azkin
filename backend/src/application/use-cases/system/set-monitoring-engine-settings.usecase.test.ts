@@ -39,10 +39,17 @@ test("SetMonitoringEngineSettingsUseCase persiste el override y registra auditor
   const { repo: auditLog, recorded } = makeAuditLog();
   const useCase = new SetMonitoringEngineSettingsUseCase(settings, auditLog);
 
-  await useCase.execute("admin-1", { degradedLatencyMs: 8000, acceleratedIntervalSeconds: 20 });
+  await useCase.execute("admin-1", {
+    degradedLatencyMs: 8000,
+    acceleratedIntervalSeconds: 20,
+    flapThreshold: 6,
+    flapWindowSeconds: 600,
+  });
 
   assert.equal(upserts[0].degradedLatencyMs, 8000);
   assert.equal(upserts[0].acceleratedIntervalSeconds, 20);
+  assert.equal(upserts[0].flapThreshold, 6);
+  assert.equal(upserts[0].flapWindowSeconds, 600);
   assert.equal(upserts[0].updatedById, "admin-1");
   assert.equal(recorded[0].action, "MONITORING_ENGINE_SETTINGS_SET");
 });
@@ -52,8 +59,15 @@ test("SetMonitoringEngineSettingsUseCase permite restablecer con null (usar el v
   const { repo: auditLog } = makeAuditLog();
   const useCase = new SetMonitoringEngineSettingsUseCase(settings, auditLog);
 
-  await useCase.execute("admin-1", { degradedLatencyMs: null, acceleratedIntervalSeconds: null });
+  await useCase.execute("admin-1", {
+    degradedLatencyMs: null,
+    acceleratedIntervalSeconds: null,
+    flapThreshold: null,
+    flapWindowSeconds: null,
+  });
 
   assert.equal(upserts[0].degradedLatencyMs, null);
   assert.equal(upserts[0].acceleratedIntervalSeconds, null);
+  assert.equal(upserts[0].flapThreshold, null);
+  assert.equal(upserts[0].flapWindowSeconds, null);
 });
