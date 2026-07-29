@@ -24,12 +24,18 @@ import { NetworkDiagnostics } from "../../../infrastructure/services/network-dia
 
 const DEGRADED_LATENCY_MS = 5000;
 const ACCELERATED_INTERVAL_SECONDS = 15;
+// Umbral/ventana de la guarda anti-flapping deliberadamente enormes por defecto: los tests que no
+// prueban esa guarda específicamente (la mayoría) no deben verse afectados por ella.
+const FLAP_THRESHOLD = 100;
+const FLAP_WINDOW_SECONDS = 100_000;
 
-function makeConfigResolver(): IMonitoringEngineConfigResolver {
+function makeConfigResolver(overrides: { flapThreshold?: number; flapWindowSeconds?: number } = {}): IMonitoringEngineConfigResolver {
   return {
     resolve: async () => ({
       degradedLatencyMs: DEGRADED_LATENCY_MS,
       acceleratedIntervalSeconds: ACCELERATED_INTERVAL_SECONDS,
+      flapThreshold: overrides.flapThreshold ?? FLAP_THRESHOLD,
+      flapWindowSeconds: overrides.flapWindowSeconds ?? FLAP_WINDOW_SECONDS,
     }),
   };
 }
@@ -59,6 +65,24 @@ function makeMonitor(overrides: Partial<IMonitor> = {}): IMonitor {
 function makeRegistry(result: CheckResult): ICheckerRegistry {
   const strategy: ICheckStrategy = { type: "http", check: async () => result };
   return { resolve: () => strategy };
+}
+
+/** Como `makeRegistry`, pero devuelve un `CheckResult` distinto en cada llamada sucesiva del
+ * checker "http" (según `results`, se queda en el último una vez agotados) — necesario para
+ * simular una secuencia de beats que oscilan UP/DOWN al probar la guarda anti-flapping. La
+ * heurística post-caída (`runDegradationHeuristic`) resuelve el tipo "port" por separado: debe
+ * devolver `ok: false` fijo para que no interfiera avanzando la secuencia ni agregando
+ * heartbeats/alertas extra que no está bajo prueba en estos casos. */
+function makeSequenceRegistry(results: CheckResult[]): ICheckerRegistry {
+  let i = 0;
+  return {
+    resolve: (type) => {
+      if (type !== "http") {
+        return { type, check: async () => ({ ok: false, ping: null, msg: "sin mock para este tipo" }) };
+      }
+      return { type: "http", check: async () => results[Math.min(i++, results.length - 1)] };
+    },
+  };
 }
 
 /** Como `makeRegistry`, pero devuelve un `CheckResult` distinto según el tipo pedido —
@@ -438,4 +462,87 @@ test("heurística post-caída: si el puerto TCP exacto rechaza la conexión, el 
   assert.equal(heartbeats.saved[0].status, MonitorStatus.DOWN);
   assert.equal(notifier.events.length, 1, "solo el aviso DOWN inicial");
   assert.equal(notifier.events[0].eventType, "DOWN");
+});
+
+test("guarda anti-flapping: más de `flapThreshold` transiciones en la ventana suprime nuevas alertas (el heartbeat se sigue guardando)", async () => {
+  const heartbeats = makeHeartbeats();
+  const notifier = makeNotifier();
+  // DOWN, UP, DOWN, UP, DOWN — 5 beats, 5 transiciones confirmadas (retries:0 en makeMonitor()
+  // hace que cada fallo confirme DOWN de inmediato, sin pasar por PENDING).
+  const registry = makeSequenceRegistry([
+    { ok: false, ping: null, msg: "timeout" },
+    { ok: true, ping: 20, msg: "200 OK" },
+    { ok: false, ping: null, msg: "timeout" },
+    { ok: true, ping: 20, msg: "200 OK" },
+    { ok: false, ping: null, msg: "timeout" },
+  ]);
+  // flapThreshold=2: a partir de la 3ra transición dentro de la ventana, se suprime.
+  const useCase = new ExecuteCheckUseCase(
+    registry,
+    heartbeats,
+    makeRealtime(),
+    notifier,
+    makeMaintenanceRepo([]),
+    makeConfigResolver({ flapThreshold: 2, flapWindowSeconds: 300 }),
+  );
+
+  let ctx: { lastStatus: MonitorStatus | null; retryAttempts: number; recentTransitionTimestamps?: number[]; lastNotifiedStatus?: MonitorStatus | null } =
+    { lastStatus: MonitorStatus.UP, retryAttempts: 0 };
+  for (let i = 0; i < 5; i++) {
+    const outcome = await useCase.execute(makeMonitor(), ctx);
+    ctx = {
+      lastStatus: outcome.lastStatus,
+      retryAttempts: outcome.retryAttempts,
+      recentTransitionTimestamps: outcome.recentTransitionTimestamps,
+      lastNotifiedStatus: outcome.lastNotifiedStatus,
+    };
+  }
+
+  assert.equal(heartbeats.saved.length, 5, "cada beat sigue guardando su heartbeat para el historial, aunque la alerta se suprima");
+  assert.equal(notifier.events.length, 2, "solo las primeras 2 transiciones (DOWN, luego RECOVERED) alertan; el resto oscila demasiado rápido y se suprime");
+  assert.deepEqual(notifier.events.map((e) => e.eventType), ["DOWN", "RECOVERED"]);
+});
+
+test("guarda anti-flapping: al estabilizarse tras la ventana, envía una única alerta con el estado ya confirmado (aunque haya quedado rezagada)", async () => {
+  const notifier = makeNotifier();
+  const registry = makeSequenceRegistry([
+    { ok: false, ping: null, msg: "timeout" }, // 1: DOWN  -> notifica DOWN
+    { ok: true, ping: 20, msg: "200 OK" },      // 2: UP    -> notifica RECOVERED
+    { ok: false, ping: null, msg: "timeout" },  // 3: DOWN  -> flapping, suprimida
+    { ok: true, ping: 20, msg: "200 OK" },       // 4: UP    -> flapping, suprimida
+    { ok: false, ping: null, msg: "timeout" },  // 5: DOWN  -> flapping, suprimida (queda "rezagado" en DOWN)
+    { ok: false, ping: null, msg: "timeout" },  // 6: DOWN  -> sin transición; tras la ventana, dispara la alerta de estado actual
+  ]);
+  // Ventana muy corta (50ms) para poder esperar su expiración real en el test sin mockear reloj.
+  const flapWindowSeconds = 0.05;
+  const useCase = new ExecuteCheckUseCase(
+    registry,
+    makeHeartbeats(),
+    makeRealtime(),
+    notifier,
+    makeMaintenanceRepo([]),
+    makeConfigResolver({ flapThreshold: 2, flapWindowSeconds }),
+  );
+
+  let ctx: { lastStatus: MonitorStatus | null; retryAttempts: number; recentTransitionTimestamps?: number[]; lastNotifiedStatus?: MonitorStatus | null } =
+    { lastStatus: MonitorStatus.UP, retryAttempts: 0 };
+  for (let i = 0; i < 5; i++) {
+    const outcome = await useCase.execute(makeMonitor(), ctx);
+    ctx = {
+      lastStatus: outcome.lastStatus,
+      retryAttempts: outcome.retryAttempts,
+      recentTransitionTimestamps: outcome.recentTransitionTimestamps,
+      lastNotifiedStatus: outcome.lastNotifiedStatus,
+    };
+  }
+  assert.equal(notifier.events.length, 2, "tras los primeros 5 beats, sigue solo con las 2 alertas iniciales (flapping en curso)");
+
+  // Deja pasar la ventana completa sin más transiciones para que el flapping se considere calmado.
+  await new Promise((resolve) => setTimeout(resolve, flapWindowSeconds * 1000 * 3));
+
+  const finalOutcome = await useCase.execute(makeMonitor(), ctx);
+
+  assert.equal(notifier.events.length, 3, "al estabilizarse, se envía UNA alerta más con el veredicto final");
+  assert.equal(notifier.events[2].eventType, "DOWN");
+  assert.equal(finalOutcome.lastNotifiedStatus, MonitorStatus.DOWN);
 });

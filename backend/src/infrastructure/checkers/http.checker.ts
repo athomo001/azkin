@@ -120,20 +120,40 @@ export class HttpChecker implements ICheckStrategy {
       });
 
       const ping = Math.round(performance.now() - start);
-      
+
       // Códigos 2xx y 3xx (menos de 400) se consideran UP
       let ok = res.status < 400;
 
-      // Si retorna 403 o 503 de Cloudflare, se considera UP porque el proxy/WAF de Cloudflare
+      // Si retorna 403/429/503 de Cloudflare, se considera UP porque el proxy/WAF de Cloudflare
       // está respondiendo activamente (si el servidor de origen estuviera caído, Cloudflare retornaría 521/522/etc).
+      // 429 se agregó junto a 403/503: el rate-limit del WAF (ej. reglas anti-bot o "I'm Under
+      // Attack Mode") es el mismo caso — el borde de Cloudflare está vivo, solo bloqueando esta
+      // petición puntual, no evidencia de que el origen esté caído.
       const isCloudflare = res.headers.get("server")?.toLowerCase().includes("cloudflare") ||
                            res.headers.get("cf-ray") !== null ||
                            res.headers.get("cf-cache-status") !== null;
+      // Vercel expone `x-vercel-id`/`x-vercel-cache` en toda respuesta que pasa por su edge
+      // (`server: Vercel` solo aparece en sus páginas de error). Mismo razonamiento que Cloudflare:
+      // un 403/429 de este borde es el edge respondiendo, no el origen caído.
+      const isVercel = res.headers.get("server")?.toLowerCase().includes("vercel") ||
+                       res.headers.get("x-vercel-id") !== null ||
+                       res.headers.get("x-vercel-cache") !== null;
 
       let msg = `${res.status} ${res.statusText}`.trim();
-      if (!ok && isCloudflare && (res.status === 403 || res.status === 503)) {
+      if (!ok && isCloudflare && (res.status === 403 || res.status === 429 || res.status === 503)) {
         ok = true;
         msg = `Operativo (CF WAF - ${res.status})`;
+      } else if (!ok && isVercel && (res.status === 403 || res.status === 429)) {
+        ok = true;
+        msg = `Operativo (Vercel Edge - ${res.status})`;
+      } else if (!ok && isCloudflare && res.status >= 520 && res.status <= 524) {
+        // A diferencia de 403/429/503, estos SÍ indican un problema real entre Cloudflare y el
+        // origen (servidor caído, conexión rechazada, DNS del origen, timeout esperando
+        // respuesta) — no se fuerzan a `ok: true`, solo se deja mensaje diagnóstico claro. Nota:
+        // como el timeout propio de Azkin es 15s y el timeout de origen de Cloudflare suele ser
+        // ~15-100s, en la práctica Azkin suele abortar primero y reportar "timeout" antes de
+        // recibir este código — este mensaje aplica quándo sí llega a tiempo.
+        msg = `Cloudflare: error de origen (${res.status} ${res.statusText})`.trim();
       }
 
       if (!ok) {

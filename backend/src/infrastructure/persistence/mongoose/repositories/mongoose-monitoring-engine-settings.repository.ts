@@ -24,6 +24,8 @@ export class MongooseMonitoringEngineSettingsRepository implements IMonitoringEn
       {
         degradedLatencyMs: data.degradedLatencyMs,
         acceleratedIntervalSeconds: data.acceleratedIntervalSeconds,
+        flapThreshold: data.flapThreshold,
+        flapWindowSeconds: data.flapWindowSeconds,
         updatedById: new Types.ObjectId(data.updatedById),
       },
       { new: true, upsert: true },
@@ -36,6 +38,8 @@ export class MongooseMonitoringEngineSettingsRepository implements IMonitoringEn
       id: toDomainId(doc._id),
       degradedLatencyMs: doc.degradedLatencyMs ?? null,
       acceleratedIntervalSeconds: doc.acceleratedIntervalSeconds ?? null,
+      flapThreshold: doc.flapThreshold ?? null,
+      flapWindowSeconds: doc.flapWindowSeconds ?? null,
       updatedAt: doc.updatedAt,
       updatedById: String(doc.updatedById),
     };

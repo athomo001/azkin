@@ -16,6 +16,9 @@ interface ScheduledMonitor {
   lastStatus: MonitorStatus | null;
   retryAttempts: number;
   isStopped: boolean;
+  // Estado de la guarda anti-flapping — ver ExecuteCheckUseCase.
+  recentTransitionTimestamps: number[];
+  lastNotifiedStatus: MonitorStatus | null;
 }
 
 /**
@@ -52,6 +55,8 @@ export class InMemoryScheduler implements IScheduler {
       lastStatus: null,
       retryAttempts: 0,
       isStopped: false,
+      recentTransitionTimestamps: [],
+      lastNotifiedStatus: null,
     };
     this.monitors.set(monitor.id, scheduled);
 
@@ -69,7 +74,11 @@ export class InMemoryScheduler implements IScheduler {
     // Preserva el estado confirmado para no re-alertar por una simple edición de config.
     if (previous) {
       const current = this.monitors.get(monitor.id);
-      if (current) current.lastStatus = previous.lastStatus;
+      if (current) {
+        current.lastStatus = previous.lastStatus;
+        current.recentTransitionTimestamps = previous.recentTransitionTimestamps;
+        current.lastNotifiedStatus = previous.lastNotifiedStatus;
+      }
     }
   }
 
@@ -190,9 +199,13 @@ export class InMemoryScheduler implements IScheduler {
       const outcome = await this.executeCheck.execute(scheduled.monitor, {
         lastStatus: scheduled.lastStatus,
         retryAttempts: scheduled.retryAttempts,
+        recentTransitionTimestamps: scheduled.recentTransitionTimestamps,
+        lastNotifiedStatus: scheduled.lastNotifiedStatus,
       });
       scheduled.lastStatus = outcome.lastStatus;
       scheduled.retryAttempts = outcome.retryAttempts;
+      scheduled.recentTransitionTimestamps = outcome.recentTransitionTimestamps;
+      scheduled.lastNotifiedStatus = outcome.lastNotifiedStatus;
       nextDelaySeconds = outcome.nextDelaySeconds;
     } catch (error) {
       logger.error(`safeBeat falló para monitor ${scheduled.monitor.id}`, error);

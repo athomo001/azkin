@@ -5,7 +5,7 @@ import { GetMonitoringEngineSettingsUseCase } from "./get-monitoring-engine-sett
 import { IMonitoringEngineSettingsRepository } from "../../ports/repositories/monitoring-engine-settings-repository";
 import { IMonitoringEngineSettings } from "../../../domain/entities/monitoring-engine-settings";
 
-const ENV_DEFAULTS = { degradedLatencyMs: 5000, acceleratedIntervalSeconds: 15 };
+const ENV_DEFAULTS = { degradedLatencyMs: 5000, acceleratedIntervalSeconds: 15, flapThreshold: 4, flapWindowSeconds: 300 };
 
 function makeSettingsRepo(active: IMonitoringEngineSettings | null): IMonitoringEngineSettingsRepository {
   return {
@@ -14,13 +14,15 @@ function makeSettingsRepo(active: IMonitoringEngineSettings | null): IMonitoring
   };
 }
 
-test("GetMonitoringEngineSettingsUseCase devuelve null en ambos campos (y los defaults) si no hay override", async () => {
+test("GetMonitoringEngineSettingsUseCase devuelve null en todos los campos (y los defaults) si no hay override", async () => {
   const useCase = new GetMonitoringEngineSettingsUseCase(makeSettingsRepo(null), ENV_DEFAULTS);
 
   const result = await useCase.execute();
 
   assert.equal(result.degradedLatencyMs, null);
   assert.equal(result.acceleratedIntervalSeconds, null);
+  assert.equal(result.flapThreshold, null);
+  assert.equal(result.flapWindowSeconds, null);
   assert.deepEqual(result.defaults, ENV_DEFAULTS);
 });
 
@@ -30,6 +32,8 @@ test("GetMonitoringEngineSettingsUseCase devuelve el override vigente junto con 
       id: "s1",
       degradedLatencyMs: 8000,
       acceleratedIntervalSeconds: null,
+      flapThreshold: 6,
+      flapWindowSeconds: null,
       updatedAt: new Date(),
       updatedById: "admin-1",
     }),
@@ -40,5 +44,7 @@ test("GetMonitoringEngineSettingsUseCase devuelve el override vigente junto con 
 
   assert.equal(result.degradedLatencyMs, 8000);
   assert.equal(result.acceleratedIntervalSeconds, null, "el campo sin override sigue en null");
+  assert.equal(result.flapThreshold, 6);
+  assert.equal(result.flapWindowSeconds, null, "el campo sin override sigue en null");
   assert.deepEqual(result.defaults, ENV_DEFAULTS);
 });

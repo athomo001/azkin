@@ -34,6 +34,8 @@ export class ResolveMonitoringEngineConfig implements IMonitoringEngineConfigRes
     this.cached = {
       degradedLatencyMs: settings?.degradedLatencyMs ?? this.envDefaults.degradedLatencyMs,
       acceleratedIntervalSeconds: settings?.acceleratedIntervalSeconds ?? this.envDefaults.acceleratedIntervalSeconds,
+      flapThreshold: settings?.flapThreshold ?? this.envDefaults.flapThreshold,
+      flapWindowSeconds: settings?.flapWindowSeconds ?? this.envDefaults.flapWindowSeconds,
     };
     this.cachedAt = now;
     return this.cached;
