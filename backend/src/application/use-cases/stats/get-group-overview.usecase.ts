@@ -91,9 +91,16 @@ export class GetGroupOverviewUseCase {
 
     const history = await Promise.all(historyPromises);
 
+    // Se filtran únicamente los monitores que están activos para no penalizar el estado
+    // consolidado del grupo con el último estado registrado de un monitor pausado.
+    const activeMonitors = monitorsWithStatus.filter((m) => m.isActive);
+    const overallStatus = activeMonitors.length === 0
+      ? MonitorStatus.PENDING
+      : combineMonitorStatus(activeMonitors.map((m) => m.lastStatus));
+
     return {
       group: groupName,
-      overallStatus: combineMonitorStatus(monitorsWithStatus.map((m) => m.lastStatus)),
+      overallStatus,
       avgPing: this.averagePing(monitorsWithStatus),
       monitors: monitorsWithStatus,
       history,
@@ -101,7 +108,10 @@ export class GetGroupOverviewUseCase {
   }
 
   private averagePing(monitors: (IMonitor & HeartbeatSummary)[]): number | null {
+    // Se filtran únicamente los monitores activos para calcular el promedio de latencia,
+    // previniendo que los pings históricos de elementos en pausa afecten el promedio actual.
     const pings = monitors
+      .filter((m) => m.isActive)
       .map((m) => m.lastPing)
       .filter((p): p is number => p !== null);
     if (pings.length === 0) return null;

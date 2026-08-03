@@ -625,7 +625,9 @@ type HistoryRangeOption = {
                       <span class="text-[10px] text-zinc-500 block truncate">{{ m.target || 'Push pasivo' }}</span>
                     </div>
                     <div class="text-right flex-shrink-0">
-                      @if (m.status === 'UP') {
+                      @if (!m.isActive) {
+                        <span class="text-[9px] bg-zinc-800 border border-zinc-700 text-zinc-400 px-2 py-0.5 rounded font-black uppercase tracking-wider">PAUSED</span>
+                      } @else if (m.status === 'UP') {
                         <span class="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black uppercase tracking-wider">UP</span>
                       } @else if (m.status === 'DOWN') {
                         <span class="text-[9px] bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded font-black uppercase tracking-wider animate-pulse">DOWN</span>
@@ -636,7 +638,7 @@ type HistoryRangeOption = {
                       } @else {
                         <span class="text-[9px] bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-black uppercase tracking-wider">PEND</span>
                       }
-                      <span class="text-[10px] text-zinc-500 font-mono block mt-1.5">{{ m.lastPing ? m.lastPing + ' ms' : '--' }}</span>
+                      <span class="text-[10px] text-zinc-500 font-mono block mt-1.5">{{ m.isActive && m.lastPing ? m.lastPing + ' ms' : '--' }}</span>
                     </div>
                   </div>
                 }
@@ -1116,17 +1118,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     return {
       groups: Object.entries(groupsMap).map(([name, monitors]) => {
-        // Calcular uptime promedio consolidado
-        const active = monitors.filter(x => x.uptime24h !== null && x.uptime24h !== undefined);
+        // Para calcular el uptime promedio consolidado del grupo, consideramos
+        // únicamente aquellos monitores que están activos y tienen historial de uptime.
+        const active = monitors.filter(x => x.isActive && x.uptime24h !== null && x.uptime24h !== undefined);
         const uptime = active.length === 0 ? 1.0 : active.reduce((sum, x) => sum + (x.uptime24h ?? 1), 0) / active.length;
 
-        // Determinar peor estado consolidado (misma prioridad que combineStatus en el backend:
-        // DOWN > DEGRADED > PENDING > MAINTENANCE > UP).
+        // Determinar el peor estado consolidado basándose exclusivamente en los monitores activos.
+        // Un monitor pausado (inactivo) no debe propagar su estado caído al grupo.
         let status: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' | 'DEGRADED' = 'UP';
-        if (monitors.some(x => x.status === 'DOWN')) status = 'DOWN';
-        else if (monitors.some(x => x.status === 'DEGRADED')) status = 'DEGRADED';
-        else if (monitors.some(x => x.status === 'PENDING')) status = 'PENDING';
-        else if (monitors.some(x => x.status === 'MAINTENANCE')) status = 'MAINTENANCE';
+        const activeMonitors = monitors.filter(x => x.isActive);
+        if (activeMonitors.some(x => x.status === 'DOWN')) status = 'DOWN';
+        else if (activeMonitors.some(x => x.status === 'DEGRADED')) status = 'DEGRADED';
+        else if (activeMonitors.some(x => x.status === 'PENDING')) status = 'PENDING';
+        else if (activeMonitors.some(x => x.status === 'MAINTENANCE')) status = 'MAINTENANCE';
 
         const isCollapsed = !!this.collapsedGroups()[name];
 
@@ -1210,16 +1214,20 @@ export class DashboardComponent implements OnInit, OnDestroy {
           return m;
         });
 
-        // Recalcular latencia promedio del grupo
-        const upMonitors = updatedMonitors.filter((m: any) => m.lastPing !== undefined && m.lastPing !== null);
+        // Para la actualización en caliente, separamos los monitores activos para realizar
+        // la consolidación de latencia y estado del grupo sin que afecten los inactivos/pausados.
+        const activeMonitors = updatedMonitors.filter((m: any) => m.isActive);
+
+        // Recalcular latencia promedio del grupo considerando solo elementos activos.
+        const upMonitors = activeMonitors.filter((m: any) => m.lastPing !== undefined && m.lastPing !== null);
         const avgPing = upMonitors.length > 0 ? Math.round(upMonitors.reduce((sum: number, m: any) => sum + (m.lastPing ?? 0), 0) / upMonitors.length) : 0;
 
-        // Determinar estado consolidado (misma prioridad que combineStatus en el backend)
+        // Determinar el peor estado consolidado del grupo usando solo monitores activos.
         let groupStatus: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' | 'DEGRADED' = 'UP';
-        if (updatedMonitors.some((x: any) => x.status === 'DOWN')) groupStatus = 'DOWN';
-        else if (updatedMonitors.some((x: any) => x.status === 'DEGRADED')) groupStatus = 'DEGRADED';
-        else if (updatedMonitors.some((x: any) => x.status === 'PENDING')) groupStatus = 'PENDING';
-        else if (updatedMonitors.some((x: any) => x.status === 'MAINTENANCE')) groupStatus = 'MAINTENANCE';
+        if (activeMonitors.some((x: any) => x.status === 'DOWN')) groupStatus = 'DOWN';
+        else if (activeMonitors.some((x: any) => x.status === 'DEGRADED')) groupStatus = 'DEGRADED';
+        else if (activeMonitors.some((x: any) => x.status === 'PENDING')) groupStatus = 'PENDING';
+        else if (activeMonitors.some((x: any) => x.status === 'MAINTENANCE')) groupStatus = 'MAINTENANCE';
 
         this.selectedGroup.set({
           ...currentGroup,
@@ -1393,7 +1401,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const g = this.groupedMonitors().groups.find(x => x.name === groupName);
     if (!g) return;
 
-    const upMonitors = g.monitors.filter(m => m.lastPing !== undefined && m.lastPing !== null);
+    // Se obtienen únicamente los monitores que están activos y tienen una latencia válida
+    // para no contaminar el promedio inicial del grupo con valores de monitores en pausa.
+    const upMonitors = g.monitors.filter(m => m.isActive && m.lastPing !== undefined && m.lastPing !== null);
     const avgPing = upMonitors.length > 0 ? Math.round(upMonitors.reduce((sum, m) => sum + (m.lastPing ?? 0), 0) / upMonitors.length) : 0;
 
     this.selectedGroup.set({
