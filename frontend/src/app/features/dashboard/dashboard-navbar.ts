@@ -47,14 +47,12 @@ import { ThemeService } from '../../core/services/theme.service';
           <span class="text-xs font-bold text-zinc-300">{{ authService.currentUser()?.email || authService.currentUser()?.username }}</span>
           <span class="text-[10px] text-zinc-500 uppercase tracking-wider">{{ authService.currentUser()?.role }}</span>
         </div>
-        <!-- Boton secreto de NyanCat (Easter Egg) — solo para admins -->
-        @if (authService.isAdmin()) {
-          <button (click)="toggleNyanCat.emit()" [title]="isNyanCatMode() ? 'Desactivar Modo NyanCat' : 'Activar Modo NyanCat 🐱'"
-            class="flex items-center justify-center p-1.5 rounded-lg border transition-all text-xs"
-            [class]="isNyanCatMode() ? 'border-orange-500/40 bg-orange-500/10 text-orange-400' : 'border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-orange-400 hover:border-orange-500/30'">
-            🐱
-          </button>
-        }
+        <!-- Boton secreto de NyanCat (Easter Egg) — para todos los usuarios -->
+        <button (click)="toggleNyanCat.emit()" [title]="isNyanCatMode() ? 'Desactivar Modo NyanCat' : 'Activar Modo NyanCat 🐱'"
+          class="flex items-center justify-center p-1.5 rounded-lg border transition-all text-xs"
+          [class]="isNyanCatMode() ? 'border-orange-500/40 bg-orange-500/10 text-orange-400' : 'border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-orange-400 hover:border-orange-500/30'">
+          🐱
+        </button>
         @if (authService.isAdmin()) {
           <a routerLink="/settings" class="text-sm font-semibold hover:text-orange-500 transition-colors flex items-center gap-1.5">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
