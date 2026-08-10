@@ -6,6 +6,12 @@
   <strong>Plataforma profesional de monitoreo  y servicios de red en tiempo real.</strong>
 </p>
 
+<p align="center">
+  🇪🇸 Español | <a href="./README.en.md">🇬🇧 English</a>
+</p>
+
+> 🗿 **El nombre:** **Azkin** (del mapudungún **azkintun**) significa mirar hacia lo lejos, contemplar el horizonte, atisbar o vigilar desde un mirador — justo lo que hace esta plataforma con tus servicios.
+
 ---
 
 ## 🚀 Descripción General
