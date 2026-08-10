@@ -4,6 +4,16 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.2.2] - 2026-08-10
+
+### Added
+
+- **README bilingüe (ES/EN) y explicación del origen del nombre "Azkin":** nueva versión en inglés (`README.en.md`) enlazada desde la cabecera del README en español, y un bloque destacado explicando que "Azkin" viene del mapudungún *azkintun* (mirar hacia lo lejos, vigilar desde un mirador) — antes el nombre del proyecto no tenía ninguna explicación en el repo.
+
+### Fixed
+
+- **Los gráficos de latencia (ECharts) a veces se quedaban en blanco hasta recargar la página, aunque los datos siguieran actualizándose:** ninguno de los tres componentes que usan ECharts (gráfico principal de un monitor/grupo en `dashboard.ts`, el gráfico de "Latencia Histórica del Grupo" en `group-dashboard.ts`, y la "Comparativa Latencia Multi-Nodo" en `federated-comparison.ts`) tenía un `ResizeObserver` ni listener de `resize`. Si el contenedor todavía medía 0×0 en el instante exacto de `echarts.init()`/`setOption()` (layout aún no asentado tras una transición `@if`, navegación, o carga bajo presión), ECharts dibujaba el canvas en tamaño cero — los `setOption()` posteriores seguían aplicándose internamente (por eso el eje de tiempo y los valores del tooltip parecían "funcionar"), pero ninguna línea quedaba visible hasta un F5, que reinicializa todo con el layout ya completo. Ahora cada gráfico registra un `ResizeObserver` sobre su contenedor que fuerza un `resize()` apenas el layout se asienta. De paso, en `federated-comparison.ts` se corrigió un bug relacionado: el contenedor del gráfico vive bajo un `@if` que puede desmontarse si falla el refresh automático de 30s — al remontarse, Angular crea un `<div>` nuevo, pero la instancia de ECharts existente seguía apuntando al nodo viejo desconectado en vez de reinicializarse.
+
 ## [1.2.1] - 2026-08-03
 
 > Esta versión se etiquetó y publicó el 3 de agosto, pero el trabajo se hizo en varias tandas
