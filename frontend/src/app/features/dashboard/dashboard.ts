@@ -777,6 +777,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (el) {
       setTimeout(() => this.initChart(), 0);
     } else {
+      this.chartResizeObserver?.disconnect();
       this.chart?.dispose();
       this.chart = null;
     }
@@ -788,12 +789,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (el) {
       setTimeout(() => this.initGroupChart(), 0);
     } else {
+      this.groupChartResizeObserver?.disconnect();
       this.groupChart?.dispose();
       this.groupChart = null;
     }
   }
   private chart: echarts.ECharts | null = null;
   private groupChart: echarts.ECharts | null = null;
+  private chartResizeObserver?: ResizeObserver;
+  private groupChartResizeObserver?: ResizeObserver;
   private unsubscribeHeartbeat: (() => void) | null = null;
 
   readonly authService = inject(AuthService);
@@ -1269,6 +1273,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     document.body.classList.remove('kiosk-mode');
     this.unsubscribeHeartbeat?.();
     this.realtimeService.disconnect();
+    this.chartResizeObserver?.disconnect();
+    this.groupChartResizeObserver?.disconnect();
     this.chart?.dispose();
     this.groupChart?.dispose();
   }
@@ -1301,8 +1307,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.selectedGroup.set(null);
     this.historyPoints.set([]);
     this.eventsTableRows.set([]);
+    this.chartResizeObserver?.disconnect();
     this.chart?.dispose();
     this.chart = null;
+    this.groupChartResizeObserver?.disconnect();
     this.groupChart?.dispose();
     this.groupChart = null;
     this.loadRecentIncidents();
@@ -1323,12 +1331,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
    */
   selectMonitor(monitor: IMonitor): void {
     this.selectedGroup.set(null);
+    this.groupChartResizeObserver?.disconnect();
     this.groupChart?.dispose();
     this.groupChart = null;
 
     this.selectedMonitor.set(monitor);
     this.historyPoints.set([]);
     this.federatedSeriesMap.set(new Map());
+    this.chartResizeObserver?.disconnect();
     this.chart?.dispose();
     this.chart = null;
 
@@ -1395,6 +1405,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   selectGroup(groupName: string): void {
     this.selectedMonitor.set(null);
     this.historyPoints.set([]);
+    this.chartResizeObserver?.disconnect();
     this.chart?.dispose();
     this.chart = null;
 
@@ -1425,6 +1436,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   loadGroupHistory(monitors: IMonitor[]): void {
     this.groupHistoryMap.clear();
+    this.groupChartResizeObserver?.disconnect();
     this.groupChart?.dispose();
     this.groupChart = null;
 
@@ -1577,8 +1589,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // --- Gráficos ECharts ---
   private initChart(): void {
     if (!this._chartEl) return;
-    this.chart = echarts.init(this._chartEl.nativeElement, 'dark', { renderer: 'svg' });
+    const el = this._chartEl.nativeElement;
+    this.chart = echarts.init(el, 'dark', { renderer: 'svg' });
     this.updateChart();
+
+    // Si el contenedor todavía no tenía su tamaño final al inicializar (layout en curso tras
+    // seleccionar el monitor), ECharts mide 0x0 y las líneas quedan invisibles aunque los datos
+    // se sigan actualizando por WebSocket — el ResizeObserver fuerza un resize() al asentarse.
+    this.chartResizeObserver?.disconnect();
+    this.chartResizeObserver = new ResizeObserver(() => this.chart?.resize());
+    this.chartResizeObserver.observe(el);
   }
 
   private updateChart(): void {
@@ -1769,8 +1789,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private initGroupChart(): void {
     if (!this._groupChartEl) return;
-    this.groupChart = echarts.init(this._groupChartEl.nativeElement, 'dark', { renderer: 'svg' });
+    const el = this._groupChartEl.nativeElement;
+    this.groupChart = echarts.init(el, 'dark', { renderer: 'svg' });
     this.updateGroupChart();
+
+    this.groupChartResizeObserver?.disconnect();
+    this.groupChartResizeObserver = new ResizeObserver(() => this.groupChart?.resize());
+    this.groupChartResizeObserver.observe(el);
   }
 
   private updateGroupChart(): void {

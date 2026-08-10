@@ -67,6 +67,7 @@ import { AuthService } from '../../core/services/auth.service';
 export class GroupDashboardComponent implements OnInit, OnDestroy {
   @ViewChild('chartEl') chartEl!: ElementRef<HTMLDivElement>;
   private chart: echarts.ECharts | null = null;
+  private resizeObserver?: ResizeObserver;
 
   private readonly route = inject(ActivatedRoute);
   private readonly monitorService = inject(MonitorService);
@@ -121,7 +122,11 @@ export class GroupDashboardComponent implements OnInit, OnDestroy {
       data: (m.heartbeats || []).map((h: any) => [h.timestamp, h.latency ?? 0])
     }));
 
-    this.chart = echarts.init(this.chartEl.nativeElement, 'dark', { renderer: 'canvas' });
+    this.resizeObserver?.disconnect();
+    this.chart?.dispose();
+
+    const el = this.chartEl.nativeElement;
+    this.chart = echarts.init(el, 'dark', { renderer: 'canvas' });
     this.chart.setOption({
       backgroundColor: 'transparent',
       tooltip: { trigger: 'axis', backgroundColor: '#18181b', borderColor: '#3f3f46', textStyle: { color: '#e4e4e7' } },
@@ -130,9 +135,16 @@ export class GroupDashboardComponent implements OnInit, OnDestroy {
       yAxis: { type: 'value', name: 'Latencia (ms)', nameTextStyle: { color: '#71717a' }, axisLabel: { color: '#71717a' }, splitLine: { lineStyle: { color: '#27272a' } } },
       series
     });
+
+    // Si el contenedor todavía no tenía su tamaño final al inicializar (p.ej. layout en curso tras
+    // la transición @if isLoading→false), ECharts mide 0x0 y las líneas quedan invisibles aunque
+    // los datos se sigan actualizando — el ResizeObserver fuerza un resize() apenas el layout se asiente.
+    this.resizeObserver = new ResizeObserver(() => this.chart?.resize());
+    this.resizeObserver.observe(el);
   }
 
   ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
     this.chart?.dispose();
   }
 }

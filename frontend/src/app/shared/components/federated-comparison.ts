@@ -151,6 +151,7 @@ export class FederatedComparisonComponent implements OnDestroy {
   readonly selectedRangeMs = signal(this.rangeOptions[1].durationMs);
 
   private chartInstance: echarts.ECharts | null = null;
+  private resizeObserver?: ResizeObserver;
   private historyTimestamps: string[] = [];
   private localHistory: (number | null)[] = [];
   private regionHistories: Map<string, (number | null)[]> = new Map();
@@ -238,9 +239,23 @@ export class FederatedComparisonComponent implements OnDestroy {
 
   private renderChart(): void {
     if (!this.chartContainer?.nativeElement) return;
+    const el = this.chartContainer.nativeElement;
+
+    // El panel entero vive detrás de un @if que puede desmontarse (p.ej. si un refresh de 30s
+    // falla) y remontarse con un <div> nuevo. Si eso pasa, `chartInstance` queda apuntando a un
+    // nodo DOM desconectado: setOption() sigue "funcionando" internamente pero no se ve nada.
+    if (this.chartInstance && this.chartInstance.getDom() !== el) {
+      this.resizeObserver?.disconnect();
+      this.chartInstance.dispose();
+      this.chartInstance = null;
+    }
 
     if (!this.chartInstance) {
-      this.chartInstance = echarts.init(this.chartContainer.nativeElement);
+      this.chartInstance = echarts.init(el);
+      // Si el contenedor aún no tenía su tamaño final al inicializar, ECharts mide 0x0 y las
+      // líneas quedan invisibles aunque los datos se sigan actualizando en cada refresh.
+      this.resizeObserver = new ResizeObserver(() => this.chartInstance?.resize());
+      this.resizeObserver.observe(el);
     }
 
     const data = this.result();
@@ -339,6 +354,7 @@ export class FederatedComparisonComponent implements OnDestroy {
     if (this.refreshTimer) {
       clearInterval(this.refreshTimer);
     }
+    this.resizeObserver?.disconnect();
     if (this.chartInstance) {
       this.chartInstance.dispose();
       this.chartInstance = null;
