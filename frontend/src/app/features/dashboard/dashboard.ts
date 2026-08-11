@@ -605,12 +605,9 @@ type HistoryRangeOption = {
                 </div>
               </div>
 
-              <!-- Cajón de incidencias activas del grupo -->
+              <!-- Incidencias activas del grupo: visibles por defecto para pantallas tipo dashboard/TV -->
               <div class="bg-zinc-900/20 border border-zinc-900 rounded-2xl overflow-hidden">
-                <button
-                  type="button"
-                  (click)="toggleGroupIncidentDrawer()"
-                  class="w-full px-4 py-3 flex items-center justify-between gap-4 text-left hover:bg-zinc-900/20 transition-colors">
+                <div class="px-4 py-3 flex items-center justify-between gap-4 text-left">
                   <div>
                     <span class="text-xs font-black text-zinc-300 uppercase tracking-wider block">Webs con incidencia ahora</span>
                     <span class="text-[11px] text-zinc-500 block mt-1">
@@ -619,36 +616,28 @@ type HistoryRangeOption = {
                   </div>
                   <div class="flex items-center gap-3 shrink-0">
                     <span
-                      class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider"
+                      class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border"
                       [class.bg-emerald-500/10]="groupIncidentMonitors().length === 0"
                       [class.border-emerald-500/20]="groupIncidentMonitors().length === 0"
                       [class.text-emerald-400]="groupIncidentMonitors().length === 0"
                       [class.bg-rose-500/10]="groupIncidentMonitors().length > 0"
                       [class.border-rose-500/20]="groupIncidentMonitors().length > 0"
-                      [class.text-rose-400]="groupIncidentMonitors().length > 0"
-                      class="border">
+                      [class.text-rose-400]="groupIncidentMonitors().length > 0">
                       {{ groupIncidentMonitors().length }} activo(s)
                     </span>
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-zinc-500 transition-transform"
-                      [class.rotate-180]="isGroupIncidentDrawerOpen()">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                    </svg>
                   </div>
-                </button>
+                </div>
 
-                @if (isGroupIncidentDrawerOpen()) {
-                  <div class="px-4 pb-4">
-                    @if (groupIncidentMonitors().length === 0) {
-                      <div class="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-4 text-xs text-emerald-300">
-                        Todo el grupo está operativo en este momento.
-                      </div>
-                    } @else {
+                <div class="px-4 pb-4">
+                  @if (groupIncidentMonitors().length === 0) {
+                    <div class="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-4 text-xs text-emerald-300">
+                      Todo el grupo está operativo en este momento.
+                    </div>
+                  } @else {
+                    <div class="max-h-80 overflow-y-auto pr-1">
                       <div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
                         @for (m of groupIncidentMonitors(); track m.id) {
-                          <button
-                            type="button"
-                            (click)="selectMonitor(m)"
-                            class="rounded-2xl border border-rose-500/15 bg-rose-500/5 px-4 py-3 text-left hover:bg-rose-500/10 transition-colors">
+                          <div class="rounded-2xl border border-rose-500/15 bg-rose-500/5 px-4 py-3 text-left">
                             <div class="flex items-start justify-between gap-3">
                               <div class="min-w-0">
                                 <span class="text-sm font-black text-zinc-100 block truncate">{{ m.name }}</span>
@@ -664,12 +653,12 @@ type HistoryRangeOption = {
                                 </span>
                               </div>
                             </div>
-                          </button>
+                          </div>
                         }
                       </div>
-                    }
-                  </div>
-                }
+                    </div>
+                  }
+                </div>
               </div>
 
               <!-- Gráfico de Latencia Combinada del Grupo -->
@@ -1249,6 +1238,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.realtimeService.connect();
     this.unsubscribeHeartbeat = this.realtimeService.onHeartbeat((hb: any) => {
       this.monitorService.applyHeartbeat(hb);
+      this.syncSelectedMonitorAndGroupFromService(hb.monitorId);
 
       // Si estamos en la vista de Quick Stats consolidada, recargar incidentes recientes
       if (!this.selectedMonitorId()) {
@@ -1519,6 +1509,60 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.loadGroupHistory(g.monitors);
     this.loadEventsTableForGroup(groupName);
+  }
+
+  private syncSelectedMonitorAndGroupFromService(changedMonitorId?: string): void {
+    const selectedId = changedMonitorId ?? this.selectedMonitorId();
+    if (selectedId) {
+      const latestMonitor = this.monitorService.monitors().find((m) => m.id === selectedId);
+      if (latestMonitor) {
+        const previousMonitor = this.selectedMonitor();
+        if (!previousMonitor || previousMonitor.id !== latestMonitor.id || previousMonitor.status !== latestMonitor.status || previousMonitor.lastPing !== latestMonitor.lastPing || previousMonitor.lastErrorMsg !== latestMonitor.lastErrorMsg || previousMonitor.lastCheckedAt !== latestMonitor.lastCheckedAt || previousMonitor.isLocalNetworkDown !== latestMonitor.isLocalNetworkDown) {
+          this.selectedMonitor.set(latestMonitor);
+        }
+      }
+    }
+
+    const groupName = this.selectedGroup()?.group;
+    if (!groupName) return;
+
+    const group = this.groupedMonitors().groups.find((g) => g.name === groupName);
+    if (!group) return;
+
+    const activeMonitors = group.monitors.filter((m) => m.isActive);
+    const upMonitors = activeMonitors.filter((m) => m.lastPing !== undefined && m.lastPing !== null);
+    const avgPing = upMonitors.length > 0 ? Math.round(upMonitors.reduce((sum, m) => sum + (m.lastPing ?? 0), 0) / upMonitors.length) : 0;
+
+    let nextStatus: 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' | 'DEGRADED' = 'UP';
+    if (activeMonitors.some((m) => m.status === 'DOWN')) nextStatus = 'DOWN';
+    else if (activeMonitors.some((m) => m.status === 'DEGRADED')) nextStatus = 'DEGRADED';
+    else if (activeMonitors.some((m) => m.status === 'PENDING')) nextStatus = 'PENDING';
+    else if (activeMonitors.some((m) => m.status === 'MAINTENANCE')) nextStatus = 'MAINTENANCE';
+
+    const previousGroup = this.selectedGroup();
+    const nextGroup = {
+      group: groupName,
+      monitors: group.monitors,
+      avgPing,
+      overallStatus: nextStatus,
+    };
+
+    const previousMonitors: IMonitor[] = previousGroup?.monitors ?? [];
+    const groupChanged = !previousGroup
+      || previousGroup.group !== nextGroup.group
+      || previousGroup.overallStatus !== nextGroup.overallStatus
+      || previousGroup.avgPing !== nextGroup.avgPing
+      || previousMonitors.length !== nextGroup.monitors.length
+      || previousMonitors.some((m: IMonitor, index: number) => {
+        const nextMonitor = nextGroup.monitors[index] as IMonitor | undefined;
+        return m.id !== nextMonitor?.id
+          || m.status !== nextMonitor?.status
+          || m.lastCheckedAt !== nextMonitor?.lastCheckedAt;
+      });
+
+    if (groupChanged) {
+      this.selectedGroup.set(nextGroup);
+    }
   }
 
   toggleGroupIncidentDrawer(): void {

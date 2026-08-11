@@ -10,6 +10,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 
 - **El panel de detalle de un grupo marcaba "incidentes" pero no mostraba qué web o monitor estaba afectado sin revisar la grilla completa:** ahora la vista del grupo incluye un cajón expandible "Webs con incidencia ahora" que lista inmediatamente los servicios en `DOWN`, `DEGRADED` o `PENDING`, junto con su objetivo, último mensaje y hora del último chequeo, además de permitir saltar directo al detalle del monitor afectado.
 - **Los contadores del dashboard contaban monitores pausados como caídos o pendientes:** el KPI general y los bloques del panel de resumen calculaban el estado solo por `status`, ignorando `isActive`, así que un monitor pausado con `DOWN`/`PENDING` seguía contabilizándose como incidente activo. Ahora los contadores de `DOWN`, `DEGRADED` y `PENDING` solo incluyen monitores activos, mientras que la cantidad total y los contadores de pausados siguen reflejando el estado real del monitor.
+- **El estado del monitor/grupo no se refrescaba automáticamente tras un heartbeat, y el cajón de incidentes podía crecer sin límite en pantallas pequeñas:** al recibir un nuevo heartbeat, la selección activa se resincroiza desde el servicio para reflejar el último estado real del monitor y del grupo. Además, el listado de incidentes quedó acotado por altura con scroll vertical para que varias webs afectadas no desborden la vista ni hagan el panel imposible de usar.
 
 ## [1.2.4] - 2026-08-11
 
