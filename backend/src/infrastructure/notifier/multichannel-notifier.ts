@@ -1,12 +1,16 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { INotifier, NotificationEvent } from "../../application/ports/services/notifier";
 import { INotificationRepository } from "../../application/ports/repositories/notification-repository";
+import { IAuditLogRepository } from "../../application/ports/repositories/audit-log-repository";
 import { INotification, SlackConfig, DiscordConfig, TelegramConfig, WebhookConfig, EmailConfig } from "../../domain/entities/notification";
 import { MonitorStatus } from "../../domain/value-objects/monitor-status";
 import { renderTemplate, TemplateContext, escapeJsonStringValue, escapeTelegramMarkdown } from "./template-renderer";
 import { defaultTemplateFor } from "./default-templates";
 import { logger } from "../logger";
 import { getErrorMessage } from "../../application/services/get-error-message";
+import nodemailer from "nodemailer";
+
+type EmailAuditAction = "NOTIFICATION_EMAIL_SENT" | "NOTIFICATION_EMAIL_FAILED";
 
 /**
  * Notificador multicanal (Strategy Pattern).
@@ -14,7 +18,10 @@ import { getErrorMessage } from "../../application/services/get-error-message";
  * Captura excepciones a nivel de canal para evitar que el fallo de una integración afecte a los checkers.
  */
 export class MultichannelNotifier implements INotifier {
-  constructor(private readonly notificationRepo: INotificationRepository) {}
+  constructor(
+    private readonly notificationRepo: INotificationRepository,
+    private readonly auditLog: IAuditLogRepository,
+  ) {}
 
   async notify(event: NotificationEvent): Promise<void> {
     const config = await this.notificationRepo.findById(event.notificationId);
@@ -169,6 +176,9 @@ export class MultichannelNotifier implements INotifier {
     }
 
     if (recipientList.length === 0) {
+      await this.recordEmailAudit("NOTIFICATION_EMAIL_FAILED", config, subject, recipientList, {
+        reason: "Destinatarios de correo faltantes en la configuración",
+      });
       throw new Error("Destinatarios de correo faltantes en la configuración");
     }
 
@@ -181,7 +191,6 @@ export class MultichannelNotifier implements INotifier {
 
     if (host && user && pass) {
       try {
-        const nodemailer = require("nodemailer");
         // AZ-052: sin bypass de validación de certificado TLS — usa el default seguro de
         // nodemailer (rejectUnauthorized: true), igual que smtp-mailer.ts. Antes este transporte
         // desactivaba la validación de forma incondicional (ni siquiera atada a un toggle de
@@ -199,14 +208,52 @@ export class MultichannelNotifier implements INotifier {
           subject,
           text: body,
         });
+        await this.recordEmailAudit("NOTIFICATION_EMAIL_SENT", config, subject, recipientList, {
+          from,
+        });
         logger.info(`[SMTP] Alerta de correo enviada exitosamente a ${recipientList.join(", ")}`);
       } catch (err) {
+        await this.recordEmailAudit("NOTIFICATION_EMAIL_FAILED", config, subject, recipientList, {
+          from,
+          error: getErrorMessage(err),
+        });
         logger.error(`[SMTP] Error al enviar correo real con nodemailer: ${getErrorMessage(err)}. Fallback a mock.`);
         // Fallback a mock
         this.logMockEmail(from, recipientList, subject, body);
       }
     } else {
+      await this.recordEmailAudit("NOTIFICATION_EMAIL_FAILED", config, subject, recipientList, {
+        from,
+        reason: "SMTP no configurado",
+      });
       this.logMockEmail(from, recipientList, subject, body);
+    }
+  }
+
+  private async recordEmailAudit(
+    action: EmailAuditAction,
+    notification: INotification,
+    subject: string,
+    recipients: string[],
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.auditLog.record({
+        actorId: null,
+        action,
+        targetType: "notification",
+        targetIds: [notification.id],
+        metadata: {
+          attemptedIdentifier: "Sistema",
+          notificationName: notification.name,
+          notificationType: notification.type,
+          subject,
+          recipients,
+          ...metadata,
+        },
+      });
+    } catch (err) {
+      logger.warn(`[AUDIT] No se pudo registrar el envío de correo: ${getErrorMessage(err)}`);
     }
   }
 

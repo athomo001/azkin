@@ -237,9 +237,17 @@ export class FederatedComparisonComponent implements OnDestroy {
     }
   }
 
+  private isChartElementReady(el: HTMLDivElement): boolean {
+    return el.clientWidth > 0 && el.clientHeight > 0;
+  }
+
   private renderChart(): void {
     if (!this.chartContainer?.nativeElement) return;
     const el = this.chartContainer.nativeElement;
+    if (!this.isChartElementReady(el)) {
+      setTimeout(() => this.renderChart(), 16);
+      return;
+    }
 
     // El panel entero vive detrás de un @if que puede desmontarse (p.ej. si un refresh de 30s
     // falla) y remontarse con un <div> nuevo. Si eso pasa, `chartInstance` queda apuntando a un
