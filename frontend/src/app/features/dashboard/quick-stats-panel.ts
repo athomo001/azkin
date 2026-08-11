@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { MonitorService } from '../../core/services/monitor.service';
 import { LanguageService } from '../../core/services/language.service';
 import { BadgeStatusComponent } from '../../shared/components/badge-status';
-import { MonitorStatusStr } from '../../core/utils/monitor-status.util';
+import { MonitorStatusStr, countActiveMonitorsByStatus } from '../../core/utils/monitor-status.util';
 
 export interface RecentEvent {
   monitorId: string;
@@ -154,8 +154,8 @@ export class QuickStatsPanelComponent {
 
   readonly totalMonitors = computed(() => this.monitorService.monitors().length);
   readonly activeCount = computed(() => this.monitorService.monitors().filter(m => m.isActive).length);
-  readonly downCount = computed(() => this.monitorService.monitors().filter(m => m.status === 'DOWN').length);
-  readonly degradedCount = computed(() => this.monitorService.monitors().filter(m => m.status === 'DEGRADED').length);
-  readonly pendingCount = computed(() => this.monitorService.monitors().filter(m => m.status === 'PENDING').length);
+  readonly downCount = computed(() => countActiveMonitorsByStatus(this.monitorService.monitors(), 'DOWN'));
+  readonly degradedCount = computed(() => countActiveMonitorsByStatus(this.monitorService.monitors(), 'DEGRADED'));
+  readonly pendingCount = computed(() => countActiveMonitorsByStatus(this.monitorService.monitors(), 'PENDING'));
   readonly isAnyMonitorLocalNetworkDown = computed(() => this.monitorService.monitors().some(m => m.isLocalNetworkDown));
 }
