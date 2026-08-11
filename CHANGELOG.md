@@ -4,6 +4,12 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.2.5] - 2026-08-11
+
+### Fixed
+
+- **El panel de detalle de un grupo marcaba "incidentes" pero no mostraba qué web o monitor estaba afectado sin revisar la grilla completa:** ahora la vista del grupo incluye un cajón expandible "Webs con incidencia ahora" que lista inmediatamente los servicios en `DOWN`, `DEGRADED` o `PENDING`, junto con su objetivo, último mensaje y hora del último chequeo, además de permitir saltar directo al detalle del monitor afectado.
+
 ## [1.2.4] - 2026-08-11
 
 ### Fixed

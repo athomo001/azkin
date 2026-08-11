@@ -92,7 +92,7 @@ generados por Compose).
 ```bash
 # Backend responde y expone la versión desplegada
 curl http://localhost:3000/health
-# -> {"status":"ok","version":"1.2.4"}
+# -> {"status":"ok","version":"1.2.5"}
 
 # Frontend (Nginx) sirve la SPA
 curl -sI http://localhost/ | head -1
