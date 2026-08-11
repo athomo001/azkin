@@ -5,6 +5,7 @@ import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import * as echarts from 'echarts';
 import { SVGRenderer } from 'echarts/renderers';
+import { Subscription } from 'rxjs';
 
 echarts.use([SVGRenderer]);
 import { MonitorService, IMonitor, IHeartbeat, MonitorEvent } from '../../core/services/monitor.service';
@@ -628,27 +629,31 @@ type HistoryRangeOption = {
                   </div>
                 </div>
 
-                <div class="px-4 pb-4">
+                <div class="px-3 pb-3">
                   @if (groupIncidentMonitors().length === 0) {
-                    <div class="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-4 text-xs text-emerald-300">
+                    <div class="rounded-xl border border-emerald-500/15 bg-emerald-500/5 px-3 py-3 text-[11px] text-emerald-300">
                       Todo el grupo está operativo en este momento.
                     </div>
                   } @else {
-                    <div class="max-h-80 overflow-y-auto pr-1">
-                      <div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                    <div class="max-h-56 overflow-y-auto pr-1">
+                      <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2">
                         @for (m of groupIncidentMonitors(); track m.id) {
-                          <div class="rounded-2xl border border-rose-500/15 bg-rose-500/5 px-4 py-3 text-left">
-                            <div class="flex items-start justify-between gap-3">
-                              <div class="min-w-0">
-                                <span class="text-sm font-black text-zinc-100 block truncate">{{ m.name }}</span>
-                                <span class="text-[11px] text-zinc-500 block truncate mt-0.5">{{ m.target || 'Push pasivo' }}</span>
-                                <span class="text-[11px] text-zinc-400 block mt-2 truncate" [title]="m.lastErrorMsg || ''">
+                          <div class="rounded-xl border border-rose-500/15 bg-rose-500/5 px-3 py-2 text-left">
+                            <div class="flex items-start justify-between gap-2">
+                              <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2 min-w-0">
+                                  <span class="text-[12px] font-black text-zinc-100 truncate">{{ m.name }}</span>
+                                  <div class="shrink-0">
+                                    <app-badge-status [status]="m.status"></app-badge-status>
+                                  </div>
+                                </div>
+                                <span class="text-[10px] text-zinc-500 block truncate mt-0.5">{{ m.target || 'Push pasivo' }}</span>
+                                <span class="text-[10px] text-zinc-400 block truncate mt-1" [title]="m.lastErrorMsg || ''">
                                   {{ m.lastErrorMsg || 'Sin detalle adicional todavía.' }}
                                 </span>
                               </div>
-                              <div class="shrink-0 text-right">
-                                <app-badge-status [status]="m.status"></app-badge-status>
-                                <span class="text-[10px] text-zinc-500 font-medium block mt-2">
+                              <div class="shrink-0 text-right pl-2">
+                                <span class="text-[9px] text-zinc-500 font-medium block whitespace-nowrap">
                                   {{ m.lastCheckedAt ? (m.lastCheckedAt | date:'HH:mm:ss dd/MM') : 'Sin chequeo' }}
                                 </span>
                               </div>
@@ -863,6 +868,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private chartResizeObserver?: ResizeObserver;
   private groupChartResizeObserver?: ResizeObserver;
   private unsubscribeHeartbeat: (() => void) | null = null;
+  private monitorSnapshotRefreshId: ReturnType<typeof window.setInterval> | null = null;
+  private monitorSnapshotRequest?: Subscription;
 
   readonly authService = inject(AuthService);
   private readonly monitorService = inject(MonitorService);
@@ -1233,12 +1240,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.loadData();
     this.notificationService.loadChannels().subscribe();
     this.loadRecentIncidents();
+    this.startMonitorSnapshotRefresh();
 
     // Conectar WebSocket y escuchar actualizaciones en tiempo real
     this.realtimeService.connect();
     this.unsubscribeHeartbeat = this.realtimeService.onHeartbeat((hb: any) => {
-      this.monitorService.applyHeartbeat(hb);
-      this.syncSelectedMonitorAndGroupFromService(hb.monitorId);
+      this.syncSelectedMonitorAndGroupFromService();
 
       // Si estamos en la vista de Quick Stats consolidada, recargar incidentes recientes
       if (!this.selectedMonitorId()) {
@@ -1355,6 +1362,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
     document.body.classList.remove('kiosk-mode');
     this.unsubscribeHeartbeat?.();
     this.realtimeService.disconnect();
+    this.monitorSnapshotRequest?.unsubscribe();
+    if (this.monitorSnapshotRefreshId !== null) {
+      window.clearInterval(this.monitorSnapshotRefreshId);
+      this.monitorSnapshotRefreshId = null;
+    }
     this.chartResizeObserver?.disconnect();
     this.groupChartResizeObserver?.disconnect();
     this.chart?.dispose();
@@ -1370,6 +1382,30 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.isLoading.set(false);
       },
       error: () => this.isLoading.set(false)
+    });
+  }
+
+  private startMonitorSnapshotRefresh(): void {
+    if (this.monitorSnapshotRefreshId !== null) return;
+
+    this.monitorSnapshotRefreshId = window.setInterval(() => {
+      this.refreshMonitorSnapshot();
+    }, 15000);
+  }
+
+  private refreshMonitorSnapshot(): void {
+    if (this.monitorSnapshotRequest && !this.monitorSnapshotRequest.closed) {
+      return;
+    }
+
+    this.monitorSnapshotRequest = this.monitorService.loadMonitors().subscribe({
+      next: () => {
+        this.syncSelectedMonitorAndGroupFromService();
+
+        if (!this.selectedMonitorId()) {
+          this.loadRecentIncidents();
+        }
+      },
     });
   }
 
@@ -1511,8 +1547,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.loadEventsTableForGroup(groupName);
   }
 
-  private syncSelectedMonitorAndGroupFromService(changedMonitorId?: string): void {
-    const selectedId = changedMonitorId ?? this.selectedMonitorId();
+  private syncSelectedMonitorAndGroupFromService(): void {
+    const selectedId = this.selectedMonitorId();
     if (selectedId) {
       const latestMonitor = this.monitorService.monitors().find((m) => m.id === selectedId);
       if (latestMonitor) {
