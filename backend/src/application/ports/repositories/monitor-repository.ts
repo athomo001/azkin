@@ -83,6 +83,9 @@ export interface UpdateMonitorData {
   integrityVisualMasks?: { x: number; y: number; width: number; height: number }[];
   integrityAllowedScripts?: string[];
   integrityThreshold?: number;
+  lastOutageStartedAt?: Date | null;
+  ongoingOutageStartedAt?: Date | null;
+  outageRecoveryUpSince?: Date | null;
 }
 
 /**

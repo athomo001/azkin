@@ -4,6 +4,12 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.2.4] - 2026-08-11
+
+### Fixed
+
+- **La "Última caída" se perdía cuando el servicio rebotaba UP/DOWN durante la reparación:** se agregó un latch de incidente que conserva la hora de la primera caída (`lastOutageStartedAt`) y no la reemplaza con rebotes intermedios; solo se libera cuando el monitor permanece en `UP` por una ventana estable de 1 hora. El dashboard ahora muestra esa marca temporal en la sección de métricas del detalle del monitor.
+
 ## [1.2.3] - 2026-08-11
 
 ### Fixed

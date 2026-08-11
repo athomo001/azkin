@@ -26,6 +26,7 @@ interface ScheduledMonitor {
  * el solapamiento de checks. Además, gestiona monitores pasivos (Push) por timeout de expiración.
  */
 export class InMemoryScheduler implements IScheduler {
+  private static readonly OUTAGE_STABLE_UP_MS = 60 * 60 * 1000;
   private readonly monitors = new Map<string, ScheduledMonitor>();
 
   constructor(
@@ -140,6 +141,7 @@ export class InMemoryScheduler implements IScheduler {
         }
       }
       scheduled.lastStatus = status;
+      await this.applyOutageLatchForStatus(scheduled, status, beat.timestamp);
     } catch (error) {
       logger.error(`Error al persistir push heartbeat para monitor ${monitorId}`, error);
     } finally {
@@ -181,6 +183,7 @@ export class InMemoryScheduler implements IScheduler {
         }
       }
       scheduled.lastStatus = status;
+      await this.applyOutageLatchForStatus(scheduled, status, beat.timestamp);
     } catch (error) {
       logger.error(`Error en timeout de expiración push para monitor ${scheduled.monitor.id}`, error);
     } finally {
@@ -206,6 +209,7 @@ export class InMemoryScheduler implements IScheduler {
       scheduled.retryAttempts = outcome.retryAttempts;
       scheduled.recentTransitionTimestamps = outcome.recentTransitionTimestamps;
       scheduled.lastNotifiedStatus = outcome.lastNotifiedStatus;
+      await this.applyOutageLatchForStatus(scheduled, outcome.status, new Date());
       nextDelaySeconds = outcome.nextDelaySeconds;
     } catch (error) {
       logger.error(`safeBeat falló para monitor ${scheduled.monitor.id}`, error);
@@ -216,6 +220,74 @@ export class InMemoryScheduler implements IScheduler {
           nextDelaySeconds * 1000,
         );
       }
+    }
+  }
+
+  private async applyOutageLatchForStatus(
+    scheduled: ScheduledMonitor,
+    status: MonitorStatus,
+    at: Date,
+  ): Promise<void> {
+    const monitor = scheduled.monitor;
+    const prevLastOutage = monitor.lastOutageStartedAt ?? null;
+    const prevOngoingOutage = monitor.ongoingOutageStartedAt ?? null;
+    const prevRecoveryUpSince = monitor.outageRecoveryUpSince ?? null;
+
+    let nextLastOutage = prevLastOutage;
+    let nextOngoingOutage = prevOngoingOutage;
+    let nextRecoveryUpSince = prevRecoveryUpSince;
+
+    const isOutageStatus =
+      status === MonitorStatus.DOWN ||
+      status === MonitorStatus.DEGRADED ||
+      status === MonitorStatus.PENDING;
+
+    if (isOutageStatus) {
+      if (!nextOngoingOutage) {
+        nextOngoingOutage = at;
+        nextLastOutage = at;
+      }
+      nextRecoveryUpSince = null;
+    } else if (status === MonitorStatus.UP) {
+      if (nextOngoingOutage) {
+        if (!nextRecoveryUpSince) {
+          nextRecoveryUpSince = at;
+        }
+        const stableMs = at.getTime() - nextRecoveryUpSince.getTime();
+        if (stableMs >= InMemoryScheduler.OUTAGE_STABLE_UP_MS) {
+          nextOngoingOutage = null;
+          nextRecoveryUpSince = null;
+        }
+      } else {
+        nextRecoveryUpSince = null;
+      }
+    } else {
+      // MAINTENANCE u otros estados no-UP: no inician una caída nueva por sí solos, pero
+      // cortan la continuidad de recuperación estable si había un incidente en curso.
+      if (nextOngoingOutage) {
+        nextRecoveryUpSince = null;
+      }
+    }
+
+    const hasChanged =
+      (prevLastOutage?.getTime() ?? -1) !== (nextLastOutage?.getTime() ?? -1) ||
+      (prevOngoingOutage?.getTime() ?? -1) !== (nextOngoingOutage?.getTime() ?? -1) ||
+      (prevRecoveryUpSince?.getTime() ?? -1) !== (nextRecoveryUpSince?.getTime() ?? -1);
+
+    if (!hasChanged) return;
+
+    monitor.lastOutageStartedAt = nextLastOutage;
+    monitor.ongoingOutageStartedAt = nextOngoingOutage;
+    monitor.outageRecoveryUpSince = nextRecoveryUpSince;
+
+    try {
+      await this.monitorRepo.update(monitor.id, {
+        lastOutageStartedAt: nextLastOutage,
+        ongoingOutageStartedAt: nextOngoingOutage,
+        outageRecoveryUpSince: nextRecoveryUpSince,
+      });
+    } catch (err) {
+      logger.warn(`No se pudo persistir el latch de caída para monitor ${monitor.id}`, err);
     }
   }
 }

@@ -161,6 +161,9 @@ export class MongooseMonitorRepository implements IMonitorRepository {
       snmpV3PrivKey: doc.snmpV3PrivKey,
 
       importedFromFederatedInstanceId: doc.importedFromFederatedInstanceId ? String(doc.importedFromFederatedInstanceId) : null,
+      lastOutageStartedAt: doc.lastOutageStartedAt ?? null,
+      ongoingOutageStartedAt: doc.ongoingOutageStartedAt ?? null,
+      outageRecoveryUpSince: doc.outageRecoveryUpSince ?? null,
 
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
