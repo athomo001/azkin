@@ -1145,10 +1145,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // Getters reactivos de contadores basados en el listado de monitores
   readonly totalMonitors = () => this.monitorService.monitors().length;
   readonly activeCount = () => this.monitorService.monitors().filter(m => m.isActive).length;
-  readonly downCount = () => this.monitorService.monitors().filter(m => m.status === 'DOWN').length;
-  readonly pendingCount = () => this.monitorService.monitors().filter(m => m.status === 'PENDING').length;
-  readonly maintenanceCount = () => this.monitorService.monitors().filter(m => m.status === 'MAINTENANCE').length;
-  readonly degradedCount = () => this.monitorService.monitors().filter(m => m.status === 'DEGRADED').length;
+  readonly downCount = () => this.monitorService.monitors().filter(m => m.isActive && m.status === 'DOWN').length;
+  readonly pendingCount = () => this.monitorService.monitors().filter(m => m.isActive && m.status === 'PENDING').length;
+  readonly maintenanceCount = () => this.monitorService.monitors().filter(m => m.isActive && m.status === 'MAINTENANCE').length;
+  readonly degradedCount = () => this.monitorService.monitors().filter(m => m.isActive && m.status === 'DEGRADED').length;
   readonly groupIncidentMonitors = computed(() => {
     const group = this.selectedGroup();
     const monitors: IMonitor[] = group?.monitors ?? [];

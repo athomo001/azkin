@@ -1,6 +1,8 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 export type MonitorStatusStr = 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' | 'DEGRADED';
 
+export type MonitorStatusLike = { isActive?: boolean; status?: MonitorStatusStr | string | number | null };
+
 /**
  * Normaliza el estado de un monitor/heartbeat recibido del backend (numérico 0/1/2/3/4 o string)
  * a la representación textual usada en el frontend. Única fuente de verdad —
@@ -14,4 +16,8 @@ export function normalizeMonitorStatus(raw: unknown): MonitorStatusStr {
   if (raw === 3 || raw === 'MAINTENANCE') return 'MAINTENANCE';
   if (raw === 4 || raw === 'DEGRADED') return 'DEGRADED';
   return 'PENDING';
+}
+
+export function countActiveMonitorsByStatus<T extends MonitorStatusLike>(monitors: T[], status: MonitorStatusStr): number {
+  return monitors.filter((monitor) => monitor.isActive !== false && monitor.status === status).length;
 }
