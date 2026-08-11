@@ -8,6 +8,8 @@ import { NotificationEvent } from "../../application/ports/services/notifier";
 import { MonitorStatus } from "../../domain/value-objects/monitor-status";
 import { IMonitor } from "../../domain/entities/monitor";
 import { IHeartbeat } from "../../domain/entities/heartbeat";
+import { IAuditLogRepository } from "../../application/ports/repositories/audit-log-repository";
+import { mock } from "node:test";
 
 function makeChannel(overrides: Partial<INotification>): INotification {
   return {
@@ -60,6 +62,20 @@ function makeEvent(overrides: Partial<NotificationEvent>): NotificationEvent {
   };
 }
 
+function makeAuditLog() {
+  const recorded: any[] = [];
+  const repo: IAuditLogRepository = {
+    record: async (data) => {
+      recorded.push(data);
+      return { id: "audit-1", createdAt: new Date(), ...data };
+    },
+    listRecent: async () => [],
+    listAll: async () => [],
+    deleteAll: async () => 0,
+  };
+  return { repo, recorded };
+}
+
 test("MultichannelNotifier no envía si el canal no está suscrito al evento", async () => {
   const channel = makeChannel({ events: ["RECOVERED"] });
   const repo: INotificationRepository = {
@@ -83,6 +99,50 @@ test("MultichannelNotifier no envía si el canal no está suscrito al evento", a
     assert.equal(fetchCalled, false, "no debería llamar al webhook para un evento no suscrito");
   } finally {
     global.fetch = originalFetch;
+  }
+});
+
+test("MultichannelNotifier registra auditoría cuando se envía un correo SMTP", async () => {
+  const channel = makeChannel({
+    type: "email",
+    config: {
+      emailRecipient: "ops@example.test",
+      smtpHost: "smtp.example.test",
+      smtpPort: 587,
+      smtpUsername: "mailer@example.test",
+      smtpPassword: "secret",
+      smtpFrom: "alerts@example.test",
+    },
+    events: ["DOWN"],
+  });
+  const repo: INotificationRepository = {
+    create: async () => channel,
+    findAll: async () => [channel],
+    findById: async () => channel,
+    update: async () => channel,
+    delete: async () => true,
+  };
+  const { repo: auditLog, recorded } = makeAuditLog();
+
+  const sendMail = mock.method({
+    sendMail: async () => undefined,
+  }, "sendMail", async () => undefined);
+
+  const originalCreateTransport = (await import("nodemailer")).default.createTransport;
+  (await import("nodemailer")).default.createTransport = (() => ({ sendMail })) as any;
+
+  try {
+    const notifier = new MultichannelNotifier(repo, auditLog);
+    await notifier.notify(makeEvent({ eventType: "DOWN" }));
+
+    assert.equal(recorded.length > 0, true, "debería registrar auditoría del correo");
+    assert.equal(recorded[0].action, "NOTIFICATION_EMAIL_SENT");
+    assert.equal(typeof recorded[0].metadata?.subject, "string");
+    assert.ok(String(recorded[0].metadata?.subject).includes("DOWN"));
+    assert.deepEqual(recorded[0].metadata?.recipients, ["ops@example.test"]);
+  } finally {
+    (await import("nodemailer")).default.createTransport = originalCreateTransport;
+    sendMail.mock.restore();
   }
 });
 

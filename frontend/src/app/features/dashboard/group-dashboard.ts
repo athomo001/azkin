@@ -76,6 +76,10 @@ export class GroupDashboardComponent implements OnInit, OnDestroy {
   readonly groupName = signal('');
   readonly isLoading = signal(true);
 
+  private isChartElementReady(el: HTMLDivElement): boolean {
+    return el.clientWidth > 0 && el.clientHeight > 0;
+  }
+
   // Computed — filtra los monitores del grupo en estado DOWN para mostrar el panel de caídas
   readonly downMonitors = () =>
     this.monitorService.monitors().filter(m =>
@@ -104,6 +108,12 @@ export class GroupDashboardComponent implements OnInit, OnDestroy {
   private renderChart(data: any): void {
     if (!this.chartEl) return;
 
+    const el = this.chartEl.nativeElement;
+    if (!this.isChartElementReady(el)) {
+      setTimeout(() => this.renderChart(data), 16);
+      return;
+    }
+
     // Colores curados por el spec: esmeralda para UP, carmesí para DOWN
     const palette = ['#10b981', '#f43f5e', '#f59e0b', '#3b82f6', '#8b5cf6'];
     const series = (data?.monitors || []).map((m: any, idx: number) => ({
@@ -125,7 +135,6 @@ export class GroupDashboardComponent implements OnInit, OnDestroy {
     this.resizeObserver?.disconnect();
     this.chart?.dispose();
 
-    const el = this.chartEl.nativeElement;
     this.chart = echarts.init(el, 'dark', { renderer: 'canvas' });
     this.chart.setOption({
       backgroundColor: 'transparent',
@@ -135,6 +144,8 @@ export class GroupDashboardComponent implements OnInit, OnDestroy {
       yAxis: { type: 'value', name: 'Latencia (ms)', nameTextStyle: { color: '#71717a' }, axisLabel: { color: '#71717a' }, splitLine: { lineStyle: { color: '#27272a' } } },
       series
     });
+
+    requestAnimationFrame(() => this.chart?.resize());
 
     // Si el contenedor todavía no tenía su tamaño final al inicializar (p.ej. layout en curso tras
     // la transición @if isLoading→false), ECharts mide 0x0 y las líneas quedan invisibles aunque

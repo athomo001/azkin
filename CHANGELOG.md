@@ -4,6 +4,12 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.2.3] - 2026-08-11
+
+### Fixed
+
+- **Los correos de alerta quedaban sin registro de auditoría y el fallo quedaba invisible en el historial:** ahora `MultichannelNotifier` registra en el historial de auditoría cada intento de correo de alerta, con estado `NOTIFICATION_EMAIL_SENT` o `NOTIFICATION_EMAIL_FAILED`, junto con el canal, asunto, destinatarios y el motivo del fallo cuando aplica. El registro es no bloqueante: si la auditoría falla, el envío sigue su curso y el error queda solo en log.
+
 ## [1.2.2] - 2026-08-10
 
 ### Added

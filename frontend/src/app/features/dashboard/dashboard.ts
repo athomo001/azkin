@@ -1566,6 +1566,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return points.filter((p) => new Date(p.timestamp).getTime() >= cutoff);
   }
 
+  private isChartElementReady(el: HTMLDivElement): boolean {
+    return el.clientWidth > 0 && el.clientHeight > 0;
+  }
+
   private isAllowedHistoryDuration(durationMs: number): boolean {
     return this.historyRangeOptions.some((o) => o.durationMs === durationMs);
   }
@@ -1590,8 +1594,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private initChart(): void {
     if (!this._chartEl) return;
     const el = this._chartEl.nativeElement;
+    if (!this.isChartElementReady(el)) {
+      requestAnimationFrame(() => this.initChart());
+      return;
+    }
+
     this.chart = echarts.init(el, 'dark', { renderer: 'svg' });
     this.updateChart();
+    requestAnimationFrame(() => this.chart?.resize());
 
     // Si el contenedor todavía no tenía su tamaño final al inicializar (layout en curso tras
     // seleccionar el monitor), ECharts mide 0x0 y las líneas quedan invisibles aunque los datos
@@ -1790,8 +1800,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private initGroupChart(): void {
     if (!this._groupChartEl) return;
     const el = this._groupChartEl.nativeElement;
+    if (!this.isChartElementReady(el)) {
+      requestAnimationFrame(() => this.initGroupChart());
+      return;
+    }
+
     this.groupChart = echarts.init(el, 'dark', { renderer: 'svg' });
     this.updateGroupChart();
+    requestAnimationFrame(() => this.groupChart?.resize());
 
     this.groupChartResizeObserver?.disconnect();
     this.groupChartResizeObserver = new ResizeObserver(() => this.groupChart?.resize());
