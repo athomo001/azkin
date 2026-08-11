@@ -605,6 +605,73 @@ type HistoryRangeOption = {
                 </div>
               </div>
 
+              <!-- Cajón de incidencias activas del grupo -->
+              <div class="bg-zinc-900/20 border border-zinc-900 rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  (click)="toggleGroupIncidentDrawer()"
+                  class="w-full px-4 py-3 flex items-center justify-between gap-4 text-left hover:bg-zinc-900/20 transition-colors">
+                  <div>
+                    <span class="text-xs font-black text-zinc-300 uppercase tracking-wider block">Webs con incidencia ahora</span>
+                    <span class="text-[11px] text-zinc-500 block mt-1">
+                      {{ groupIncidentMonitors().length === 0 ? 'No hay servicios caídos ni degradados en este grupo.' : groupIncidentMonitors().length + ' servicio(s) requieren revisión inmediata.' }}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-3 shrink-0">
+                    <span
+                      class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider"
+                      [class.bg-emerald-500/10]="groupIncidentMonitors().length === 0"
+                      [class.border-emerald-500/20]="groupIncidentMonitors().length === 0"
+                      [class.text-emerald-400]="groupIncidentMonitors().length === 0"
+                      [class.bg-rose-500/10]="groupIncidentMonitors().length > 0"
+                      [class.border-rose-500/20]="groupIncidentMonitors().length > 0"
+                      [class.text-rose-400]="groupIncidentMonitors().length > 0"
+                      class="border">
+                      {{ groupIncidentMonitors().length }} activo(s)
+                    </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-zinc-500 transition-transform"
+                      [class.rotate-180]="isGroupIncidentDrawerOpen()">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </div>
+                </button>
+
+                @if (isGroupIncidentDrawerOpen()) {
+                  <div class="px-4 pb-4">
+                    @if (groupIncidentMonitors().length === 0) {
+                      <div class="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 px-4 py-4 text-xs text-emerald-300">
+                        Todo el grupo está operativo en este momento.
+                      </div>
+                    } @else {
+                      <div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                        @for (m of groupIncidentMonitors(); track m.id) {
+                          <button
+                            type="button"
+                            (click)="selectMonitor(m)"
+                            class="rounded-2xl border border-rose-500/15 bg-rose-500/5 px-4 py-3 text-left hover:bg-rose-500/10 transition-colors">
+                            <div class="flex items-start justify-between gap-3">
+                              <div class="min-w-0">
+                                <span class="text-sm font-black text-zinc-100 block truncate">{{ m.name }}</span>
+                                <span class="text-[11px] text-zinc-500 block truncate mt-0.5">{{ m.target || 'Push pasivo' }}</span>
+                                <span class="text-[11px] text-zinc-400 block mt-2 truncate" [title]="m.lastErrorMsg || ''">
+                                  {{ m.lastErrorMsg || 'Sin detalle adicional todavía.' }}
+                                </span>
+                              </div>
+                              <div class="shrink-0 text-right">
+                                <app-badge-status [status]="m.status"></app-badge-status>
+                                <span class="text-[10px] text-zinc-500 font-medium block mt-2">
+                                  {{ m.lastCheckedAt ? (m.lastCheckedAt | date:'HH:mm:ss dd/MM') : 'Sin chequeo' }}
+                                </span>
+                              </div>
+                            </div>
+                          </button>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+
               <!-- Gráfico de Latencia Combinada del Grupo -->
               <div class="bg-zinc-900/20 border border-zinc-900 p-4 rounded-2xl">
                 <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -832,6 +899,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly selectedMonitorId = computed(() => this.selectedMonitor()?.id ?? null);
   readonly selectedGroup = signal<any | null>(null);
   readonly selectedGroupName = computed(() => this.selectedGroup()?.group ?? null);
+  readonly isGroupIncidentDrawerOpen = signal(true);
   readonly showMultiRegionView = signal<boolean>(true);
   readonly federatedSeriesMap = signal<Map<string, { label: string; points: [number, number | null][] }>>(new Map());
   readonly isMultiRegionActive = computed(() => {
@@ -1081,6 +1149,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly pendingCount = () => this.monitorService.monitors().filter(m => m.status === 'PENDING').length;
   readonly maintenanceCount = () => this.monitorService.monitors().filter(m => m.status === 'MAINTENANCE').length;
   readonly degradedCount = () => this.monitorService.monitors().filter(m => m.status === 'DEGRADED').length;
+  readonly groupIncidentMonitors = computed(() => {
+    const group = this.selectedGroup();
+    const monitors: IMonitor[] = group?.monitors ?? [];
+    const severityOrder: Record<string, number> = { DOWN: 0, DEGRADED: 1, PENDING: 2 };
+
+    return monitors
+      .filter((m) => m.isActive && (m.status === 'DOWN' || m.status === 'DEGRADED' || m.status === 'PENDING'))
+      .sort((left, right) => {
+        const severityDiff = (severityOrder[left.status] ?? 99) - (severityOrder[right.status] ?? 99);
+        if (severityDiff !== 0) return severityDiff;
+
+        const leftTime = left.lastCheckedAt ? new Date(left.lastCheckedAt).getTime() : 0;
+        const rightTime = right.lastCheckedAt ? new Date(right.lastCheckedAt).getTime() : 0;
+        return rightTime - leftTime;
+      });
+  });
 
   // Listado filtrado para el panel lateral
   readonly filteredMonitors = computed(() => {
@@ -1412,6 +1496,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
    */
   selectGroup(groupName: string): void {
     this.selectedMonitor.set(null);
+    this.isGroupIncidentDrawerOpen.set(true);
     this.historyPoints.set([]);
     this.chartResizeObserver?.disconnect();
     this.chart?.dispose();
@@ -1434,6 +1519,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.loadGroupHistory(g.monitors);
     this.loadEventsTableForGroup(groupName);
+  }
+
+  toggleGroupIncidentDrawer(): void {
+    this.isGroupIncidentDrawerOpen.update((open) => !open);
   }
 
   getGroupUptime(groupName: string | undefined): number {
