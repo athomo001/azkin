@@ -47,6 +47,7 @@ export function toMonitorResponse(monitor: IMonitor & Partial<HeartbeatSummary>,
     uptime24h: monitor.uptime24h ?? null,
     lastErrorMsg: monitor.lastErrorMsg ?? null,
     lastCheckedAt: monitor.lastCheckedAt ? monitor.lastCheckedAt.toISOString() : null,
+    lastOutageStartedAt: monitor.lastOutageStartedAt ? monitor.lastOutageStartedAt.toISOString() : null,
 
     // SNMP fields — snmpCommunity/snmpV3AuthKey/snmpV3PrivKey son credenciales (AZ-062): se
     // enmascaran salvo para un Admin (ver maskIfNeeded arriba).

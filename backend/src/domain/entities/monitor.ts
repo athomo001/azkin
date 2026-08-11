@@ -70,6 +70,12 @@ export interface IMonitor {
   // eliminar esa instancia sin tocar monitores que el Admin ya tenía manualmente.
   importedFromFederatedInstanceId?: string | null;
 
+  // Observabilidad de incidentes: inicio de la última caída detectada y estado del latch
+  // (se libera solo cuando el servicio permanece en UP por una ventana estable).
+  lastOutageStartedAt?: Date | null;
+  ongoingOutageStartedAt?: Date | null;
+  outageRecoveryUpSince?: Date | null;
+
   createdAt: Date;
   updatedAt: Date;
 }

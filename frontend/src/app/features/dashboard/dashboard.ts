@@ -370,7 +370,7 @@ type HistoryRangeOption = {
               }
 
               <!-- Barra de Stats Compacta (Reemplaza las cajas individuales) -->
-              <div class="grid grid-cols-2 lg:grid-cols-4 divide-x divide-zinc-900 border border-zinc-900 rounded-2xl overflow-hidden bg-zinc-900/20">
+              <div class="grid grid-cols-2 lg:grid-cols-5 divide-x divide-zinc-900 border border-zinc-900 rounded-2xl overflow-hidden bg-zinc-900/20">
                 <div class="p-4">
                   <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">{{ lang.t('monitor.detail.latency') }}</span>
                   <span class="text-2xl font-black text-orange-500 mt-0.5 block">
@@ -393,6 +393,14 @@ type HistoryRangeOption = {
                   <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">{{ lang.t('monitor.detail.lastCheck') }}</span>
                   <span class="text-xs font-bold text-zinc-400 mt-1 block truncate">
                     {{ selectedMonitor()?.lastCheckedAt ? (selectedMonitor()!.lastCheckedAt! | date:'HH:mm:ss dd/MM') : lang.t('monitor.detail.never') }}
+                  </span>
+                </div>
+                <div class="p-4">
+                  <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Última caída</span>
+                  <span class="text-xs font-bold mt-1 block truncate"
+                    [class.text-rose-500]="selectedMonitor()?.status === 'DOWN' || selectedMonitor()?.status === 'DEGRADED' || selectedMonitor()?.status === 'PENDING'"
+                    [class.text-zinc-400]="selectedMonitor()?.status !== 'DOWN' && selectedMonitor()?.status !== 'DEGRADED' && selectedMonitor()?.status !== 'PENDING'">
+                    {{ selectedMonitor()?.lastOutageStartedAt ? (selectedMonitor()!.lastOutageStartedAt! | date:'HH:mm:ss dd/MM') : '--' }}
                   </span>
                 </div>
               </div>

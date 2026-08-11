@@ -24,6 +24,7 @@ export interface IMonitor {
   lastPing?: number;
   uptime24h?: number;
   lastErrorMsg?: string;
+  lastOutageStartedAt?: string | null;
   notificationIds?: string[];
   isLocalNetworkDown?: boolean;
   /** El target vive en el mismo servidor físico que Azkin (ver checkers/same-host-fallback.ts). */

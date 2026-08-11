@@ -46,6 +46,9 @@ export interface MonitorDoc {
   integrityThreshold?: number;
 
   importedFromFederatedInstanceId?: Types.ObjectId | null;
+  lastOutageStartedAt?: Date | null;
+  ongoingOutageStartedAt?: Date | null;
+  outageRecoveryUpSince?: Date | null;
 
   createdAt: Date;
   updatedAt: Date;
@@ -117,6 +120,9 @@ const monitorSchema = new Schema<MonitorDoc>(
     integrityThreshold: { type: Number, default: 0.10 },
 
     importedFromFederatedInstanceId: { type: Schema.Types.ObjectId, ref: "FederatedInstance", default: null, index: true },
+    lastOutageStartedAt: { type: Date, default: null },
+    ongoingOutageStartedAt: { type: Date, default: null },
+    outageRecoveryUpSince: { type: Date, default: null },
   },
   { timestamps: true, versionKey: false },
 );
