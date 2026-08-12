@@ -2,7 +2,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MaintenanceService, IMaintenanceWindow, IMaintenanceScope, MaintenanceMode } from '../../core/services/maintenance.service';
+import { MaintenanceService, IMaintenanceWindow, IMaintenanceScope, MaintenanceMode, IUpdateMaintenanceWindow } from '../../core/services/maintenance.service';
 import { MonitorService } from '../../core/services/monitor.service';
 import { LanguageService } from '../../core/services/language.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -41,9 +41,9 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                 class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 transition-all">
             </div>
 
-            @if (!isEditing()) {
-              <div class="space-y-2">
-                <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Modo</span>
+            <div class="space-y-2">
+              <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Modo</span>
+              @if (!isEditing()) {
                 <div class="flex gap-2">
                   <label class="flex-1 flex items-center justify-center gap-2 bg-zinc-950/60 p-2.5 rounded-lg border cursor-pointer transition-colors"
                     [class.border-orange-500]="form.mode === 'immediate'" [class.border-zinc-850]="form.mode !== 'immediate'">
@@ -56,24 +56,47 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                     <span class="text-[11px] font-semibold" [class.text-orange-400]="form.mode === 'scheduled'" [class.text-zinc-300]="form.mode !== 'scheduled'">Programada</span>
                   </label>
                 </div>
-                @if (form.mode === 'immediate') {
-                  <p class="text-[10px] text-zinc-500">Queda activa apenas se cree — hay que finalizarla manualmente desde el listado.</p>
-                } @else {
-                  <div class="grid grid-cols-2 gap-2 pt-1">
-                    <div>
-                      <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Inicio</label>
-                      <input type="datetime-local" [(ngModel)]="form.startAtLocal"
-                        class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-orange-500">
-                    </div>
-                    <div>
-                      <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Fin</label>
-                      <input type="datetime-local" [(ngModel)]="form.endAtLocal"
-                        class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-orange-500">
-                    </div>
+              } @else {
+                <div class="bg-zinc-950/60 border border-zinc-850 rounded-lg px-3 py-2 text-[11px] font-semibold text-zinc-300">
+                  {{ form.mode === 'immediate' ? 'Inmediata' : 'Programada' }}
+                  <span class="text-zinc-600 font-normal">— el modo no se puede cambiar una vez creada</span>
+                </div>
+              }
+
+              @if (form.mode === 'immediate') {
+                <div class="space-y-2 pt-1">
+                  <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Duración (opcional)</label>
+                  <div class="flex items-center gap-2">
+                    <input type="number" min="1" [(ngModel)]="form.durationHours" placeholder="Horas"
+                      class="w-24 bg-zinc-950/60 border border-zinc-800 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-orange-500">
+                    <span class="text-[10px] text-zinc-500">horas desde ahora</span>
                   </div>
-                }
-              </div>
-            }
+                  <div class="flex gap-1">
+                    @for (h of [1, 4, 8, 24]; track h) {
+                      <button type="button" (click)="setDurationPreset(h)"
+                        class="px-2 py-0.5 rounded border border-zinc-800 text-[10px] font-semibold text-zinc-400 hover:text-orange-400 hover:border-orange-500/40 transition-colors">{{ h }}h</button>
+                    }
+                  </div>
+                  @if (isEditing() && editingWindowEndAt()) {
+                    <p class="text-[10px] text-zinc-500">Finaliza automáticamente: {{ editingWindowEndAt() | date: 'short' }}. Define una duración para actualizarlo.</p>
+                  }
+                  <p class="text-[10px] text-zinc-500">Déjalo vacío para finalizar manualmente desde el listado.</p>
+                </div>
+              } @else {
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                  <div>
+                    <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Inicio</label>
+                    <input type="datetime-local" [(ngModel)]="form.startAtLocal"
+                      class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-orange-500">
+                  </div>
+                  <div>
+                    <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Fin</label>
+                    <input type="datetime-local" [(ngModel)]="form.endAtLocal"
+                      class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-orange-500">
+                  </div>
+                </div>
+              }
+            </div>
 
             <!-- Alcance granular (mismo patrón que permisos de Viewer) -->
             <div class="space-y-3 border-t border-zinc-850 pt-4">
@@ -168,6 +191,8 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                 </div>
                 @if (w.mode === 'scheduled') {
                   <p class="text-[10px] text-zinc-500">{{ formatRange(w.startAt, w.endAt) }}</p>
+                } @else if (w.endAt) {
+                  <p class="text-[10px] text-zinc-500">Finaliza automáticamente: {{ w.endAt | date: 'short' }}</p>
                 }
                 <div class="flex items-center justify-end gap-3 border-t border-zinc-900 pt-3 text-[10px] font-bold">
                   <button (click)="onEdit(w)" class="text-zinc-400 hover:text-zinc-200 transition-colors">Editar</button>
@@ -216,6 +241,7 @@ export class MaintenancePanelComponent {
 
   readonly isEditing = signal(false);
   editingId: string | null = null;
+  readonly editingWindowEndAt = signal<string | null>(null);
   form = this.getEmptyForm();
 
   readonly activeWindows = computed(() => this.maintenanceService.windows().filter((w) => w.isActive));
@@ -240,7 +266,18 @@ export class MaintenancePanelComponent {
       mode: 'immediate' as MaintenanceMode,
       startAtLocal: '',
       endAtLocal: '',
+      durationHours: null as number | null,
     };
+  }
+
+  private toLocalInputValue(iso: string): string {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  setDurationPreset(hours: number): void {
+    this.form.durationHours = hours;
   }
 
   isAllSelected(): boolean {
@@ -285,19 +322,22 @@ export class MaintenancePanelComponent {
   resetForm(): void {
     this.isEditing.set(false);
     this.editingId = null;
+    this.editingWindowEndAt.set(null);
     this.form = this.getEmptyForm();
   }
 
   onEdit(window: IMaintenanceWindow): void {
     this.isEditing.set(true);
     this.editingId = window.id;
+    this.editingWindowEndAt.set(window.endAt);
     this.form = {
       name: window.name,
       description: window.description ?? '',
       scope: [...window.scope],
       mode: window.mode,
-      startAtLocal: '',
-      endAtLocal: '',
+      startAtLocal: window.startAt ? this.toLocalInputValue(window.startAt) : '',
+      endAtLocal: window.endAt ? this.toLocalInputValue(window.endAt) : '',
+      durationHours: null,
     };
   }
 
@@ -312,11 +352,24 @@ export class MaintenancePanelComponent {
     }
 
     if (this.isEditing() && this.editingId) {
-      this.maintenanceService.update(this.editingId, {
+      if (this.form.mode === 'scheduled' && (!this.form.startAtLocal || !this.form.endAtLocal)) {
+        this.toast.show('Indica fecha de inicio y fin para una ventana programada.');
+        return;
+      }
+
+      const payload: IUpdateMaintenanceWindow = {
         name: this.form.name,
         description: this.form.description || undefined,
         scope: this.form.scope,
-      }).subscribe({
+      };
+      if (this.form.mode === 'scheduled') {
+        payload.startAt = new Date(this.form.startAtLocal).toISOString();
+        payload.endAt = new Date(this.form.endAtLocal).toISOString();
+      } else if (this.form.durationHours) {
+        payload.endAt = new Date(Date.now() + this.form.durationHours * 3600_000).toISOString();
+      }
+
+      this.maintenanceService.update(this.editingId, payload).subscribe({
         next: () => {
           this.resetForm();
           this.toast.show('Ventana de mantenimiento actualizada.');
@@ -331,13 +384,17 @@ export class MaintenancePanelComponent {
       return;
     }
 
+    const immediateEndAt = this.form.mode === 'immediate' && this.form.durationHours
+      ? new Date(Date.now() + this.form.durationHours * 3600_000).toISOString()
+      : undefined;
+
     this.maintenanceService.create({
       name: this.form.name,
       description: this.form.description || undefined,
       scope: this.form.scope,
       mode: this.form.mode,
       startAt: this.form.mode === 'scheduled' ? new Date(this.form.startAtLocal).toISOString() : undefined,
-      endAt: this.form.mode === 'scheduled' ? new Date(this.form.endAtLocal).toISOString() : undefined,
+      endAt: this.form.mode === 'scheduled' ? new Date(this.form.endAtLocal).toISOString() : immediateEndAt,
     }).subscribe({
       next: () => {
         this.resetForm();

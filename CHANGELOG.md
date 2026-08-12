@@ -4,6 +4,16 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.2.7] - 2026-08-12
+
+### Added
+
+- **Duración en horas para ventanas de mantenimiento inmediatas, con auto-finalización:** hasta ahora una ventana "Inmediata" solo podía cerrarse a mano desde el listado — no había forma de decirle "termínate sola en N horas". El formulario ahora incluye un campo opcional "Duración (horas)" (con atajos de 1h/4h/8h/24h); al guardar, calcula `endAt` como *ahora + N horas*. El backend (`findActive()` del repositorio y el presenter de la API) ahora respeta ese `endAt` también en modo inmediato — antes lo ignoraba por completo y una ventana inmediata quedaba activa para siempre aunque tuviera una fecha de fin guardada. Dejar el campo vacío conserva el comportamiento anterior (cierre manual).
+
+### Fixed
+
+- **El formulario de "Editar ventana de mantenimiento" no mostraba fecha ni hora, incluso para ventanas programadas:** el bloque de modo/fechas estaba oculto por completo al editar, así que una ventana "Programada" no dejaba ver ni ajustar su inicio/fin sin recrearla desde cero. Ahora el modo se muestra (de solo lectura, no puede cambiarse tras crearla) y las fechas de inicio/fin se precargan editables con los valores reales de la ventana.
+
 ## [1.2.6] - 2026-08-12
 
 ### Added
