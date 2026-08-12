@@ -13,6 +13,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 - **Vista TV ultra compacta para incidencias globales:** el bloque anterior se simplificó para mostrar **nombre del recurso + dirección + estado** por servicio en incidencia (sin texto extra de grupo, mensaje o timestamp), aumentando la densidad visual y evitando depender de interacción fina en pantallas de monitoreo continuas.
 - **Prioridad explícita al título del recurso en alta densidad:** cuando hay muchas incidencias simultáneas, el panel compacto prioriza mantener visible el **nombre del recurso** junto al estado y oculta la dirección secundaria para conservar legibilidad operativa en TV.
 - **Tarjetas de incidencia sin badge de estado (más compactas):** en el cuadro global de incidencias se eliminó el badge textual `DOWN/DEGRADED/PENDING` para ahorrar espacio; la severidad ahora se comunica por color del bloque (rojo/naranja/ámbar), manteniendo el título del recurso como dato principal.
+- **Densidad adaptativa para pantallas TV:** el cuadro global de incidencias cambia automáticamente entre modo relajado y modo denso según volumen. Con pocas incidencias (hasta 4) aumenta tamaño de título y separación para lectura a distancia; con más incidencias vuelve a formato compacto para priorizar cobertura en pantalla.
 
 ### Changed
 
