@@ -10,7 +10,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 
 - **La documentación técnica ahora explica con claridad el ciclo real de revisión de páginas web:** `docs/ARCHITECTURE.md` incorpora diagramas de flujo y de secuencia, una explicación en palabras del ciclo de revisión HTTP y un ejemplo narrado paso a paso con una página pública de ejemplo. Queda explícito qué hace Azkin al revisar una web, qué datos calcula en cada etapa y cómo esos resultados llegan al gráfico de latencia del dashboard.
 - **Panel global "Webs con incidencia ahora" en el dashboard general:** además de la vista de grupo, el panel principal (sin selección activa) ahora muestra un consolidado de servicios con incidencia de **todos los grupos** usando la misma lógica (`DOWN`, `DEGRADED`, `PENDING` en monitores activos). La lista es compacta, con altura acotada y scroll para escenarios con muchos incidentes, e incluye salto directo al detalle del monitor para diagnóstico rápido.
-- **Vista TV ultra compacta para incidencias globales:** el bloque anterior se simplificó para mostrar solo **dirección + estado** por servicio en incidencia (sin texto extra de grupo, mensaje o timestamp), aumentando la densidad visual y evitando depender de interacción fina en pantallas de monitoreo continuas.
+- **Vista TV ultra compacta para incidencias globales:** el bloque anterior se simplificó para mostrar **nombre del recurso + dirección + estado** por servicio en incidencia (sin texto extra de grupo, mensaje o timestamp), aumentando la densidad visual y evitando depender de interacción fina en pantallas de monitoreo continuas.
 
 ### Changed
 

@@ -127,7 +127,10 @@ export interface RecentEvent {
                     (click)="selectMonitor.emit(m.id)"
                     class="w-full rounded-lg border border-rose-500/15 bg-rose-500/5 px-2.5 py-1.5 text-left hover:bg-rose-500/10 transition-colors">
                     <div class="flex items-center justify-between gap-2">
-                      <span class="text-[11px] text-zinc-200 truncate font-semibold">{{ m.target || m.name || 'Push pasivo' }}</span>
+                      <div class="min-w-0 flex-1">
+                        <span class="text-[11px] text-zinc-100 truncate font-black block">{{ m.name || 'Recurso sin nombre' }}</span>
+                        <span class="text-[10px] text-zinc-500 truncate block">{{ m.target || 'Push pasivo' }}</span>
+                      </div>
                       <div class="shrink-0">
                         <app-badge-status [status]="m.status"></app-badge-status>
                       </div>
