@@ -26,6 +26,7 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
       ping: beat.ping,
       msg: beat.msg,
       certExpiry: beat.certExpiry,
+      certExpiryAt: beat.certExpiryAt,
       domainExpiry: beat.domainExpiry,
       isLocalNetworkDown: beat.isLocalNetworkDown ?? false,
     });
@@ -51,6 +52,7 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
       ping: doc.ping ?? null,
       msg: doc.msg ?? null,
       certExpiry: doc.certExpiry ?? null,
+      certExpiryAt: doc.certExpiryAt ?? null,
       domainExpiry: doc.domainExpiry ?? null,
       isLocalNetworkDown: doc.isLocalNetworkDown ?? false,
     }));
@@ -71,6 +73,7 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
       ping: doc.ping ?? null,
       msg: doc.msg ?? null,
       certExpiry: doc.certExpiry ?? null,
+      certExpiryAt: doc.certExpiryAt ?? null,
       domainExpiry: doc.domainExpiry ?? null,
       isLocalNetworkDown: doc.isLocalNetworkDown ?? false,
     }));
@@ -94,6 +97,7 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
       ping: doc.ping ?? null,
       msg: doc.msg ?? null,
       certExpiry: doc.certExpiry ?? null,
+      certExpiryAt: doc.certExpiryAt ?? null,
       domainExpiry: doc.domainExpiry ?? null,
       isLocalNetworkDown: doc.isLocalNetworkDown ?? false,
     }));
@@ -148,6 +152,7 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
           lastErrorMsg: !isUp ? (lastBeat.msg ?? null) : null,
           lastCheckedAt: lastBeat.timestamp,
           certExpiry: lastBeat.certExpiry ?? null,
+          certExpiryAt: lastBeat.certExpiryAt ?? null,
           domainExpiry: lastBeat.domainExpiry ?? null,
           isLocalNetworkDown: lastBeat.isLocalNetworkDown ?? false,
         };
@@ -159,6 +164,7 @@ export class MongooseHeartbeatRepository implements IHeartbeatRepository {
           lastErrorMsg: null,
           lastCheckedAt: null,
           certExpiry: null,
+          certExpiryAt: null,
           domainExpiry: null,
           isLocalNetworkDown: false,
         };

@@ -423,6 +423,11 @@ type HistoryRangeOption = {
                         [class.text-emerald-500]="(selectedMonitor()?.certExpiry ?? 999) >= 30">
                         {{ selectedMonitor()?.certExpiry !== null && selectedMonitor()?.certExpiry !== undefined ? selectedMonitor()!.certExpiry + ' ' + lang.t('monitor.detail.days') : (selectedMonitor()?.lastCheckedAt ? lang.t('monitor.detail.unavailable') : lang.t('monitor.detail.checking')) }}
                       </span>
+                      @if (selectedMonitor()?.certExpiryAt) {
+                        <span class="text-[10px] text-zinc-500 font-semibold mt-1 block">
+                          {{ selectedMonitor()!.certExpiryAt! | date:'dd/MM/yyyy HH:mm' }}
+                        </span>
+                      }
                     </div>
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
                       [class.text-rose-500]="(selectedMonitor()?.certExpiry ?? 999) < 15"

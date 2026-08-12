@@ -7,6 +7,7 @@ export interface CheckResult {
   ping: number | null; // latencia en ms
   msg: string | null;
   certExpiry?: number | null;
+  certExpiryAt?: Date | null;
   domainExpiry?: number | null;
 }
 

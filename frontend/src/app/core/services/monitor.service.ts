@@ -43,6 +43,7 @@ export interface IMonitor {
 
   // Cert & Domain Expiry
   certExpiry?: number | null;
+  certExpiryAt?: string | null;
   domainExpiry?: number | null;
 }
 
@@ -84,6 +85,7 @@ export interface IHeartbeatEvent {
   msg?: string | null;
   timestamp: string;
   certExpiry?: number | null;
+  certExpiryAt?: string | null;
   domainExpiry?: number | null;
   isLocalNetworkDown?: boolean;
 }
@@ -215,6 +217,7 @@ export class MonitorService {
           lastPing: heartbeat.latency ?? heartbeat.ping,
           lastErrorMsg: (statusStr === 'DOWN' || statusStr === 'MAINTENANCE' || statusStr === 'DEGRADED') ? heartbeat.msg ?? undefined : undefined,
           certExpiry: heartbeat.certExpiry !== undefined ? heartbeat.certExpiry : m.certExpiry,
+          certExpiryAt: heartbeat.certExpiryAt !== undefined ? heartbeat.certExpiryAt : m.certExpiryAt,
           domainExpiry: heartbeat.domainExpiry !== undefined ? heartbeat.domainExpiry : m.domainExpiry,
           isLocalNetworkDown: heartbeat.isLocalNetworkDown
         };

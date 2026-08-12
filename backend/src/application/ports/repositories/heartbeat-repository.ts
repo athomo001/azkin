@@ -13,6 +13,7 @@ export interface HeartbeatSummary {
    * `uptime24h` reales, porque no había ningún dato de "última vez" que devolver. */
   lastCheckedAt?: Date | null;
   certExpiry?: number | null;
+  certExpiryAt?: Date | null;
   domainExpiry?: number | null;
   isLocalNetworkDown?: boolean;
 }

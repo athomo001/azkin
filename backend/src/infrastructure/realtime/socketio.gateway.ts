@@ -45,6 +45,10 @@ export class SocketIoGateway implements IRealtimePublisher {
       status: beat.status,
       ping: beat.ping,
       msg: beat.msg,
+      certExpiry: beat.certExpiry ?? null,
+      certExpiryAt: beat.certExpiryAt ? beat.certExpiryAt.toISOString() : null,
+      domainExpiry: beat.domainExpiry ?? null,
+      isLocalNetworkDown: beat.isLocalNetworkDown ?? false,
     });
   }
 

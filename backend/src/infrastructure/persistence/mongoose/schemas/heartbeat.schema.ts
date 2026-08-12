@@ -8,6 +8,7 @@ export interface HeartbeatDoc {
   ping: number | null;
   msg: string | null;
   certExpiry?: number | null;
+  certExpiryAt?: Date | null;
   domainExpiry?: number | null;
   isLocalNetworkDown?: boolean;
 }
@@ -22,6 +23,7 @@ const heartbeatSchema = new Schema<HeartbeatDoc>(
     ping: { type: Number, default: null },
     msg: { type: String, default: null },
     certExpiry: { type: Number, default: null },
+    certExpiryAt: { type: Date, default: null },
     domainExpiry: { type: Number, default: null },
     isLocalNetworkDown: { type: Boolean, default: false },
   },

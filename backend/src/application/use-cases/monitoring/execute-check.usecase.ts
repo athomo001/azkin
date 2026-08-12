@@ -117,6 +117,7 @@ export class ExecuteCheckUseCase {
       ping: result.ping,
       msg: isLocalNetworkDown ? "Error de conexión local (ISP Outage)" : beatMsg,
       certExpiry: (result as any).certExpiry,
+      certExpiryAt: (result as any).certExpiryAt,
       domainExpiry: (result as any).domainExpiry,
       isLocalNetworkDown,
     };
