@@ -13,6 +13,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 ### Fixed
 
 - **El formulario de "Editar ventana de mantenimiento" no mostraba fecha ni hora, incluso para ventanas programadas:** el bloque de modo/fechas estaba oculto por completo al editar, así que una ventana "Programada" no dejaba ver ni ajustar su inicio/fin sin recrearla desde cero. Ahora el modo se muestra (de solo lectura, no puede cambiarse tras crearla) y las fechas de inicio/fin se precargan editables con los valores reales de la ventana.
+- **La advertencia "Sin alcance seleccionado" quedaba visible después de crear una ventana con éxito, dando a entender que había fallado:** el aviso se mostraba con solo mirar el alcance vacío, sin importar si el formulario era nuevo o recién se había reseteado tras un guardado exitoso — al crear una ventana, el formulario se limpia para la siguiente y ese estado vacío disparaba la misma advertencia roja. Ahora solo aparece después de intentar guardar sin alcance seleccionado.
 
 ## [1.2.6] - 2026-08-12
 

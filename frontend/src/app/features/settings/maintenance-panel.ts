@@ -143,7 +143,7 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                 </div>
               }
 
-              @if (form.scope.length === 0) {
+              @if (form.scope.length === 0 && submitAttempted()) {
                 <p class="text-[10px] text-rose-400">Sin alcance seleccionado — no se creará ninguna ventana.</p>
               }
             </div>
@@ -242,6 +242,7 @@ export class MaintenancePanelComponent {
   readonly isEditing = signal(false);
   editingId: string | null = null;
   readonly editingWindowEndAt = signal<string | null>(null);
+  readonly submitAttempted = signal(false);
   form = this.getEmptyForm();
 
   readonly activeWindows = computed(() => this.maintenanceService.windows().filter((w) => w.isActive));
@@ -323,6 +324,7 @@ export class MaintenancePanelComponent {
     this.isEditing.set(false);
     this.editingId = null;
     this.editingWindowEndAt.set(null);
+    this.submitAttempted.set(false);
     this.form = this.getEmptyForm();
   }
 
@@ -330,6 +332,7 @@ export class MaintenancePanelComponent {
     this.isEditing.set(true);
     this.editingId = window.id;
     this.editingWindowEndAt.set(window.endAt);
+    this.submitAttempted.set(false);
     this.form = {
       name: window.name,
       description: window.description ?? '',
@@ -342,6 +345,8 @@ export class MaintenancePanelComponent {
   }
 
   onSave(): void {
+    this.submitAttempted.set(true);
+
     if (!this.form.name.trim()) {
       this.toast.show('El nombre es obligatorio.');
       return;
