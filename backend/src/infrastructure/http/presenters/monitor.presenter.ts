@@ -63,6 +63,7 @@ export function toMonitorResponse(monitor: IMonitor & Partial<HeartbeatSummary>,
 
     // SSL and Domain Expiration
     certExpiry: monitor.certExpiry ?? null,
+    certExpiryAt: monitor.certExpiryAt ? monitor.certExpiryAt.toISOString() : null,
     domainExpiry: monitor.domainExpiry ?? null,
     isLocalNetworkDown: monitor.isLocalNetworkDown ?? false,
   };

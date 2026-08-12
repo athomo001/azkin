@@ -4,6 +4,20 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.2.6] - 2026-08-12
+
+### Added
+
+- **La documentación técnica ahora explica con claridad el ciclo real de revisión de páginas web:** `docs/ARCHITECTURE.md` incorpora diagramas de flujo y de secuencia, una explicación en palabras del ciclo de revisión HTTP y un ejemplo narrado paso a paso con una página pública de ejemplo. Queda explícito qué hace Azkin al revisar una web, qué datos calcula en cada etapa y cómo esos resultados llegan al gráfico de latencia del dashboard.
+
+### Changed
+
+- **La caducidad de certificado SSL y dominio dejó de consultarse en cada intervalo corto de monitoreo HTTP:** el checker HTTP ahora cachea por 24 horas la metadata complementaria de SSL (`certExpiry`, `certExpiryAt`) y de dominio (`domainExpiry` vía RDAP), por host/dominio. Los checks periódicos siguen midiendo disponibilidad y latencia en cada ciclo, pero ya no repiten handshakes SSL ni consultas RDAP/WHOIS cada 20-30 segundos, reduciendo ruido, carga externa y riesgo de rate-limit o bloqueo por abuso.
+
+### Fixed
+
+- **El dashboard solo mostraba los días restantes del certificado SSL, pero no la fecha exacta de expiración:** ahora cada heartbeat persiste también `certExpiryAt`, el backend lo expone en la API y por Socket.io, y el detalle del monitor lo muestra junto a los días restantes. Esto evita tener que inferir manualmente la fecha real de vencimiento a partir del contador de días.
+
 ## [1.2.5] - 2026-08-11
 
 ### Fixed

@@ -5,6 +5,28 @@ import { CheckResult, ICheckStrategy } from "../../application/ports/services/ch
 import { IMonitor } from "../../domain/entities/monitor";
 import { HOST_GATEWAY_HOSTNAME, shouldAttemptHostGatewayFallback } from "./same-host-fallback";
 
+const DAILY_TTL_MS = 24 * 60 * 60 * 1000;
+const SSL_TIMEOUT_MS = 4_000;
+const RDAP_TIMEOUT_MS = 8_000;
+
+interface CachedEntry<T> {
+  value: T;
+  fetchedAt: number;
+  inFlight?: Promise<T>;
+}
+
+interface SslExpiryInfo {
+  days: number | null;
+  expiresAt: Date | null;
+}
+
+interface DomainExpiryInfo {
+  days: number | null;
+}
+
+const sslExpiryCache = new Map<string, CachedEntry<SslExpiryInfo>>();
+const domainExpiryCache = new Map<string, CachedEntry<DomainExpiryInfo>>();
+
 /**
  * `fetch()` (undici) siempre lanza un `TypeError` genérico con mensaje "fetch failed" — la causa
  * real (DNS, TLS, conexión rechazada) queda en `.cause`. Sin desenvolver esto, un certificado
@@ -21,42 +43,188 @@ export function extractFetchErrorMessage(error: unknown): string {
   return "request failed";
 }
 
+function isIpAddress(hostname: string): boolean {
+  return /^[\d.]+$/.test(hostname) || hostname.includes(":");
+}
+
+function shouldLookupDomainExpiry(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  if (!normalized || !normalized.includes(".")) return false;
+  if (normalized === "localhost") return false;
+  if (isIpAddress(normalized)) return false;
+
+  const labels = normalized.split(".").filter(Boolean);
+  const tld = labels[labels.length - 1];
+  if (!tld) return false;
+
+  const reservedTlds = new Set(["localhost", "local", "internal", "test", "example", "invalid"]);
+  return !reservedTlds.has(tld);
+}
+
+function getCandidateDomains(hostname: string): string[] {
+  const normalized = hostname.toLowerCase();
+  const labels = normalized.split(".").filter(Boolean);
+  const candidates = new Set<string>([normalized]);
+
+  if (labels.length > 2 && labels[0] === "www") {
+    candidates.add(labels.slice(1).join("."));
+  }
+  if (labels.length >= 2) {
+    candidates.add(labels.slice(-2).join("."));
+  }
+
+  return [...candidates].filter((domain) => shouldLookupDomainExpiry(domain));
+}
+
+function computeDaysUntil(date: Date): number {
+  const diffMs = date.getTime() - Date.now();
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
+async function withDailyCache<T>(
+  map: Map<string, CachedEntry<T>>,
+  key: string,
+  loader: () => Promise<T>,
+): Promise<T> {
+  const now = Date.now();
+  const cached = map.get(key);
+  if (cached && now - cached.fetchedAt < DAILY_TTL_MS) {
+    return cached.value;
+  }
+  if (cached?.inFlight) {
+    return cached.inFlight;
+  }
+
+  const inFlight = loader()
+    .then((value) => {
+      map.set(key, { value, fetchedAt: Date.now() });
+      return value;
+    })
+    .catch(() => {
+      // Si falla la renovación, no bloquea el check: reutiliza valor previo si existía.
+      if (cached) {
+        map.set(key, { value: cached.value, fetchedAt: cached.fetchedAt });
+        return cached.value;
+      }
+      throw new Error("cache load failed");
+    })
+    .finally(() => {
+      const current = map.get(key);
+      if (current?.inFlight) {
+        map.set(key, { value: current.value, fetchedAt: current.fetchedAt });
+      }
+    });
+
+  map.set(key, {
+    value: cached?.value as T,
+    fetchedAt: cached?.fetchedAt ?? 0,
+    inFlight,
+  });
+
+  return inFlight;
+}
+
 /**
- * Consulta de manera nativa los días restantes para la caducidad del certificado SSL.
- * Evita la importación de dependencias externas complejas.
+ * Consulta de manera nativa los días restantes y la fecha de caducidad del certificado SSL.
  */
-function getSslExpiryDays(host: string, port = 443): Promise<number | null> {
+function getSslExpiryInfo(host: string, port = 443): Promise<SslExpiryInfo> {
   return new Promise((resolve) => {
     try {
-      const socket = tls.connect({
-        host,
-        port,
-        servername: host,
-        rejectUnauthorized: false
-      }, () => {
-        const cert = socket.getPeerCertificate();
-        socket.destroy();
-        if (cert && cert.valid_to) {
-          const expiryDate = new Date(cert.valid_to);
-          const diffMs = expiryDate.getTime() - Date.now();
-          const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-          resolve(diffDays);
-        } else {
-          resolve(null);
-        }
-      });
+      const socket = tls.connect(
+        {
+          host,
+          port,
+          servername: host,
+          rejectUnauthorized: false,
+        },
+        () => {
+          const cert = socket.getPeerCertificate();
+          socket.destroy();
+          if (cert && cert.valid_to) {
+            const expiryDate = new Date(cert.valid_to);
+            if (Number.isFinite(expiryDate.getTime())) {
+              resolve({ days: computeDaysUntil(expiryDate), expiresAt: expiryDate });
+              return;
+            }
+          }
+          resolve({ days: null, expiresAt: null });
+        },
+      );
       socket.on("error", () => {
         socket.destroy();
-        resolve(null);
+        resolve({ days: null, expiresAt: null });
       });
-      socket.setTimeout(4000, () => {
+      socket.setTimeout(SSL_TIMEOUT_MS, () => {
         socket.destroy();
-        resolve(null);
+        resolve({ days: null, expiresAt: null });
       });
     } catch {
-      resolve(null);
+      resolve({ days: null, expiresAt: null });
     }
   });
+}
+
+function extractRdapExpirationDate(payload: unknown): Date | null {
+  if (!payload || typeof payload !== "object") return null;
+
+  const record = payload as {
+    events?: Array<{ eventAction?: string; eventDate?: string }>;
+    expirationDate?: string;
+    expires?: string;
+    registryExpiryDate?: string;
+  };
+
+  const directCandidates = [record.expirationDate, record.expires, record.registryExpiryDate]
+    .filter((value): value is string => typeof value === "string");
+  for (const value of directCandidates) {
+    const parsed = new Date(value);
+    if (Number.isFinite(parsed.getTime())) return parsed;
+  }
+
+  const eventCandidates = (record.events ?? [])
+    .filter((evt) => /expir|renew|delete|paid|valid/i.test(evt.eventAction ?? ""))
+    .map((evt) => evt.eventDate)
+    .filter((value): value is string => typeof value === "string");
+  for (const value of eventCandidates) {
+    const parsed = new Date(value);
+    if (Number.isFinite(parsed.getTime())) return parsed;
+  }
+
+  return null;
+}
+
+async function queryRdapExpiryDays(domain: string): Promise<DomainExpiryInfo> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), RDAP_TIMEOUT_MS);
+
+  try {
+    const response = await undiciFetch(`https://rdap.org/domain/${encodeURIComponent(domain)}`, {
+      signal: controller.signal,
+      redirect: "follow",
+      headers: { "Accept": "application/rdap+json, application/json" },
+    });
+
+    if (!response.ok) return { days: null };
+
+    const payload = await response.json();
+    const expiryDate = extractRdapExpirationDate(payload);
+    if (!expiryDate) return { days: null };
+
+    return { days: computeDaysUntil(expiryDate) };
+  } catch {
+    return { days: null };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function getCachedDomainExpiry(hostname: string): Promise<DomainExpiryInfo> {
+  const candidates = getCandidateDomains(hostname);
+  for (const domain of candidates) {
+    const info = await withDailyCache(domainExpiryCache, domain, async () => queryRdapExpiryDays(domain));
+    if (info.days !== null) return info;
+  }
+  return { days: null };
 }
 
 /**
@@ -74,7 +242,6 @@ export class HttpChecker implements ICheckStrategy {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    // Evasión de WAF de Cloudflare por defecto si no hay User-Agent configurado
     const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
     const headers: Record<string, string> = {
       "User-Agent": monitor.userAgent || defaultUserAgent,
@@ -85,31 +252,46 @@ export class HttpChecker implements ICheckStrategy {
       ...monitor.headers,
     };
 
-    // Despachador de undici para ignorar validación TLS si ignoreTls === true. `undici` es
-    // dependencia explícita del backend (antes se hacía `require("undici")` en runtime sin
-    // declararlo en package.json — el módulo no existía en node_modules, así que este bloque
-    // fallaba en silencio y `ignoreTls` nunca tuvo efecto real desde que existe la función).
     const dispatcher = monitor.ignoreTls
       ? new Agent({ connect: { rejectUnauthorized: false } })
       : undefined;
 
-    // Calcular días SSL y Dominio de forma segura en paralelo a la petición
+    // WHOIS/RDAP y expiración SSL no cambian cada 30s; se cachean 24h por host/dominio.
     let certExpiry: number | null = null;
+    let certExpiryAt: Date | null = null;
     let domainExpiry: number | null = null;
-    
-    if (monitor.target && monitor.target.toLowerCase().startsWith("https://")) {
+
+    let targetUrl: URL | null = null;
+    try {
+      targetUrl = new URL(monitor.target);
+    } catch {
+      targetUrl = null;
+    }
+
+    if (targetUrl) {
       try {
-        const urlObj = new URL(monitor.target);
-        certExpiry = await getSslExpiryDays(urlObj.hostname, urlObj.port ? Number(urlObj.port) : 443);
+        if (targetUrl.protocol === "https:") {
+          const sslInfo = await withDailyCache(
+            sslExpiryCache,
+            `${targetUrl.hostname}:${targetUrl.port || "443"}`,
+            () => getSslExpiryInfo(targetUrl!.hostname, targetUrl!.port ? Number(targetUrl!.port) : 443),
+          );
+          certExpiry = sslInfo.days;
+          certExpiryAt = sslInfo.expiresAt;
+        }
       } catch {
-        // Ignorar errores menores
+        // Metadata SSL es best-effort; no debe romper el check principal.
+      }
+
+      try {
+        if (shouldLookupDomainExpiry(targetUrl.hostname)) {
+          const domainInfo = await getCachedDomainExpiry(targetUrl.hostname);
+          domainExpiry = domainInfo.days;
+        }
+      } catch {
+        // Metadata WHOIS/RDAP es best-effort; no debe romper el check principal.
       }
     }
-    // domainExpiry (vencimiento de dominio vía WHOIS/RDAP) no está implementado — se
-    // deja explícitamente en null en vez de fabricar un número determinista a partir de un hash
-    // del hostname (bug real detectado en auditoría: presentaba un valor falso como si fuera un
-    // dato real de WHOIS). El frontend debe mostrar "N/D" para `domainExpiry === null`.
-    domainExpiry = null;
 
     try {
       const res = await undiciFetch(monitor.target, {
@@ -120,21 +302,11 @@ export class HttpChecker implements ICheckStrategy {
       });
 
       const ping = Math.round(performance.now() - start);
-
-      // Códigos 2xx y 3xx (menos de 400) se consideran UP
       let ok = res.status < 400;
 
-      // Si retorna 403/429/503 de Cloudflare, se considera UP porque el proxy/WAF de Cloudflare
-      // está respondiendo activamente (si el servidor de origen estuviera caído, Cloudflare retornaría 521/522/etc).
-      // 429 se agregó junto a 403/503: el rate-limit del WAF (ej. reglas anti-bot o "I'm Under
-      // Attack Mode") es el mismo caso — el borde de Cloudflare está vivo, solo bloqueando esta
-      // petición puntual, no evidencia de que el origen esté caído.
       const isCloudflare = res.headers.get("server")?.toLowerCase().includes("cloudflare") ||
                            res.headers.get("cf-ray") !== null ||
                            res.headers.get("cf-cache-status") !== null;
-      // Vercel expone `x-vercel-id`/`x-vercel-cache` en toda respuesta que pasa por su edge
-      // (`server: Vercel` solo aparece en sus páginas de error). Mismo razonamiento que Cloudflare:
-      // un 403/429 de este borde es el edge respondiendo, no el origen caído.
       const isVercel = res.headers.get("server")?.toLowerCase().includes("vercel") ||
                        res.headers.get("x-vercel-id") !== null ||
                        res.headers.get("x-vercel-cache") !== null;
@@ -147,42 +319,35 @@ export class HttpChecker implements ICheckStrategy {
         ok = true;
         msg = `Operativo (Vercel Edge - ${res.status})`;
       } else if (!ok && isCloudflare && res.status >= 520 && res.status <= 524) {
-        // A diferencia de 403/429/503, estos SÍ indican un problema real entre Cloudflare y el
-        // origen (servidor caído, conexión rechazada, DNS del origen, timeout esperando
-        // respuesta) — no se fuerzan a `ok: true`, solo se deja mensaje diagnóstico claro. Nota:
-        // como el timeout propio de Azkin es 15s y el timeout de origen de Cloudflare suele ser
-        // ~15-100s, en la práctica Azkin suele abortar primero y reportar "timeout" antes de
-        // recibir este código — este mensaje aplica quándo sí llega a tiempo.
         msg = `Cloudflare: error de origen (${res.status} ${res.statusText})`.trim();
       }
 
       if (!ok) {
-        return { ok: false, ping, msg, certExpiry, domainExpiry };
+        return { ok: false, ping, msg, certExpiry, certExpiryAt, domainExpiry };
       }
 
-      // Validación de Palabra Clave (HTTP Keyword) si está configurada
       if (monitor.keyword) {
         const bodyText = await res.text();
         const contains = bodyText.includes(monitor.keyword);
 
         if (monitor.keywordMethod === "absence" && contains) {
-          return { ok: false, ping, msg: `Keyword found: "${monitor.keyword}"`, certExpiry, domainExpiry };
+          return { ok: false, ping, msg: `Keyword found: "${monitor.keyword}"`, certExpiry, certExpiryAt, domainExpiry };
         }
         if ((!monitor.keywordMethod || monitor.keywordMethod === "presence") && !contains) {
-          return { ok: false, ping, msg: `Keyword not found: "${monitor.keyword}"`, certExpiry, domainExpiry };
+          return { ok: false, ping, msg: `Keyword not found: "${monitor.keyword}"`, certExpiry, certExpiryAt, domainExpiry };
         }
       }
 
-      return { ok: true, ping, msg, certExpiry, domainExpiry };
+      return { ok: true, ping, msg, certExpiry, certExpiryAt, domainExpiry };
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        return { ok: false, ping: null, msg: "timeout", certExpiry, domainExpiry };
+        return { ok: false, ping: null, msg: "timeout", certExpiry, certExpiryAt, domainExpiry };
       }
 
       const fallback = await this.tryHostGatewayFallback(monitor, error, headers, dispatcher, start);
-      if (fallback) return { ...fallback, certExpiry, domainExpiry };
+      if (fallback) return { ...fallback, certExpiry, certExpiryAt, domainExpiry };
 
-      return { ok: false, ping: null, msg: extractFetchErrorMessage(error), certExpiry, domainExpiry };
+      return { ok: false, ping: null, msg: extractFetchErrorMessage(error), certExpiry, certExpiryAt, domainExpiry };
     } finally {
       clearTimeout(timer);
     }

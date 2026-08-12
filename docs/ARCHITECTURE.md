@@ -67,6 +67,111 @@ sequenceDiagram
 2. **Evaluación de Estado:** Si se recibe un código de error de cliente/servidor (`403` o `503`) pero proviene de la red perimetral de Cloudflare, se infiere que el proxy perimetral está en línea (lo que descarta caídas del servidor de origen).
 3. **Respuesta:** El estado del monitor se marca como **UP (Operativo)** bajo el mensaje especial `Operativo (CF WAF - [status])`.
 
+### 2.1 Flujo real de "sitio vivo", latencia, SSL y WHOIS
+
+Para monitores `type: "http"`, Azkin **no ejecuta `curl`/`wget`** en cada ciclo ni mezcla todos los checkers al mismo tiempo. El flujo real del `HttpChecker` es:
+
+```mermaid
+flowchart TD
+  A[Scheduler dispara check] --> B[HttpChecker inicia medicion]
+  B --> C{Target es HTTPS}
+  C -->|Si| D[Consulta SSL con tls.connect]
+  D --> E{Cache SSL menor a 24h}
+  E -->|Si| F[Usa certExpiry y certExpiryAt cacheados]
+  E -->|No| G[Renueva SSL y guarda cache 24h]
+  C -->|No| H[Salta metadata SSL]
+
+  B --> I{Dominio elegible RDAP}
+  I -->|Si| J[Consulta RDAP dominio]
+  J --> K{Cache dominio menor a 24h}
+  K -->|Si| L[Usa domainExpiry cacheado]
+  K -->|No| M[Renueva domainExpiry y guarda cache 24h]
+  I -->|No| N[domainExpiry null]
+
+  F --> O[undici.fetch con timeout 15s]
+  G --> O
+  H --> O
+  L --> O
+  M --> O
+  N --> O
+
+  O --> P{HTTP menor a 400 o edge WAF permitido}
+  P -->|Si| Q[Estado UP o DEGRADED por latencia]
+  P -->|No| R[Estado PENDING o DOWN segun reintentos]
+
+  Q --> S[Guardar heartbeat en Mongo]
+  R --> S
+  S --> T[Emitir heartbeat por Socket.io]
+  T --> U[Frontend actualiza grafico de latencia con ping]
+```
+### 2.2 Diagrama de flujo de revisión
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant SCH as Scheduler
+  participant HC as HttpChecker
+  participant TLS as Endpoint TLS
+  participant RDAP as RDAP
+  participant WEB as Pagina objetivo
+  participant APP as ExecuteCheck
+  participant DB as Mongo Heartbeats
+  participant RT as Socket.io
+  participant FE as Frontend Dashboard
+
+  SCH->>HC: Ejecutar check HTTP del monitor
+  Note over HC: Inicia medicion de latencia total
+
+  alt Target HTTPS
+    HC->>TLS: tls.connect para leer certificado
+    alt Cache SSL vigente menor a 24h
+      HC-->>HC: Reusa certExpiry y certExpiryAt
+    else Cache vencida
+      TLS-->>HC: Fecha de expiracion cert
+      HC-->>HC: Actualiza cache SSL 24h
+    end
+  end
+
+  alt Dominio apto para RDAP
+    HC->>RDAP: GET /domain para expiracion
+    alt Cache dominio vigente menor a 24h
+      HC-->>HC: Reusa domainExpiry
+    else Cache vencida
+      RDAP-->>HC: Eventos/fecha expiracion
+      HC-->>HC: Actualiza cache dominio 24h
+    end
+  end
+
+  HC->>WEB: undici.fetch con timeout y headers
+  WEB-->>HC: HTTP status y body
+  HC-->>APP: ok/ping/msg/certExpiry/certExpiryAt/domainExpiry
+
+  APP-->>APP: Aplica reintentos y estado final
+  APP->>DB: Guarda heartbeat
+  APP->>RT: Publica evento heartbeat
+  RT-->>FE: Push en tiempo real
+  FE-->>FE: Actualiza estado y grafico de latencia
+```
+
+* **Disponibilidad web (vivo/caído):** usa `undici.fetch()` contra el `target` con timeout del motor (`15s` por defecto), redirects y headers HTTP controlados.
+* **Latencia HTTP:** se mide como `performance.now()` antes/después del `fetch`; ese valor se guarda en `heartbeat.ping` (ms).
+* **SSL (si el target es HTTPS):** abre handshake TLS nativo (`tls.connect`) para leer el certificado remoto (`valid_to`), calcular `certExpiry` (días) y `certExpiryAt` (fecha/hora exacta).
+* **Dominio (WHOIS/RDAP):** consulta RDAP (`https://rdap.org/domain/...`) para estimar `domainExpiry` (días restantes del dominio).
+
+Puesto en palabras: cuando Azkin revisa una página web, primero toma la configuración del monitor HTTP y decide qué metadata complementaria vale la pena consultar. Si la URL usa HTTPS, intenta leer el certificado remoto para saber cuántos días faltan para que venza y cuál es su fecha exacta de expiración. Si el hostname corresponde a un dominio público apto para RDAP, intenta obtener también la expiración del dominio. Después de eso ejecuta la petición HTTP real contra la página, mide cuánto tardó, interpreta el código de respuesta y recién ahí decide si el resultado final es `UP`, `DEGRADED`, `PENDING` o `DOWN`. Ese resultado se guarda como heartbeat y se empuja al frontend para refrescar el estado y el gráfico de latencia.
+
+### 2.3 Ejemplo de uso
+
+Ejemplo narrado de un ciclo completo: supongamos un monitor configurado contra `https://www.wikipedia.org/`, con intervalo de 30 segundos. En el primer ciclo del día, Azkin arranca el check, detecta que la URL es HTTPS y abre una conexión TLS para leer el certificado del sitio. Si logra leerlo, calcula por ejemplo que faltan `45` días para expirar y guarda también la fecha exacta, algo como `2026-09-26 12:00 UTC`. Luego detecta que `wikipedia.org` es un dominio público y consulta RDAP para estimar su expiración de dominio; si el registry responde, guarda ese valor en cache. Recién después ejecuta la petición HTTP principal con `undici.fetch()`, por ejemplo recibe `200 OK` en `412 ms`, marca el monitor como `UP`, persiste un heartbeat con `ping: 412`, `certExpiry: 45`, `certExpiryAt: ...` y `domainExpiry: ...`, y emite ese evento por Socket.io. En el siguiente ciclo, 30 segundos después, Azkin vuelve a consultar la página para saber si sigue viva y cuánto tarda, pero ya no vuelve a hacer la consulta SSL ni RDAP si la cache diaria sigue vigente; reutiliza esos datos y solo repite la parte estrictamente necesaria para disponibilidad y latencia.
+
+Si en vez de `200 OK` esa misma página respondiera, por ejemplo, `429` desde Cloudflare con headers del edge, Azkin no la marcaría como caída automática: interpretaría que el borde de Cloudflare está vivo y devolvería un estado operativo especial. Si tardara demasiado pero alcanzara a responder, podría marcarla como `DEGRADED`. Si agotara timeout o reintentos, recién entonces la declararía `DOWN`.
+
+Política anti-saturación para metadata (SSL/WHOIS-RDAP):
+`certExpiry`/`certExpiryAt` y `domainExpiry` se cachean en memoria por **24 horas** por host/dominio. Los checks cada 20-30 segundos siguen midiendo disponibilidad/latencia, pero **no repiten WHOIS/RDAP ni handshake SSL completo cada vez**. Si falla una renovación de cache, se reutiliza el último valor disponible (best-effort) sin tumbar el check de uptime.
+
+Qué sí usa otros checkers:
+`PingChecker` (`ping`) y `PortChecker` (TCP) son tipos de monitor distintos. En HTTP, solo se usan como heurística puntual post-caída (estado DEGRADADO), no en paralelo por cada request exitosa.
+
 ---
 
 ## 3. Frontend: Estado Reactivo Angular 21
@@ -80,6 +185,7 @@ La SPA del frontend está estructurada de forma moderna sin módulos clásicos (
 ### Visualización y Gráficas (ECharts)
 * **Combined Latency Chart:** Compara las latencias en tiempo real de todos los elementos pertenecientes a un mismo grupo jerárquico.
 * **Uptime Blocks:** Heatmap visual del historial de los últimos 30 chequeos de un monitor específico.
+* **Origen de datos:** la línea de latencia se alimenta desde `heartbeat.ping` (REST inicial + eventos Socket.io); si un heartbeat viene sin ping (`null`), ese punto no dibuja latencia útil.
 
 ### Descomposición de `dashboard.ts` y `settings.ts` (AZ-016)
 
