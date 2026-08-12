@@ -37,7 +37,7 @@ export class MongooseMaintenanceRepository implements IMaintenanceRepository {
     const docs = await MaintenanceWindowModel.find({
       closedAt: null,
       $or: [
-        { mode: "immediate" },
+        { mode: "immediate", $or: [{ endAt: null }, { endAt: { $gte: now } }] },
         { mode: "scheduled", startAt: { $lte: now }, endAt: { $gte: now } },
       ],
     });

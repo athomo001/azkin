@@ -24,7 +24,7 @@ export interface IMaintenanceWindow {
   scope: IMaintenanceScope[];
   mode: MaintenanceMode;
   startAt: Date | null; // null si mode === "immediate"
-  endAt: Date | null; // null si mode === "immediate" (cierre manual) o "scheduled" sin fin definido
+  endAt: Date | null; // null = cierre manual (scheduled siempre lo define; immediate opcionalmente lo usa como auto-fin)
   closedAt: Date | null; // se setea al cerrar manualmente o al detectar que ya pasó endAt
   createdAt: Date;
   updatedAt: Date;

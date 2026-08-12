@@ -5,11 +5,12 @@ export function toMaintenanceWindowResponse(window: IMaintenanceWindow) {
   const now = Date.now();
   const isActive =
     window.closedAt === null &&
-    (window.mode === "immediate" ||
-      (window.startAt !== null &&
+    (window.mode === "immediate"
+      ? window.endAt === null || now <= window.endAt.getTime()
+      : window.startAt !== null &&
         window.endAt !== null &&
         window.startAt.getTime() <= now &&
-        now <= window.endAt.getTime()));
+        now <= window.endAt.getTime());
 
   return {
     id: window.id,
