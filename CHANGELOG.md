@@ -18,6 +18,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 
 ### Changed
 
+- **pnpm actualizado de 11.13.1 a 11.21.0:** se sube dentro de la misma línea estable 11.x (pnpm 12 sigue en release candidate) para incorporar los fixes acumulados desde 11.13.1. Actualizado en `packageManager` de `frontend/package.json` y en los cuatro Dockerfiles (`backend/Dockerfile`, `backend/Dockerfile.dev`, `frontend/Dockerfile`, `frontend/Dockerfile.dev`).
 - **La caducidad de certificado SSL y dominio dejó de consultarse en cada intervalo corto de monitoreo HTTP:** el checker HTTP ahora cachea por 24 horas la metadata complementaria de SSL (`certExpiry`, `certExpiryAt`) y de dominio (`domainExpiry` vía RDAP), por host/dominio. Los checks periódicos siguen midiendo disponibilidad y latencia en cada ciclo, pero ya no repiten handshakes SSL ni consultas RDAP/WHOIS cada 20-30 segundos, reduciendo ruido, carga externa y riesgo de rate-limit o bloqueo por abuso.
 
 ### Fixed

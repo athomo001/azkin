@@ -1,6 +1,6 @@
 # --- Etapa de build ---
 FROM node:24-alpine AS build
-RUN corepack enable && corepack prepare pnpm@11.13.1 --activate
+RUN corepack enable && corepack prepare pnpm@11.21.0 --activate
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile
@@ -12,7 +12,7 @@ RUN pnpm run build
 FROM node:24-alpine AS runtime
 ARG APP_VERSION=1.1.0
 LABEL org.opencontainers.image.version="${APP_VERSION}"
-RUN corepack enable && corepack prepare pnpm@11.13.1 --activate
+RUN corepack enable && corepack prepare pnpm@11.21.0 --activate
 WORKDIR /app
 ENV NODE_ENV=production
 # iputils provee un binario `ping` compatible con la librería de monitoreo ICMP y ca-certificates para HTTPS

@@ -62,7 +62,7 @@ Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión d
 - **Backend:** Node.js (>= 24.13.0) + Express 5.x + TypeScript (Strict).
 - **Base de Datos:** MongoDB 8.x + Mongoose (colecciones tipo Time-Series con TTL).
 - **Infraestructura:** Docker & Docker Compose.
-- **Gestor de Paquetes:** pnpm (>= 11.13.1).
+- **Gestor de Paquetes:** pnpm (>= 11.21.0).
 
 ---
 

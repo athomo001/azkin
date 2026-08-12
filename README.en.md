@@ -62,7 +62,7 @@ To integrate external systems (Grafana, scripts, CI/CD) without using a user ses
 - **Backend:** Node.js (>= 24.13.0) + Express 5.x + TypeScript (Strict).
 - **Database:** MongoDB 8.x + Mongoose (Time-Series collections with TTL).
 - **Infrastructure:** Docker & Docker Compose.
-- **Package Manager:** pnpm (>= 11.13.1).
+- **Package Manager:** pnpm (>= 11.21.0).
 
 ---
 
