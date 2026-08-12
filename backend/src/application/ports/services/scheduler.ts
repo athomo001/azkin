@@ -7,6 +7,8 @@ export interface IScheduler {
   schedule(monitor: IMonitor): void;
   reschedule(monitor: IMonitor): void;
   unschedule(monitorId: string): void;
+  /** Ejecuta un beat inmediato para un monitor ya agendado, si el scheduler lo soporta. */
+  triggerCheck?(monitorId: string): Promise<void>;
   stopAll(): void;
   receivePushHeartbeat(
     monitorId: string,

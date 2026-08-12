@@ -154,6 +154,18 @@ export class InMemoryScheduler implements IScheduler {
     }
   }
 
+  async triggerCheck(monitorId: string): Promise<void> {
+    const scheduled = this.monitors.get(monitorId);
+    if (!scheduled || scheduled.isStopped || scheduled.monitor.type === "push") return;
+
+    if (scheduled.timeout) {
+      clearTimeout(scheduled.timeout);
+      scheduled.timeout = null;
+    }
+
+    await this.safeBeat(scheduled);
+  }
+
   private async handlePushTimeout(scheduled: ScheduledMonitor): Promise<void> {
     const status = MonitorStatus.DOWN;
     const beat: IHeartbeat = {

@@ -42,6 +42,7 @@ export class UpdateMonitorUseCase {
 
   async execute(actorId: string, id: string, data: UpdateMonitorData): Promise<IMonitor> {
     const before = await this.monitors.findById(id);
+    const wasPaused = before ? !before.isActive : false;
 
     const updated = await this.monitors.update(id, data);
     if (!updated) {
@@ -49,7 +50,12 @@ export class UpdateMonitorUseCase {
     }
 
     if (updated.isActive) {
-      this.scheduler.reschedule(updated);
+      if (wasPaused) {
+        this.scheduler.schedule(updated);
+        await this.scheduler.triggerCheck?.(updated.id);
+      } else {
+        this.scheduler.reschedule(updated);
+      }
     } else {
       this.scheduler.unschedule(updated.id);
     }
