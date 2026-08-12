@@ -236,20 +236,20 @@ export class QuickStatsPanelComponent {
   incidentCardClass(status: MonitorStatusStr): string {
     const density = this.isTvRelaxedIncidentList() ? 'px-3 py-2.5' : 'px-2.5 py-1.5';
     const base = `w-full rounded-lg border ${density} text-left transition-colors`;
-    if (status === 'DOWN') return `${base} border-rose-500/25 bg-rose-500/10 hover:bg-rose-500/15`;
-    if (status === 'DEGRADED') return `${base} border-orange-500/25 bg-orange-500/10 hover:bg-orange-500/15`;
-    return `${base} border-amber-500/25 bg-amber-500/10 hover:bg-amber-500/15`;
+    if (status === 'DOWN') return `${base} border-rose-500/35 bg-rose-950/55 hover:bg-rose-950/70`;
+    if (status === 'DEGRADED') return `${base} border-orange-500/35 bg-orange-950/55 hover:bg-orange-950/70`;
+    return `${base} border-amber-500/35 bg-amber-950/55 hover:bg-amber-950/70`;
   }
 
   incidentTitleClass(): string {
     return this.isTvRelaxedIncidentList()
-      ? 'text-[13px] text-zinc-50 truncate font-extrabold leading-tight block'
-      : 'text-[12px] text-zinc-50 truncate font-extrabold leading-tight block';
+      ? 'text-[13px] text-white truncate font-extrabold leading-tight block'
+      : 'text-[12px] text-white truncate font-extrabold leading-tight block';
   }
 
   incidentTargetClass(): string {
     return this.isTvRelaxedIncidentList()
-      ? 'text-[11px] text-zinc-500 truncate block mt-0.5'
-      : 'text-[10px] text-zinc-500 truncate block';
+      ? 'text-[11px] text-zinc-200 truncate block mt-0.5'
+      : 'text-[10px] text-zinc-300 truncate block';
   }
 }

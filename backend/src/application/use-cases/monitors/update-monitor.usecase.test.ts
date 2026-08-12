@@ -87,3 +87,34 @@ test("UpdateMonitorUseCase no enmascara campos no sensibles en el diff", async (
   assert.equal(changes.name.from, "SNMP switch");
   assert.equal(changes.name.to, "Nuevo nombre");
 });
+
+test("UpdateMonitorUseCase reprograma el monitor al reactivarlo", async () => {
+  const before = makeMonitor({ isActive: false });
+  const after = makeMonitor({ isActive: true });
+  let scheduleCalls = 0;
+  let triggerCheckCalls = 0;
+  const schedulerSpy: IScheduler = {
+    ...scheduler,
+    schedule: () => {
+      scheduleCalls += 1;
+    },
+    triggerCheck: async () => {
+      triggerCheckCalls += 1;
+    },
+    unschedule: () => {
+      throw new Error("no debería desagendar al reactivar");
+    },
+  };
+
+  const monitors: IMonitorRepository = {
+    findById: async () => before,
+    update: async () => after,
+  } as unknown as IMonitorRepository;
+  const { auditLog } = makeAuditLogSpy();
+
+  const useCase = new UpdateMonitorUseCase(monitors, schedulerSpy, auditLog);
+  await useCase.execute("actor-1", "m-1", { isActive: true });
+
+  assert.equal(scheduleCalls, 1, "al reactivar debe volver a agendarse");
+  assert.equal(triggerCheckCalls, 1, "al reactivar debe disparar un beat inmediato");
+});
