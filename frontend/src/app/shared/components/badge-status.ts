@@ -9,7 +9,7 @@ type MonitorStatus = 'UP' | 'DOWN' | 'PENDING' | 'MAINTENANCE' | 'DEGRADED';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <span [class]="badgeClass()" class="relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold tracking-wider uppercase border">
+    <span [class]="badgeClass()" class="relative inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[13px] font-black tracking-wide uppercase border leading-none">
       <!-- Anillo de pulso animado únicamente para estado crítico DOWN -->
       @if (status() === 'DOWN') {
         <span class="absolute -inset-0.5 rounded-full border-2 border-rose-500 animate-ping opacity-50"></span>
@@ -37,10 +37,10 @@ export class BadgeStatusComponent {
   readonly badgeClass = computed(() => {
     switch (this.status()) {
       case 'UP':          return 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400';
-      case 'DOWN':        return 'bg-rose-500/10 border-rose-500/30 text-rose-400';
-      case 'PENDING':     return 'bg-amber-500/10 border-amber-500/30 text-amber-400';
+      case 'DOWN':        return 'bg-rose-500 border-rose-600 text-black';
+      case 'PENDING':     return 'bg-amber-400 border-amber-500 text-black';
       case 'MAINTENANCE': return 'bg-sky-500/10 border-sky-500/30 text-sky-400';
-      case 'DEGRADED':    return 'bg-orange-500/10 border-orange-500/30 text-orange-400';
+      case 'DEGRADED':    return 'bg-orange-500 border-orange-600 text-black';
     }
   });
 
@@ -48,10 +48,10 @@ export class BadgeStatusComponent {
   readonly dotClass = computed(() => {
     switch (this.status()) {
       case 'UP':          return 'bg-emerald-500';
-      case 'DOWN':        return 'bg-rose-500';
-      case 'PENDING':     return 'bg-amber-400';
+      case 'DOWN':        return 'bg-black/70';
+      case 'PENDING':     return 'bg-black/70';
       case 'MAINTENANCE': return 'bg-sky-400';
-      case 'DEGRADED':    return 'bg-orange-500';
+      case 'DEGRADED':    return 'bg-black/70';
     }
   });
 }
