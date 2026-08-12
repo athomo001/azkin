@@ -119,36 +119,27 @@ export interface RecentEvent {
               Todo el pool está operativo en este momento.
             </div>
           } @else {
-            <div class="max-h-56 overflow-y-auto pr-1">
-              <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2">
-                @for (m of incidentMonitors(); track m.id) {
+            <div class="space-y-2">
+              <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-1.5">
+                @for (m of visibleIncidentMonitors(); track m.id) {
                   <button
                     type="button"
                     (click)="selectMonitor.emit(m.id)"
-                    class="w-full rounded-xl border border-rose-500/15 bg-rose-500/5 px-3 py-2 text-left hover:bg-rose-500/10 transition-colors">
-                    <div class="flex items-start justify-between gap-2">
-                      <div class="min-w-0 flex-1">
-                        <div class="flex items-center gap-2 min-w-0">
-                          <span class="text-[12px] font-black text-zinc-100 truncate">{{ m.name }}</span>
-                          <div class="shrink-0">
-                            <app-badge-status [status]="m.status"></app-badge-status>
-                          </div>
-                        </div>
-                        <span class="text-[10px] text-zinc-500 block truncate mt-0.5">{{ m.target || 'Push pasivo' }}</span>
-                        <span class="text-[10px] text-zinc-500 block truncate mt-0.5">Grupo: {{ m.group || 'Sin grupo' }}</span>
-                        <span class="text-[10px] text-zinc-400 block truncate mt-1" [title]="m.lastErrorMsg || ''">
-                          {{ m.lastErrorMsg || 'Sin detalle adicional todavía.' }}
-                        </span>
-                      </div>
-                      <div class="shrink-0 text-right pl-2">
-                        <span class="text-[9px] text-zinc-500 font-medium block whitespace-nowrap">
-                          {{ m.lastCheckedAt ? (m.lastCheckedAt | date:'HH:mm:ss dd/MM') : 'Sin chequeo' }}
-                        </span>
+                    class="w-full rounded-lg border border-rose-500/15 bg-rose-500/5 px-2.5 py-1.5 text-left hover:bg-rose-500/10 transition-colors">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-[11px] text-zinc-200 truncate font-semibold">{{ m.target || m.name || 'Push pasivo' }}</span>
+                      <div class="shrink-0">
+                        <app-badge-status [status]="m.status"></app-badge-status>
                       </div>
                     </div>
                   </button>
                 }
               </div>
+              @if (incidentMonitors().length > visibleIncidentMonitors().length) {
+                <div class="text-[10px] text-zinc-500 px-1">
+                  Mostrando {{ visibleIncidentMonitors().length }} de {{ incidentMonitors().length }} incidencias activas.
+                </div>
+              }
             </div>
           }
         </div>
@@ -232,4 +223,5 @@ export class QuickStatsPanelComponent {
         return bTime - aTime;
       })
   );
+  readonly visibleIncidentMonitors = computed(() => this.incidentMonitors().slice(0, 24));
 }
