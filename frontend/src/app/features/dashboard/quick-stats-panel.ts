@@ -90,6 +90,70 @@ export interface RecentEvent {
         </div>
       </div>
 
+      <!-- Incidencias activas globales (todos los grupos) -->
+      <div class="bg-zinc-900/20 border border-zinc-900 rounded-2xl overflow-hidden">
+        <div class="px-4 py-3 flex items-center justify-between gap-4 text-left">
+          <div>
+            <span class="text-xs font-black text-zinc-300 uppercase tracking-wider block">Webs con incidencia ahora</span>
+            <span class="text-[11px] text-zinc-500 block mt-1">
+              {{ incidentMonitors().length === 0 ? 'No hay servicios caídos ni degradados en este momento.' : incidentMonitors().length + ' servicio(s) requieren revisión inmediata.' }}
+            </span>
+          </div>
+          <div class="flex items-center gap-3 shrink-0">
+            <span
+              class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border"
+              [class.bg-emerald-500/10]="incidentMonitors().length === 0"
+              [class.border-emerald-500/20]="incidentMonitors().length === 0"
+              [class.text-emerald-400]="incidentMonitors().length === 0"
+              [class.bg-rose-500/10]="incidentMonitors().length > 0"
+              [class.border-rose-500/20]="incidentMonitors().length > 0"
+              [class.text-rose-400]="incidentMonitors().length > 0">
+              {{ incidentMonitors().length }} activo(s)
+            </span>
+          </div>
+        </div>
+
+        <div class="px-3 pb-3">
+          @if (incidentMonitors().length === 0) {
+            <div class="rounded-xl border border-emerald-500/15 bg-emerald-500/5 px-3 py-3 text-[11px] text-emerald-300">
+              Todo el pool está operativo en este momento.
+            </div>
+          } @else {
+            <div class="max-h-56 overflow-y-auto pr-1">
+              <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2">
+                @for (m of incidentMonitors(); track m.id) {
+                  <button
+                    type="button"
+                    (click)="selectMonitor.emit(m.id)"
+                    class="w-full rounded-xl border border-rose-500/15 bg-rose-500/5 px-3 py-2 text-left hover:bg-rose-500/10 transition-colors">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2 min-w-0">
+                          <span class="text-[12px] font-black text-zinc-100 truncate">{{ m.name }}</span>
+                          <div class="shrink-0">
+                            <app-badge-status [status]="m.status"></app-badge-status>
+                          </div>
+                        </div>
+                        <span class="text-[10px] text-zinc-500 block truncate mt-0.5">{{ m.target || 'Push pasivo' }}</span>
+                        <span class="text-[10px] text-zinc-500 block truncate mt-0.5">Grupo: {{ m.group || 'Sin grupo' }}</span>
+                        <span class="text-[10px] text-zinc-400 block truncate mt-1" [title]="m.lastErrorMsg || ''">
+                          {{ m.lastErrorMsg || 'Sin detalle adicional todavía.' }}
+                        </span>
+                      </div>
+                      <div class="shrink-0 text-right pl-2">
+                        <span class="text-[9px] text-zinc-500 font-medium block whitespace-nowrap">
+                          {{ m.lastCheckedAt ? (m.lastCheckedAt | date:'HH:mm:ss dd/MM') : 'Sin chequeo' }}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
       <!-- Tabla de Incidentes/Eventos Recientes -->
       <div class="bg-zinc-900/20 border border-zinc-900/80 rounded-2xl overflow-hidden shadow-2xl">
         <div class="p-4 bg-zinc-900/40 border-b border-zinc-900 flex justify-between items-center">
@@ -158,4 +222,14 @@ export class QuickStatsPanelComponent {
   readonly degradedCount = computed(() => countActiveMonitorsByStatus(this.monitorService.monitors(), 'DEGRADED'));
   readonly pendingCount = computed(() => countActiveMonitorsByStatus(this.monitorService.monitors(), 'PENDING'));
   readonly isAnyMonitorLocalNetworkDown = computed(() => this.monitorService.monitors().some(m => m.isLocalNetworkDown));
+  readonly incidentMonitors = computed(() =>
+    this.monitorService
+      .monitors()
+      .filter(m => m.isActive && (m.status === 'DOWN' || m.status === 'DEGRADED' || m.status === 'PENDING'))
+      .sort((a, b) => {
+        const aTime = a.lastCheckedAt ? new Date(a.lastCheckedAt).getTime() : 0;
+        const bTime = b.lastCheckedAt ? new Date(b.lastCheckedAt).getTime() : 0;
+        return bTime - aTime;
+      })
+  );
 }
