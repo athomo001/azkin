@@ -96,7 +96,7 @@ export interface RecentEvent {
           <div>
             <span class="text-xs font-black text-zinc-300 uppercase tracking-wider block">Webs con incidencia ahora</span>
             <span class="text-[11px] text-zinc-500 block mt-1">
-              {{ incidentMonitors().length === 0 ? 'No hay servicios caídos ni degradados en este momento.' : incidentMonitors().length + ' servicio(s) requieren revisión inmediata.' }}
+              {{ incidentSummaryText() }}
             </span>
           </div>
           <div class="flex items-center gap-3 shrink-0">
@@ -227,6 +227,12 @@ export class QuickStatsPanelComponent {
         return bTime - aTime;
       })
   );
+  readonly incidentSummaryText = computed(() => {
+    const count = this.incidentMonitors().length;
+    if (count === 0) return 'No hay servicios caídos ni degradados en este momento.';
+    if (count === 1) return '1 servicio requiere revisión inmediata.';
+    return `${count} servicios requieren revisión inmediata.`;
+  });
   readonly visibleIncidentMonitors = computed(() => this.incidentMonitors().slice(0, this.MAX_VISIBLE_INCIDENTS));
   readonly isUltraDenseIncidentList = computed(() => this.incidentMonitors().length > this.ULTRA_DENSE_INCIDENT_LIMIT);
   readonly isTvRelaxedIncidentList = computed(() =>
@@ -249,7 +255,7 @@ export class QuickStatsPanelComponent {
 
   incidentTargetClass(): string {
     return this.isTvRelaxedIncidentList()
-      ? 'text-[11px] text-zinc-200 truncate block mt-0.5'
-      : 'text-[10px] text-zinc-300 truncate block';
+      ? 'text-[11px] text-slate-100 truncate block mt-0.5'
+      : 'text-[10px] text-slate-100 truncate block';
   }
 }

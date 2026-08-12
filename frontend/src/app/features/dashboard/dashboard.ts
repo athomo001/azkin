@@ -617,7 +617,7 @@ type HistoryRangeOption = {
                   <div>
                     <span class="text-xs font-black text-zinc-300 uppercase tracking-wider block">Webs con incidencia ahora</span>
                     <span class="text-[11px] text-zinc-500 block mt-1">
-                      {{ groupIncidentMonitors().length === 0 ? 'No hay servicios caídos ni degradados en este grupo.' : groupIncidentMonitors().length + ' servicio(s) requieren revisión inmediata.' }}
+                      {{ groupIncidentSummaryText() }}
                     </span>
                   </div>
                   <div class="flex items-center gap-3 shrink-0">
@@ -1165,6 +1165,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
         const rightTime = right.lastCheckedAt ? new Date(right.lastCheckedAt).getTime() : 0;
         return rightTime - leftTime;
       });
+  });
+  readonly groupIncidentSummaryText = computed(() => {
+    const count = this.groupIncidentMonitors().length;
+    if (count === 0) return 'No hay servicios caídos ni degradados en este grupo.';
+    if (count === 1) return '1 servicio requiere revisión inmediata.';
+    return `${count} servicios requieren revisión inmediata.`;
   });
 
   // Listado filtrado para el panel lateral
