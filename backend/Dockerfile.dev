@@ -1,7 +1,7 @@
 # Imagen de DESARROLLO local (hot-reload con tsx watch).
 # Para producción usa el Dockerfile multi-stage (build + runtime slim).
 FROM node:24-alpine
-RUN corepack enable && corepack prepare pnpm@11.13.1 --activate
+RUN corepack enable && corepack prepare pnpm@11.21.0 --activate
 WORKDIR /app
 
 # iputils provee un binario `ping` compatible con el checker ICMP

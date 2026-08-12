@@ -1,6 +1,6 @@
 # --- Etapa de build ---
 FROM node:24-alpine AS build
-RUN corepack enable && corepack prepare pnpm@11.13.1 --activate
+RUN corepack enable && corepack prepare pnpm@11.21.0 --activate
 WORKDIR /app
 
 # Instala dependencias primero para aprovechar el caché de capas
