@@ -125,17 +125,17 @@ export interface RecentEvent {
                   <button
                     type="button"
                     (click)="selectMonitor.emit(m.id)"
-                    class="w-full rounded-lg border border-rose-500/15 bg-rose-500/5 px-2.5 py-1.5 text-left hover:bg-rose-500/10 transition-colors">
-                    <div class="flex items-center justify-between gap-2">
-                      <div class="min-w-0 flex-1">
-                        <span class="text-[11px] text-zinc-100 truncate font-black block" [title]="m.name || ''">{{ m.name || 'Recurso sin nombre' }}</span>
-                        @if (!isUltraDenseIncidentList()) {
-                          <span class="text-[10px] text-zinc-500 truncate block" [title]="m.target || ''">{{ m.target || 'Push pasivo' }}</span>
-                        }
-                      </div>
-                      <div class="shrink-0">
-                        <app-badge-status [status]="m.status"></app-badge-status>
-                      </div>
+                    class="w-full rounded-lg border px-2.5 py-1.5 text-left transition-colors"
+                    [class]="m.status === 'DOWN'
+                      ? 'w-full rounded-lg border px-2.5 py-1.5 text-left transition-colors border-rose-500/25 bg-rose-500/10 hover:bg-rose-500/15'
+                      : (m.status === 'DEGRADED'
+                        ? 'w-full rounded-lg border px-2.5 py-1.5 text-left transition-colors border-orange-500/25 bg-orange-500/10 hover:bg-orange-500/15'
+                        : 'w-full rounded-lg border px-2.5 py-1.5 text-left transition-colors border-amber-500/25 bg-amber-500/10 hover:bg-amber-500/15')">
+                    <div class="min-w-0">
+                      <span class="text-[12px] text-zinc-50 truncate font-extrabold leading-tight block" [title]="m.name || ''">{{ m.name || 'Recurso sin nombre' }}</span>
+                      @if (!isUltraDenseIncidentList()) {
+                        <span class="text-[10px] text-zinc-500 truncate block" [title]="m.target || ''">{{ m.target || 'Push pasivo' }}</span>
+                      }
                     </div>
                   </button>
                 }
