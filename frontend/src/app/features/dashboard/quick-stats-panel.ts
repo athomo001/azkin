@@ -125,15 +125,12 @@ export interface RecentEvent {
                   <button
                     type="button"
                     (click)="selectMonitor.emit(m.id)"
-                    class="w-full rounded-lg border border-rose-500/15 bg-rose-500/5 px-2.5 py-1.5 text-left hover:bg-rose-500/10 transition-colors">
-                    <div class="flex items-center justify-between gap-2">
-                      <div class="min-w-0 flex-1">
-                        <span class="text-[11px] text-zinc-100 truncate font-black block">{{ m.name || 'Recurso sin nombre' }}</span>
-                        <span class="text-[10px] text-zinc-500 truncate block">{{ m.target || 'Push pasivo' }}</span>
-                      </div>
-                      <div class="shrink-0">
-                        <app-badge-status [status]="m.status"></app-badge-status>
-                      </div>
+                    [class]="incidentCardClass(m.status)">
+                    <div class="min-w-0">
+                      <span [class]="incidentTitleClass()" [title]="m.name || ''">{{ m.name || 'Recurso sin nombre' }}</span>
+                      @if (!isUltraDenseIncidentList()) {
+                        <span [class]="incidentTargetClass()" [title]="m.target || ''">{{ m.target || 'Push pasivo' }}</span>
+                      }
                     </div>
                   </button>
                 }
@@ -203,6 +200,10 @@ export interface RecentEvent {
   `
 })
 export class QuickStatsPanelComponent {
+  private readonly RELAXED_INCIDENT_LIMIT = 4;
+  private readonly ULTRA_DENSE_INCIDENT_LIMIT = 16;
+  private readonly MAX_VISIBLE_INCIDENTS = 24;
+
   private readonly monitorService = inject(MonitorService);
   public readonly lang = inject(LanguageService);
 
@@ -226,5 +227,29 @@ export class QuickStatsPanelComponent {
         return bTime - aTime;
       })
   );
-  readonly visibleIncidentMonitors = computed(() => this.incidentMonitors().slice(0, 24));
+  readonly visibleIncidentMonitors = computed(() => this.incidentMonitors().slice(0, this.MAX_VISIBLE_INCIDENTS));
+  readonly isUltraDenseIncidentList = computed(() => this.incidentMonitors().length > this.ULTRA_DENSE_INCIDENT_LIMIT);
+  readonly isTvRelaxedIncidentList = computed(() =>
+    this.incidentMonitors().length > 0 && this.incidentMonitors().length <= this.RELAXED_INCIDENT_LIMIT
+  );
+
+  incidentCardClass(status: MonitorStatusStr): string {
+    const density = this.isTvRelaxedIncidentList() ? 'px-3 py-2.5' : 'px-2.5 py-1.5';
+    const base = `w-full rounded-lg border ${density} text-left transition-colors`;
+    if (status === 'DOWN') return `${base} border-rose-500/25 bg-rose-500/10 hover:bg-rose-500/15`;
+    if (status === 'DEGRADED') return `${base} border-orange-500/25 bg-orange-500/10 hover:bg-orange-500/15`;
+    return `${base} border-amber-500/25 bg-amber-500/10 hover:bg-amber-500/15`;
+  }
+
+  incidentTitleClass(): string {
+    return this.isTvRelaxedIncidentList()
+      ? 'text-[13px] text-zinc-50 truncate font-extrabold leading-tight block'
+      : 'text-[12px] text-zinc-50 truncate font-extrabold leading-tight block';
+  }
+
+  incidentTargetClass(): string {
+    return this.isTvRelaxedIncidentList()
+      ? 'text-[11px] text-zinc-500 truncate block mt-0.5'
+      : 'text-[10px] text-zinc-500 truncate block';
+  }
 }
