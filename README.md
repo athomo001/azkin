@@ -57,6 +57,64 @@ Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión d
 
 ---
 
+## 📸 Capturas de Pantalla
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/Azkin_01_Dashboard_General_modo_claro.png" alt="Dashboard General — modo claro" width="100%"/>
+      <br/><strong>Dashboard General — modo claro</strong>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/Azkin_02_Dashboard_General_modo_oscuro.png" alt="Dashboard General — modo oscuro" width="100%"/>
+      <br/><strong>Dashboard General — modo oscuro</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/Azkin_03_Grafica_con_grupos.png" alt="Vista de grupo con gráfica comparativa de latencia" width="100%"/>
+      <br/><strong>Vista de grupo — comparativa de latencia en tiempo real</strong>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/Azkin_09_Dashboard_ingles.png" alt="Dashboard General en inglés" width="100%"/>
+      <br/><strong>Soporte multi-idioma (Español/Inglés)</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/Azkin_07_Configuracion_espanol.png" alt="Panel de Configuración en español" width="100%"/>
+      <br/><strong>Configuración — canales de alerta, viewers, mantenimiento, Modos Temáticos y más</strong>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/Azkin_08_Configuracion_ingles.png" alt="Panel de Configuración en inglés" width="100%"/>
+      <br/><strong>Configuration — same panel, in English</strong>
+    </td>
+  </tr>
+</table>
+
+### 🎭 Modos Temáticos en acción
+
+Cada modo sortea un GIF distinto por monitor dentro de un mismo gráfico de grupo — nada de ver el mismo personaje repetido en todas las líneas.
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="assets/modo-nyancat.png" alt="Modo NyanCat sobre el gráfico de un monitor" width="100%"/>
+      <br/><strong>NyanCat</strong> (el clásico)
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/modo-sonic.png" alt="Modo Sonic — un personaje distinto por línea del grupo" width="100%"/>
+      <br/><strong>Sonic</strong> — un personaje distinto por línea
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/modo-uma.png" alt="Modo Uma Musume — un personaje distinto por línea del grupo" width="100%"/>
+      <br/><strong>Uma Musume</strong> — ídem, otro set de GIFs
+    </td>
+  </tr>
+</table>
+
+---
+
 ## 🛠️ Stack Tecnológico
 
 - **Frontend:** Angular 21 (Signals, Components Standalone, ECharts, Tailwind CSS).
