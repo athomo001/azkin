@@ -1,19 +1,20 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
-import { Component, inject, input, output } from '@angular/core';
+import { Component, inject, input, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { LanguageService } from '../../core/services/language.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { ThemeModeSummary } from '../../core/services/theme-mode.service';
 
 /**
- * Navbar del dashboard: logo (vuelve a Quick Stats), tema/idioma, info de usuario, easter egg
- * NyanCat (admin), link a settings/perfil, logout. Extraido de dashboard.ts.
+ * Navbar del dashboard: logo (vuelve a Quick Stats), tema/idioma, info de usuario, selector de
+ * Modo Temático, link a settings/perfil, logout. Extraido de dashboard.ts.
  *
- * `isNyanCatMode` se recibe como input (en vez de tener su propio signal) porque ese estado
- * también lo lee el renderizado de los gráficos ECharts en el shell — esa parte permanece en el
- * shell por ahora (ver nota "Fuera de alcance" en ISSUES.md), así que el signal debe seguir viviendo
- * ahí. Este componente solo refleja su valor y emite la intención de cambiarlo.
+ * El estado del modo temático activo vive completo en `ThemeModeService` (ver
+ * spec/07-modos-tematicos.md) — este componente solo recibe `activeModeId`/`availableModes` como
+ * inputs y emite la intención de cambiarlo vía `selectMode`, igual que el resto de los toggles de
+ * este navbar (tema/idioma).
  */
 @Component({
   selector: 'app-dashboard-navbar',
@@ -47,12 +48,34 @@ import { ThemeService } from '../../core/services/theme.service';
           <span class="text-xs font-bold text-zinc-300">{{ authService.currentUser()?.email || authService.currentUser()?.username }}</span>
           <span class="text-[10px] text-zinc-500 uppercase tracking-wider">{{ authService.currentUser()?.role }}</span>
         </div>
-        <!-- Boton secreto de NyanCat (Easter Egg) — para todos los usuarios -->
-        <button (click)="toggleNyanCat.emit()" [title]="isNyanCatMode() ? 'Desactivar Modo NyanCat' : 'Activar Modo NyanCat 🐱'"
-          class="flex items-center justify-center p-1.5 rounded-lg border transition-all text-xs"
-          [class]="isNyanCatMode() ? 'border-orange-500/40 bg-orange-500/10 text-orange-400' : 'border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-orange-400 hover:border-orange-500/30'">
-          🐱
-        </button>
+        <!-- Selector de Modo Temático (ex easter egg NyanCat) — para todos los usuarios -->
+        <div class="relative">
+          <button (click)="isThemeMenuOpen.set(!isThemeMenuOpen())" [title]="lang.t('themeMode.button')"
+            class="flex items-center justify-center p-1.5 rounded-lg border transition-all text-xs"
+            [class]="activeModeId() ? 'border-orange-500/40 bg-orange-500/10 text-orange-400' : 'border-zinc-800 bg-zinc-950/40 text-zinc-500 hover:text-orange-400 hover:border-orange-500/30'">
+            {{ activeModeEmoji() }}
+          </button>
+          @if (isThemeMenuOpen()) {
+            <!-- Overlay para cerrar el menú al hacer click afuera -->
+            <div class="fixed inset-0 z-40" (click)="isThemeMenuOpen.set(false)"></div>
+            <div class="absolute right-0 mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl z-50 py-1 animate-fade-in">
+              <button (click)="onSelectMode(null)"
+                class="w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors"
+                [class]="activeModeId() === null ? 'bg-orange-500/10 text-orange-400 font-bold' : 'text-zinc-300 hover:bg-zinc-800/60'">
+                <span class="w-4 text-center">🎭</span>
+                <span>{{ lang.t('themeMode.none') }}</span>
+              </button>
+              @for (mode of availableModes(); track mode.id) {
+                <button (click)="onSelectMode(mode.id)"
+                  class="w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors"
+                  [class]="activeModeId() === mode.id ? 'bg-orange-500/10 text-orange-400 font-bold' : 'text-zinc-300 hover:bg-zinc-800/60'">
+                  <span class="w-4 text-center">{{ mode.emoji }}</span>
+                  <span>{{ mode.name }}</span>
+                </button>
+              }
+            </div>
+          }
+        </div>
         @if (authService.isAdmin()) {
           <a routerLink="/settings" class="text-sm font-semibold hover:text-orange-500 transition-colors flex items-center gap-1.5">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -77,7 +100,14 @@ import { ThemeService } from '../../core/services/theme.service';
         </button>
       </div>
     </nav>
-  `
+  `,
+  styles: [`
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in { animation: fade-in 0.15s ease-out; }
+  `]
 })
 export class DashboardNavbarComponent {
   readonly authService = inject(AuthService);
@@ -85,10 +115,25 @@ export class DashboardNavbarComponent {
   readonly themeService = inject(ThemeService);
   private readonly router = inject(Router);
 
-  readonly isNyanCatMode = input.required<boolean>();
+  readonly activeModeId = input.required<string | null>();
+  readonly availableModes = input.required<ThemeModeSummary[]>();
 
   readonly logoClick = output<void>();
-  readonly toggleNyanCat = output<void>();
+  readonly selectMode = output<string | null>();
+
+  readonly isThemeMenuOpen = signal(false);
+
+  /** Emoji del botón: el del modo activo, o 🎭 (neutral, D3) si no hay ninguno activo. */
+  readonly activeModeEmoji = () => {
+    const id = this.activeModeId();
+    if (!id) return '🎭';
+    return this.availableModes().find((m) => m.id === id)?.emoji ?? '🎭';
+  };
+
+  onSelectMode(id: string | null): void {
+    this.selectMode.emit(id);
+    this.isThemeMenuOpen.set(false);
+  }
 
   onLogout(): void {
     this.authService.logout().subscribe(() => {

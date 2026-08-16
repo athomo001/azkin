@@ -54,7 +54,7 @@ export interface AuditLogEntry {
                   @if (changes.length > 0) {
                     <div class="border-t border-zinc-900 pt-1.5 space-y-0.5">
                       @for (c of changes; track c[0]) {
-                        <p class="text-zinc-500 font-mono text-[10px]">
+                        <p class="text-zinc-500 font-mono text-[10px] break-all whitespace-pre-wrap">
                           <span class="text-zinc-400">{{ c[0] }}</span>: {{ formatValue(c[1].from) }} → <span class="text-zinc-300">{{ formatValue(c[1].to) }}</span>
                         </p>
                       }
@@ -63,7 +63,7 @@ export interface AuditLogEntry {
                 }
                 @if (otherMetadataOf(e); as extra) {
                   @if (extra.length > 0) {
-                    <p class="text-zinc-600 text-[10px]">
+                    <p class="text-zinc-600 text-[10px] break-all whitespace-pre-wrap">
                       @for (m of extra; track m[0]; let last = $last) {
                         <span>{{ m[0] }}: {{ formatValue(m[1]) }}</span>@if (!last) { <span> · </span> }
                       }
@@ -111,6 +111,6 @@ export class AuditLogPanelComponent {
     if (value === undefined || value === null || value === '') return '—';
     if (typeof value === 'string') return value;
     if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-    return JSON.stringify(value);
+    return JSON.stringify(value, null, 2);
   }
 }

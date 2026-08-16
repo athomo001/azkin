@@ -4,6 +4,20 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.3.0] - 2026-08-16
+
+### Added
+
+- **Modos Temáticos (reemplaza el easter egg "Modo NyanCat"):** el antiguo booleano fijo (un solo GIF hardcodeado) pasó a ser un sistema plug-in de temas — cada modo es simplemente una carpeta de GIFs en `assets/huevo/<id>/` (con `mode.json` opcional para nombre/emoji/color), descubierta en caliente por el backend sin necesidad de rebuild ni redeploy. Vienen 3 modos listos: `nyancat` (el clásico), `sonic` y `uma` (Uma Musume). El botón fijo 🐱 del navbar se reemplazó por un selector genérico que lista todos los modos habilitados + "Ninguno".
+- **Sorteo de GIF por gráfico en vistas de grupo:** antes, con el modo activo, **todas** las series de un gráfico de grupo mostraban el mismo GIF repetido. Ahora cada monitor sortea un GIF distinto del modo activo (sin repetir hasta agotar el set disponible), priorizando mostrar el efecto en los monitores `DOWN`/`DEGRADADO` primero y limitando a 8 GIFs animados simultáneos por gráfico para no saturar el navegador en grupos grandes. Volver a elegir un modo desde el menú (incluso el mismo de antes) sortea una combinación nueva.
+- **Administración de Modos Temáticos:** nueva pestaña en `/settings` para habilitar/deshabilitar modos globalmente (ej. ocultar un modo hasta que tenga contenido real), vía `GET/PUT /api/v1/theme-modes/admin[/settings]`.
+- Detalle técnico completo en `spec/07-modos-tematicos.md`.
+
+### Changed
+
+- **`preferences.nyanCatMode` (booleano) reemplazado por `preferences.themeMode` (id de modo o `null`):** `PUT /api/v1/users/preferences` ahora recibe `{ themeMode }`. Los usuarios que tenían el modo NyanCat activo migran automáticamente a `themeMode: 'nyancat'` sin acción manual; los respaldos completos (`backup`/`import`) aceptan tanto el formato viejo como el nuevo.
+- Los GIFs servidos en `/theme-assets` incluyen un parámetro de versión basado en la fecha de modificación del archivo, para que reemplazar un GIF ya publicado no quede invisible por el cacheo agresivo del navegador (`Cache-Control: immutable`).
+
 ## [1.2.7] - 2026-08-12
 
 ### Added
@@ -13,6 +27,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 ### Fixed
 
 - **El formulario de "Editar ventana de mantenimiento" no mostraba fecha ni hora, incluso para ventanas programadas:** el bloque de modo/fechas estaba oculto por completo al editar, así que una ventana "Programada" no dejaba ver ni ajustar su inicio/fin sin recrearla desde cero. Ahora el modo se muestra (de solo lectura, no puede cambiarse tras crearla) y las fechas de inicio/fin se precargan editables con los valores reales de la ventana.
+- **La advertencia "Sin alcance seleccionado" quedaba visible después de crear una ventana con éxito, dando a entender que había fallado:** el aviso se mostraba con solo mirar el alcance vacío, sin importar si el formulario era nuevo o recién se había reseteado tras un guardado exitoso — al crear una ventana, el formulario se limpia para la siguiente y ese estado vacío disparaba la misma advertencia roja. Ahora solo aparece después de intentar guardar sin alcance seleccionado.
 
 ## [1.2.6] - 2026-08-12
 

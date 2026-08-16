@@ -32,7 +32,7 @@ La plataforma soporta múltiples tipos de verificación:
 - **SNMP (v1/v2c/v3):** Lectura avanzada de OIDs para equipos de red.
 - **Uptime 24h:** Cálculo de disponibilidad porcentual por monitor y por grupo para seguimiento operativo.
 
-Para conocer el diseño detallado de la arquitectura de Clean Architecture, el funcionamiento del bypass de Cloudflare WAF, la lógica del modo Nyan Cat y el modelado de datos, consulta la [Documentación de Arquitectura de Azkin](./docs/ARCHITECTURE.md).
+Para conocer el diseño detallado de la arquitectura de Clean Architecture, el funcionamiento del bypass de Cloudflare WAF, los Modos Temáticos y el modelado de datos, consulta la [Documentación de Arquitectura de Azkin](./docs/ARCHITECTURE.md).
 Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión de usuario, consulta la [Documentación de la API Pública](./docs/api-publica.md).
 
 > ⚠️ **Estado: Beta.** Azkin está en desarrollo activo. Las funcionalidades principales operan de forma estable en uso diario, pero todavía faltan por probar en profundidad: casos límite de los distintos tipos de monitor (SNMP, Push Pasivo, DNS), volúmenes altos de monitores concurrentes, y varios flujos de administración (Viewers, respaldos, TLS) bajo condiciones reales de producción. No existe aún un test runner de frontend automatizado (ver [ISSUES.md](./ISSUES.md), ). Repórtanos cualquier bug que encuentres.
@@ -53,6 +53,7 @@ Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión d
 - **Notificaciones multicanal con plantillas:** email, Slack, Discord, Telegram y webhooks genéricos, con plantillas configurables por tipo de evento, cheatsheet de variables clickeable y selector de emojis.
 - **Sesión segura:** el access token vive en memoria (nunca en `localStorage`); la sesión se renueva mediante una cookie `HttpOnly` de refresh, rotada en cada uso. Cada token lleva un claim `typ` (`access`/`refresh`) que impide usar uno en lugar del otro, y bloquear/eliminar una cuenta corta su acceso en la siguiente petición (no hay que esperar a que el token expire solo).
 - **Hardening de seguridad:** batch de correcciones de una auditoría de seguridad completa — validación de certificado TLS restaurada en las alertas por email, contraseña actual exigida para cambiar la propia y protección contra IDOR al resetear la de otro Admin, escape de HTML/JSON/Markdown en informes y notificaciones, neutralización de inyección de fórmulas en CSV, credenciales SNMP enmascaradas para Viewers, cabeceras de seguridad (`helmet`) y contenedor backend sin privilegios de root. Detalle completo en [`ISSUES.md`](./ISSUES.md).
+- **Modos Temáticos (plug-in):** easter egg configurable — cada modo es una carpeta de GIFs (`assets/huevo/<id>/`) descubierta en caliente por el backend, sin rebuild ni redeploy para agregar uno nuevo. En un gráfico de grupo, cada monitor sortea un GIF distinto del modo activo en vez de repetir siempre el mismo, priorizando destacar los monitores caídos/degradados. Admin puede habilitar/deshabilitar modos desde `/settings`.
 
 ---
 
@@ -103,7 +104,7 @@ Calculados a partir de la arquitectura real del proyecto (3 contenedores: `azkin
 | Documento                                                  | Contenido                                                                                                                                     |
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | [docs/instalacion-docker.md](./docs/instalacion-docker.md) | Manual de instalación con Docker: variables de entorno, producción, desarrollo con hot-reload, HTTPS (terminado en nginx), respaldos, problemas frecuentes. |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)             | Clean Architecture, bypass de Cloudflare WAF, modo Nyan Cat, autenticación, API pública, auditoría.                                           |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)             | Clean Architecture, bypass de Cloudflare WAF, Modos Temáticos, autenticación, API pública, auditoría.                                         |
 | [docs/api-publica.md](./docs/api-publica.md)               | Autenticación por `X-API-Key`, endpoints disponibles, gestión de keys, ejemplos `curl`.                                                       |
 | `spec/` (local, no versionado en git)                      | Especificaciones funcionales por fase (Spec-Driven Development): modelo de datos, contratos de API, arquitectura.                             |
 | [CHANGELOG.md](./CHANGELOG.md)                             | Historial de versiones (Keep a Changelog + SemVer).                                                                                           |

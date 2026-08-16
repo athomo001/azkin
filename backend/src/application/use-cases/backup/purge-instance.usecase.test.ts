@@ -41,7 +41,7 @@ function makeSeedAdmin(): IUser {
     passwordHash: "hash",
     role: "admin",
     permissions: [],
-    preferences: { nyanCatMode: false },
+    preferences: { themeMode: null },
     createdAt: new Date(),
     updatedAt: new Date(),
   };

@@ -14,7 +14,7 @@ function makeUser(id: string, overrides: Partial<IUser> = {}): IUser {
     passwordHash: "hashed",
     role: "admin",
     permissions: [],
-    preferences: { nyanCatMode: false },
+    preferences: { themeMode: null },
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

@@ -1,0 +1,11 @@
+{
+  "name": "azkin-tooling",
+  "private": true,
+  "description": "Herramientas de repo que no pertenecen a frontend/ ni backend/ (ej. compresión de assets de assets/huevo/).",
+  "scripts": {
+    "compress-theme-gifs": "node scripts/compress-theme-gifs.js"
+  },
+  "devDependencies": {
+    "gifsicle": "^7.0.1"
+  }
+}

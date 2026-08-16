@@ -9,6 +9,7 @@ import { ListAdminsUseCase } from "../../../application/use-cases/users/list-adm
 import { UpdateAdminUseCase } from "../../../application/use-cases/users/update-admin.usecase";
 import { SetAdminBlockedUseCase } from "../../../application/use-cases/users/set-admin-blocked.usecase";
 import { DeleteAdminUseCase } from "../../../application/use-cases/users/delete-admin.usecase";
+import { ListThemeModesUseCase } from "../../../application/use-cases/theme-modes/list-theme-modes.usecase";
 import { IUserRepository } from "../../../application/ports/repositories/user-repository";
 import { IPasswordHasher } from "../../../application/ports/services/security";
 import { IAuditLogRepository } from "../../../application/ports/repositories/audit-log-repository";
@@ -29,6 +30,7 @@ export class UserController {
     private readonly usersRepo: IUserRepository,
     private readonly hasher: IPasswordHasher,
     private readonly auditLog: IAuditLogRepository,
+    private readonly listThemeModes: ListThemeModesUseCase,
   ) {}
 
   list = async (req: Request, res: Response): Promise<void> => {
@@ -239,18 +241,27 @@ export class UserController {
   };
 
   /**
-   * Actualiza las preferencias visuales del usuario autenticado (ej. NyanCat mode).
+   * Actualiza las preferencias visuales del usuario autenticado (Modo Temático activo, ver
+   * spec/07-modos-tematicos.md §6.4).
    */
   updatePreferences = async (req: Request, res: Response): Promise<void> => {
     const userId = req.userId!;
-    const { nyanCatMode } = req.body;
+    const { themeMode } = req.body;
 
-    if (typeof nyanCatMode !== 'boolean') {
-      throw new ValidationError("nyanCatMode debe ser booleano");
+    if (themeMode !== null && typeof themeMode !== 'string') {
+      throw new ValidationError("themeMode debe ser un string o null");
+    }
+
+    if (themeMode !== null) {
+      const modes = await this.listThemeModes.execute();
+      const isValid = modes.some((m) => m.id === themeMode && m.enabled);
+      if (!isValid) {
+        throw new ValidationError("themeMode inválido");
+      }
     }
 
     // Actualizar directamente en el repositorio
-    await this.usersRepo.updatePreferences(userId, { nyanCatMode });
-    res.status(200).json({ success: true, preferences: { nyanCatMode } });
+    await this.usersRepo.updatePreferences(userId, { themeMode });
+    res.status(200).json({ success: true, preferences: { themeMode } });
   };
 }

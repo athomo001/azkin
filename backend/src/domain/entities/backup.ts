@@ -7,7 +7,7 @@ export interface IBackupAdmin {
   username?: string;
   passwordHash: string;
   isBlocked?: boolean;
-  preferences?: { nyanCatMode: boolean };
+  preferences?: { themeMode: string | null };
 }
 
 /**

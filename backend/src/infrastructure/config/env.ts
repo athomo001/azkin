@@ -63,6 +63,11 @@ const schema = z.object({
   AZKIN_SMTP_FROM: z.string().optional(),
   // URL pública del frontend, usada para construir el enlace de recuperación de contraseña.
   AZKIN_APP_URL: z.string().optional(),
+  // Carpeta que contiene las subcarpetas de Modos Temáticos (assets/huevo/<id>/*.gif), servida
+  // públicamente en /theme-assets y escaneada en caliente por FsThemeModesScanner (spec/07-modos-tematicos.md).
+  // Default relativo al working dir del proceso backend; en Docker se fija como ruta absoluta
+  // vía compose (AZKIN_THEME_MODES_PATH=/app/assets/huevo).
+  AZKIN_THEME_MODES_PATH: z.string().min(1).default("../assets/huevo"),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -114,6 +119,7 @@ export interface Env {
     from?: string;
   };
   appUrl?: string;
+  themeModesPath: string;
 }
 
 export const env: Env = {
@@ -145,6 +151,7 @@ export const env: Env = {
     from: raw.AZKIN_SMTP_FROM,
   },
   appUrl: raw.AZKIN_APP_URL,
+  themeModesPath: raw.AZKIN_THEME_MODES_PATH,
 };
 
 // Advertencia de arranque para configuraciones explícitas pero permisivas —

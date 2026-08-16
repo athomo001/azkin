@@ -8,7 +8,7 @@ export interface UserOutput {
   permissions: { type: string; value?: string }[];
   isTvSessionEnabled: boolean;
   preferences: {
-    nyanCatMode: boolean;
+    themeMode: string | null;
   };
 }
 
