@@ -21,7 +21,7 @@ export const LoginSchema = z.object({
 });
 
 export const UpdatePreferencesSchema = z.object({
-  nyanCatMode: z.boolean({ required_error: "nyanCatMode es obligatorio" }),
+  themeMode: z.string().nullable(),
 });
 
 // ==========================================

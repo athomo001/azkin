@@ -40,12 +40,20 @@ export interface ImportBackupOutput {
 const BCRYPT_HASH_PATTERN = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
 const passwordHashSchema = z.string().regex(BCRYPT_HASH_PATTERN, "passwordHash debe ser un hash bcrypt válido");
 
+// Acepta tanto el formato actual (`themeMode: string | null`) como el legado (`nyanCatMode:
+// boolean`, de respaldos exportados antes de spec/07-modos-tematicos.md) — un backup viejo no
+// debe fallar la validación; `nyanCatMode: true` se normaliza a `themeMode: 'nyancat'`.
+const backupPreferencesSchema = z.union([
+  z.object({ themeMode: z.string().nullable() }),
+  z.object({ nyanCatMode: z.boolean() }).transform((v) => ({ themeMode: v.nyanCatMode ? "nyancat" : null })),
+]);
+
 const backupAdminSchema = z.object({
   email: z.string().email(),
   username: z.string().min(1).max(100).optional(),
   passwordHash: passwordHashSchema,
   isBlocked: z.boolean().optional(),
-  preferences: z.object({ nyanCatMode: z.boolean() }).optional(),
+  preferences: backupPreferencesSchema.optional(),
 });
 
 const backupViewerSchema = z

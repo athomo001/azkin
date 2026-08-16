@@ -30,6 +30,7 @@ import { MongooseFederationEnrollmentTokenRepository } from "./infrastructure/pe
 import { MongooseFederatedMonitorLinkRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federated-monitor-link.repository";
 import { MongooseFederatedHeartbeatRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federated-heartbeat.repository";
 import { MongooseFederationSettingsRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-federation-settings.repository";
+import { MongooseThemeModeSettingsRepository } from "./infrastructure/persistence/mongoose/repositories/mongoose-theme-mode-settings.repository";
 
 // Services
 import { JwtTokenService } from "./infrastructure/security/jwt-token-service";
@@ -53,6 +54,7 @@ import { ResolveMonitoringEngineConfig } from "./application/services/resolve-mo
 import { ResolveDefaultAlertRecipients } from "./application/services/resolve-default-alert-recipients";
 import { PdfmakeReportRenderer } from "./infrastructure/reporting/pdfmake-report-renderer";
 import { FederationFetchClient } from "./infrastructure/security/federation-fetch-client";
+import { FsThemeModesScanner } from "./infrastructure/theme-modes/fs-theme-modes-scanner";
 
 // Use cases
 import { RegisterUseCase } from "./application/use-cases/auth/register.usecase";
@@ -124,6 +126,10 @@ import { SetAppSmtpChannelUseCase } from "./application/use-cases/system/set-app
 import { GetMonitoringEngineSettingsUseCase } from "./application/use-cases/system/get-monitoring-engine-settings.usecase";
 import { SetMonitoringEngineSettingsUseCase } from "./application/use-cases/system/set-monitoring-engine-settings.usecase";
 
+// Use cases de Modos Temáticos (spec/07-modos-tematicos.md)
+import { ListThemeModesUseCase } from "./application/use-cases/theme-modes/list-theme-modes.usecase";
+import { SetThemeModeSettingsUseCase } from "./application/use-cases/theme-modes/set-theme-mode-settings.usecase";
+
 // Use cases de API Keys (API pública)
 import { CreateApiKeyUseCase } from "./application/use-cases/api-keys/create-api-key.usecase";
 import { ListApiKeysUseCase } from "./application/use-cases/api-keys/list-api-keys.usecase";
@@ -169,6 +175,7 @@ import { MaintenanceController } from "./infrastructure/http/controllers/mainten
 import { ReportController } from "./infrastructure/http/controllers/report.controller";
 import { FederationController } from "./infrastructure/http/controllers/federation.controller";
 import { FederationPeerController } from "./infrastructure/http/controllers/federation-peer.controller";
+import { ThemeModeController } from "./infrastructure/http/controllers/theme-mode.controller";
 
 import { authRoutes } from "./infrastructure/http/routes/auth.routes";
 import { monitorRoutes } from "./infrastructure/http/routes/monitor.routes";
@@ -183,6 +190,7 @@ import { maintenanceRoutes } from "./infrastructure/http/routes/maintenance.rout
 import { reportRoutes } from "./infrastructure/http/routes/report.routes";
 import { federationRoutes } from "./infrastructure/http/routes/federation.routes";
 import { federationPeerRoutes } from "./infrastructure/http/routes/federation-peer.routes";
+import { themeModeRoutes } from "./infrastructure/http/routes/theme-mode.routes";
 import { makeVerifyPeerSecret } from "./infrastructure/http/middlewares/verify-peer-secret";
 
 import { makeAuthGuard } from "./infrastructure/http/middlewares/auth-guard";
@@ -227,6 +235,11 @@ export function buildContainer(env: Env): AppContainer {
   app.use(express.json());
   app.use(cookieParser());
   app.use(licenseNotice);
+  // Servido público (sin JWT, mismo nivel de exposición que tenía antes 'nyan-cat.gif' en
+  // frontend/public) de los GIFs de Modos Temáticos — ver spec/07-modos-tematicos.md §5.1.
+  // Cache agresivo porque el contenido de cada archivo es efectivamente inmutable (agregar un
+  // modo nuevo es agregar un archivo, no reescribir uno existente).
+  app.use("/theme-assets", express.static(env.themeModesPath, { maxAge: "365d", immutable: true }));
 
   const server = http.createServer(app);
   const io = new Server(server, { cors: { origin: env.corsOrigin } });
@@ -252,6 +265,7 @@ export function buildContainer(env: Env): AppContainer {
   const federatedMonitorLinksRepo = new MongooseFederatedMonitorLinkRepository();
   const federatedHeartbeatsRepo = new MongooseFederatedHeartbeatRepository();
   const federationSettingsRepo = new MongooseFederationSettingsRepository();
+  const themeModeSettingsRepo = new MongooseThemeModeSettingsRepository();
   // Dirección pública guardada una sola vez por el Admin (ver SetFederationOwnUrlUseCase) — se
   // reutiliza al invitar y al unirse, en vez de pedirla a mano en cada una. `null` si todavía no
   // se configuró (los use-cases que la necesitan lanzan un error claro pidiendo configurarla).
@@ -261,6 +275,9 @@ export function buildContainer(env: Env): AppContainer {
   // reutiliza tls-key-cipher.ts tal cual.
   const federationEncryptionKey = env.tlsEncryptionKey ?? "";
   const federationClient = new FederationFetchClient();
+  // Escaneo en caliente de assets/huevo/ (D1 de spec/07-modos-tematicos.md) — TTL de 60s
+  // aplicado dentro de la propia clase, ver fs-theme-modes-scanner.ts.
+  const themeModesScanner = new FsThemeModesScanner(env.themeModesPath);
 
   // SMTP de aplicación: por defecto AZKIN_SMTP_* del .env, o el de un canal de notificación
   // "email" reutilizado si el admin eligió uno (ver ResolveAppSmtpConfig).
@@ -391,6 +408,10 @@ export function buildContainer(env: Env): AppContainer {
   });
   const setMonitoringEngineSettings = new SetMonitoringEngineSettingsUseCase(monitoringEngineSettingsRepo, auditLog);
 
+  // Instanciación de Use cases de Modos Temáticos (spec/07-modos-tematicos.md)
+  const listThemeModes = new ListThemeModesUseCase(themeModesScanner, themeModeSettingsRepo);
+  const setThemeModeSettings = new SetThemeModeSettingsUseCase(themeModeSettingsRepo, auditLog);
+
   // Instanciación de Use cases de API Keys (API pública)
   const createApiKey = new CreateApiKeyUseCase(apiKeysRepo, auditLog);
   const listApiKeys = new ListApiKeysUseCase(apiKeysRepo);
@@ -424,6 +445,7 @@ export function buildContainer(env: Env): AppContainer {
     users,
     hasher,
     auditLog,
+    listThemeModes,
   );
   const backupController = new BackupController(
     createBackup,
@@ -455,6 +477,7 @@ export function buildContainer(env: Env): AppContainer {
     setMonitoringEngineSettings,
   );
   const apiKeyController = new ApiKeyController(createApiKey, listApiKeys, revokeApiKey, deleteApiKey);
+  const themeModeController = new ThemeModeController(listThemeModes, setThemeModeSettings, "/theme-assets");
   const listAuditLog = new ListAuditLogUseCase(auditLog, users);
   const auditLogController = new AuditLogController(listAuditLog);
 
@@ -630,6 +653,7 @@ export function buildContainer(env: Env): AppContainer {
   app.use("/api/v1/audit-log", authGuard, auditLogRoutes(auditLogController));
   app.use("/api/v1/maintenance", authGuard, maintenanceRoutes(maintenanceController));
   app.use("/api/v1/reports", authGuard, reportRoutes(reportController));
+  app.use("/api/v1/theme-modes", authGuard, themeModeRoutes(themeModeController));
   // Sin authGuard a nivel de mount: /enrollments es pública (la llama el backend de la instancia
   // remota, no un usuario con sesión); /tokens e /instances aplican authGuard+requireRole("admin")
   // dentro del propio router (ver federation.routes.ts), igual que auth.routes.ts con /login.

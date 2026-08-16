@@ -13,7 +13,7 @@ export interface UserPayload {
   permissions?: string[];
   isTvSessionEnabled?: boolean;
   preferences?: {
-    nyanCatMode: boolean;
+    themeMode: string | null;
   };
 }
 

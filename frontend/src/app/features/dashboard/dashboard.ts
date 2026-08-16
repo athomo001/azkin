@@ -26,6 +26,7 @@ import { ConfirmModalComponent } from '../../shared/components/confirm-modal';
 import { ToastService } from '../../core/services/toast.service';
 import { ToastComponent } from '../../shared/components/toast';
 import { DashboardNavbarComponent } from './dashboard-navbar';
+import { ThemeModeService } from '../../core/services/theme-mode.service';
 import { MonitorFormComponent } from './monitor-form';
 import { BadgeStatusComponent } from '../../shared/components/badge-status';
 import { FederatedComparisonComponent } from '../../shared/components/federated-comparison';
@@ -41,7 +42,7 @@ type HistoryRangeOption = {
   imports: [CommonModule, RouterModule, FormsModule, SkeletonLoaderComponent, QuickStatsPanelComponent, ConfirmModalComponent, ToastComponent, DashboardNavbarComponent, MonitorFormComponent, BadgeStatusComponent, FederatedComparisonComponent],
   template: `
     <div class="min-h-screen bg-zinc-950 text-white flex flex-col font-sans transition-colors duration-300">
-      <app-dashboard-navbar [isNyanCatMode]="isNyanCatMode()" (logoClick)="resetSelection()" (toggleNyanCat)="toggleNyanCat()" />
+      <app-dashboard-navbar [activeModeId]="themeModeService.activeModeId()" [availableModes]="themeModeService.availableModes()" (logoClick)="resetSelection()" (selectMode)="themeModeService.setActiveMode($event)" />
 
       <!-- Toast de feedback (componente compartido, ver ToastService) -->
       <app-toast />
@@ -888,6 +889,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
   private readonly federationService = inject(FederationService);
+  readonly themeModeService = inject(ThemeModeService);
 
   // Estados de carga e interfaz
   readonly isLoading = signal(true);
@@ -1003,17 +1005,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // Modo TV/Kiosko para sesiones isTvSessionEnabled — oculta controles no esenciales
   readonly isKioskMode = computed(() => this.authService.currentUser()?.isTvSessionEnabled ?? false);
 
-  // Easter egg NyanCat — persistido en localStorage para máxima robustez
-  readonly isNyanCatMode = signal(typeof window !== 'undefined' && localStorage.getItem('azkin-nyancat') === 'true');
-  readonly nyanCatPosition = signal<{ x: number; y: number } | null>(null);
-  readonly nyanCatAngle = signal(0);
-
   constructor() {
     this.federationService.loadInstances().subscribe();
     this.federationService.loadLinks().subscribe();
+    this.themeModeService.loadModes();
     effect(() => {
       // Registrar dependencias reactivas
-      this.isNyanCatMode();
+      this.themeModeService.activeModeId();
       this.isLightTheme();
 
       // Re-renderizar gráficos en tiempo real
@@ -1807,7 +1805,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const rangeStart = rangeEnd - this.selectedHistoryDurationMs();
     const isWideRange = this.selectedHistoryDurationMs() >= 24 * 60 * 60 * 1000;
 
-    // Inyectar el símbolo de NyanCat y calcular rotación y tamaño proporcional no aplanado
+    // Modo temático activo (ex easter egg NyanCat) — el gif y el estilo de la serie salen del
+    // modo activo del usuario (ThemeModeService), no de un caso especial hardcodeado.
+    const monitorId = this.selectedMonitor()?.id ?? null;
+    const themeGifUrl = monitorId ? this.themeModeService.pickGifForSingle(monitorId) : null;
+    const activeMode = this.themeModeService
+      .availableModes()
+      .find((m) => m.id === this.themeModeService.activeModeId());
+
     const latencies = data.map((d, index) => {
       const ts = new Date(d.timestamp).getTime();
       const val = d.latency ?? 0;
@@ -1816,17 +1821,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
         isLocalNetworkDown: d.isLocalNetworkDown ?? false,
       };
 
-      if (this.isNyanCatMode() && index === data.length - 1) {
+      if (themeGifUrl && index === data.length - 1) {
         let angle = 0;
         if (data.length > 1) {
           const prevVal = data[index - 1].latency ?? 0;
           const diff = val - prevVal;
           // Mapear diferencia de latencia a un ángulo en grados para ECharts
-          // Si el valor sube (diff > 0), el gato apunta hacia arriba. ECharts rota antihorario.
+          // Si el valor sube (diff > 0), el símbolo apunta hacia arriba. ECharts rota antihorario.
           angle = Math.max(-30, Math.min(30, diff * 0.4));
         }
-        point.symbol = 'image:///nyan-cat.gif';
-        point.symbolSize = [95, 58]; // Aumentado y con relación de aspecto correcta para evitar aplanarse
+        point.symbol = `image://${themeGifUrl}`;
+        point.symbolSize = [58, 58]; // Cuadrado — los sets de gifs ya vienen normalizados a lienzo 220x220
         point.symbolRotate = angle;
         return point;
       }
@@ -1838,19 +1843,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     const seriesList: any[] = [
       {
-        name: this.isNyanCatMode() ? 'Nyan Cat' : 'Este servidor (Local)',
+        name: themeGifUrl && activeMode ? activeMode.name : 'Este servidor (Local)',
         data: latencies,
         type: 'line',
         smooth: true,
         showSymbol: true,
         symbol: 'none',
         lineStyle: {
-          width: this.isNyanCatMode() ? 5 : 2.5,
-          color: this.isNyanCatMode() ? '#ec4899' : '#f97316',
+          width: themeGifUrl ? 5 : 2.5,
+          color: themeGifUrl && activeMode ? activeMode.accentColor : '#f97316',
         },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: this.isNyanCatMode() ? 'rgba(236, 72, 153, 0.2)' : 'rgba(249, 115, 22, 0.2)' },
+            { offset: 0, color: themeGifUrl && activeMode ? `${activeMode.accentColor}33` : 'rgba(249, 115, 22, 0.2)' },
             { offset: 1, color: 'transparent' },
           ]),
         },
@@ -1949,40 +1954,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     };
 
     this.chart.setOption(option, true);
-
-    // Calcular posición y rotación del NyanCat animado en el DOM
-    if (this.isNyanCatMode() && data.length > 0) {
-      setTimeout(() => {
-        if (!this.chart) return;
-        try {
-          const lastIndex = data.length - 1;
-          if (lastIndex < 0) return;
-          const lastVal = data[lastIndex].latency ?? 0;
-          const lastTs = new Date(data[lastIndex].timestamp).getTime();
-          const pt = this.chart.convertToPixel({ seriesIndex: 0 }, [lastTs, lastVal]);
-          if (pt && !isNaN(pt[0]) && !isNaN(pt[1])) {
-            let angle = 0;
-            if (data.length > 1) {
-              const prevIndex = lastIndex - 1;
-              const prevVal = data[prevIndex].latency ?? 0;
-              const prevTs = new Date(data[prevIndex].timestamp).getTime();
-              const prevPt = this.chart.convertToPixel({ seriesIndex: 0 }, [prevTs, prevVal]);
-              if (prevPt) {
-                const dx = pt[0] - prevPt[0];
-                const dy = pt[1] - prevPt[1]; // dy en pixeles va hacia abajo (eje Y invertido en HTML vs plano cartesiano)
-                angle = Math.atan2(dy, dx) * (180 / Math.PI);
-              }
-            }
-            this.nyanCatPosition.set({ x: pt[0], y: pt[1] });
-            this.nyanCatAngle.set(angle);
-          }
-        } catch (e) {
-          console.warn('[NyanCat] Error al convertir coordenadas:', e);
-        }
-      }, 50);
-    } else {
-      this.nyanCatPosition.set(null);
-    }
   }
 
   private initGroupChart(): void {
@@ -2034,6 +2005,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
       return colors[hash % colors.length];
     };
 
+    // Modo temático activo (§8 del spec): elegir, UNA vez por actualización de gráfico (no por
+    // serie), qué monitores del grupo se ganan un gif y cuál les toca — prioriza DOWN/DEGRADED y
+    // limita a 8 series simultáneas por rendimiento del navegador.
+    const groupKey = this.selectedGroupName() ?? 'default';
+    const monitorsWithStatus = Array.from(this.groupHistoryMap.keys()).map((monitorId) => ({
+      id: monitorId,
+      status: this.monitorService.monitors().find((m) => m.id === monitorId)?.status ?? 'PENDING',
+    }));
+    const giftedGifs = this.themeModeService.pickGifsForGroup(groupKey, monitorsWithStatus);
+
     for (const [monitorId, data] of this.groupHistoryMap.entries()) {
       const pointsInRange = data.points
         .map((p) => ({
@@ -2043,6 +2024,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
         .filter((p) => p.ts >= rangeStart && p.ts <= rangeEnd)
         .sort((a, b) => a.ts - b.ts);
 
+      const seriesGifUrl = giftedGifs.get(monitorId) ?? null;
+
       const latencies = pointsInRange.map((point, index) => {
         const val = point.latency;
         const item: any = {
@@ -2050,8 +2033,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
           isLocalNetworkDown: point.isLocalNetworkDown ?? false,
         };
 
-        // Si el modo NyanCat está activo, inyectar el GIF de NyanCat en el último punto
-        if (this.isNyanCatMode() && index === pointsInRange.length - 1) {
+        // Si esta serie ganó cupo de gif en el sorteo de arriba, inyectarlo en el último punto.
+        if (seriesGifUrl && index === pointsInRange.length - 1) {
           let angle = 0;
           if (pointsInRange.length > 1) {
             const prevPoint = pointsInRange[pointsInRange.length - 2];
@@ -2061,8 +2044,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
               angle = Math.max(-30, Math.min(30, diff * 0.4));
             }
           }
-          item.symbol = 'image:///nyan-cat.gif';
-          item.symbolSize = [95, 58];
+          item.symbol = `image://${seriesGifUrl}`;
+          item.symbolSize = [58, 58]; // Cuadrado — los sets de gifs ya vienen normalizados a lienzo 220x220
           item.symbolRotate = angle;
           return item;
         }
@@ -2082,7 +2065,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         showSymbol: true, // Permitir símbolos personalizados por punto
         symbol: 'none',   // No poner símbolo por defecto a nivel de serie
         connectNulls: true, // Conectar puntos aunque haya nulos
-        lineStyle: { width: this.isNyanCatMode() ? 4.5 : 2.5, color: lineColor },
+        lineStyle: { width: seriesGifUrl ? 4.5 : 2.5, color: lineColor },
         // Relleno suave bajo cada línea con opacidad del 15% fija
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -2262,28 +2245,5 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.authService.logout().subscribe(() => {
       this.router.navigate(['/login']);
     });
-  }
-
-  toggleNyanCat(): void {
-    const newValue = !this.isNyanCatMode();
-    this.isNyanCatMode.set(newValue);
-    localStorage.setItem('azkin-nyancat', String(newValue));
-
-    // Intentar guardar en backend, pero el origen local prevalece
-    this.http.put('/api/v1/users/preferences', { nyanCatMode: newValue }).subscribe({
-      next: () => {
-        const current = this.authService.currentUser() as any;
-        if (current) {
-          const updated = {
-            ...current,
-            preferences: { ...(current.preferences || {}), nyanCatMode: newValue }
-          };
-          this.authService.currentUser.set(updated);
-        }
-      },
-      error: () => {}
-    });
-
-    this.showSuccessToast(newValue ? '🌈 NyanCat Mode activado!' : '🐱 NyanCat Mode desactivado.');
   }
 }

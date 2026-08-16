@@ -17,11 +17,12 @@ import { AlertsPanelComponent } from './alerts-panel';
 import { MaintenancePanelComponent } from './maintenance-panel';
 import { ReportsPanelComponent } from './reports-panel';
 import { FederationPanelComponent } from './federation-panel';
+import { ThemeModesPanelComponent } from './theme-modes-panel';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, ConfirmModalComponent, ToastComponent, SystemPanelComponent, AuditLogPanelComponent, ApiKeysPanelComponent, BackupsPanelComponent, ViewersPanelComponent, AlertsPanelComponent, MaintenancePanelComponent, ReportsPanelComponent, FederationPanelComponent],
+  imports: [CommonModule, RouterModule, FormsModule, ConfirmModalComponent, ToastComponent, SystemPanelComponent, AuditLogPanelComponent, ApiKeysPanelComponent, BackupsPanelComponent, ViewersPanelComponent, AlertsPanelComponent, MaintenancePanelComponent, ReportsPanelComponent, FederationPanelComponent, ThemeModesPanelComponent],
   template: `
     <div class="min-h-screen bg-zinc-950 text-white flex flex-col font-sans">
       <!-- Navbar -->
@@ -113,6 +114,11 @@ import { FederationPanelComponent } from './federation-panel';
             class="transition-all relative z-10 px-1">
             Auditoría
           </button>
+          <button (click)="activeTab.set('themeModes')"
+            [class]="activeTab() === 'themeModes' ? 'border-b-2 border-orange-500 text-white font-bold pb-3 -mb-[2px]' : 'text-zinc-400 hover:text-zinc-200 pb-3 -mb-[2px] transition-colors'"
+            class="transition-all relative z-10 px-1">
+            {{ lang.t('settings.tabThemeModes') }}
+          </button>
         </div>
 
         <div class="pt-2 animate-fade-in">
@@ -161,6 +167,11 @@ import { FederationPanelComponent } from './federation-panel';
           @if (activeTab() === 'audit') {
             <app-audit-log-panel />
           }
+
+          <!-- ================= PESTAÑA: MODOS TEMÁTICOS ================= -->
+          @if (activeTab() === 'themeModes') {
+            <app-theme-modes-panel />
+          }
         </div>
 
         <footer class="pt-6 mt-6 border-t border-zinc-900">
@@ -188,7 +199,7 @@ export class SettingsComponent implements OnInit {
   public readonly lang = inject(LanguageService);
   public readonly themeService = inject(ThemeService);
 
-  readonly activeTab = signal<'alerts' | 'viewers' | 'backups' | 'maintenance' | 'reports' | 'federation' | 'system' | 'api' | 'audit'>('alerts');
+  readonly activeTab = signal<'alerts' | 'viewers' | 'backups' | 'maintenance' | 'reports' | 'federation' | 'system' | 'api' | 'audit' | 'themeModes'>('alerts');
 
   ngOnInit(): void {
     // Estado compartido leido por varios paneles (Viewers, Backups) — se carga aqui, a nivel de
@@ -196,7 +207,7 @@ export class SettingsComponent implements OnInit {
     this.monitorService.loadMonitors().subscribe();
 
     const requestedTab = this.route.snapshot.queryParamMap.get('tab');
-    const validTabs = ['alerts', 'viewers', 'backups', 'maintenance', 'reports', 'federation', 'system', 'api', 'audit'] as const;
+    const validTabs = ['alerts', 'viewers', 'backups', 'maintenance', 'reports', 'federation', 'system', 'api', 'audit', 'themeModes'] as const;
     if (requestedTab && (validTabs as readonly string[]).includes(requestedTab)) {
       this.activeTab.set(requestedTab as (typeof validTabs)[number]);
     }

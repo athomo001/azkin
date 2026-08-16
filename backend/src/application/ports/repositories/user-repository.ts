@@ -54,7 +54,7 @@ export interface IUserRepository {
   findViewerById(adminId: string, id: string): Promise<IUser | null>;
   updateViewerPermissions(adminId: string, id: string, data: UpdateViewerPermissionsData): Promise<IUser | null>;
   deleteViewer(adminId: string, id: string): Promise<boolean>;
-  updatePreferences(userId: string, prefs: { nyanCatMode: boolean }): Promise<void>;
+  updatePreferences(userId: string, prefs: { themeMode: string | null }): Promise<void>;
   /**
    * Purga total de cuentas: elimina todos los admins y viewers salvo `keepUserId`.
    * Usado por el botón "Purgar instancia" para dejar el sistema como recién instalado,

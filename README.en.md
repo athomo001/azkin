@@ -32,7 +32,7 @@ The platform supports multiple types of checks:
 - **SNMP (v1/v2c/v3):** Advanced OID reading for network equipment.
 - **24h Uptime:** Percentage availability calculation per monitor and per group for operational tracking.
 
-For a detailed design of the Clean Architecture, how the Cloudflare WAF bypass works, the Nyan Cat mode logic, and data modeling, see the [Azkin Architecture Documentation](./docs/ARCHITECTURE.md).
+For a detailed design of the Clean Architecture, how the Cloudflare WAF bypass works, Theme Modes, and data modeling, see the [Azkin Architecture Documentation](./docs/ARCHITECTURE.md).
 To integrate external systems (Grafana, scripts, CI/CD) without using a user session, see the [Public API Documentation](./docs/api-publica.md).
 
 > ⚠️ **Status: Beta.** Azkin is under active development. The core features run stably in daily use, but the following still need deeper testing: edge cases across the different monitor types (SNMP, Passive Push, DNS), high volumes of concurrent monitors, and several admin flows (Viewers, backups, TLS) under real production conditions. There is no automated frontend test runner yet (see [ISSUES.md](./ISSUES.md),). Please report any bug you find.
@@ -53,6 +53,7 @@ To integrate external systems (Grafana, scripts, CI/CD) without using a user ses
 - **Multichannel notifications with templates:** email, Slack, Discord, Telegram, and generic webhooks, with configurable templates per event type, a clickable variable cheatsheet, and an emoji picker.
 - **Secure session:** the access token lives in memory (never in `localStorage`); the session is renewed via an `HttpOnly` refresh cookie, rotated on every use. Each token carries a `typ` claim (`access`/`refresh`) that prevents using one in place of the other, and locking/deleting an account cuts off its access on the next request (no need to wait for the token to expire on its own).
 - **Security hardening:** a batch of fixes from a full security audit — restored TLS certificate validation in email alerts, current password required to change your own and IDOR protection when resetting another Admin's password, HTML/JSON/Markdown escaping in reports and notifications, CSV formula-injection neutralization, masked SNMP credentials for Viewers, security headers (`helmet`), and a non-root backend container. Full details in [`ISSUES.md`](./ISSUES.md).
+- **Theme Modes (plug-in):** a configurable easter egg — each mode is a folder of GIFs (`assets/huevo/<id>/`) discovered live by the backend, no rebuild or redeploy needed to add a new one. On a group chart, each monitor draws a different GIF from the active mode instead of always repeating the same one, prioritizing down/degraded monitors. Admins can enable/disable modes from `/settings`.
 
 ---
 
@@ -103,7 +104,7 @@ Calculated from the project's actual architecture (3 containers: `azkin-db`, `az
 | Document                                                    | Content                                                                                                                                       |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | [docs/instalacion-docker.md](./docs/instalacion-docker.md)  | Docker installation manual: environment variables, production, hot-reload development, HTTPS (terminated at nginx), backups, common issues. |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)               | Clean Architecture, Cloudflare WAF bypass, Nyan Cat mode, authentication, public API, auditing.                                              |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)               | Clean Architecture, Cloudflare WAF bypass, Theme Modes, authentication, public API, auditing.                                                |
 | [docs/api-publica.md](./docs/api-publica.md)                 | `X-API-Key` authentication, available endpoints, key management, `curl` examples.                                                            |
 | `spec/` (local, not versioned in git)                        | Functional specifications by phase (Spec-Driven Development): data model, API contracts, architecture.                                       |
 | [CHANGELOG.md](./CHANGELOG.md)                                | Version history (Keep a Changelog + SemVer).                                                                                                  |

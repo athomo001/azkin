@@ -65,6 +65,9 @@ services:
       AZKIN_PROMETHEUS_USER: ${AZKIN_PROMETHEUS_USER}
       AZKIN_PROMETHEUS_PASS: ${AZKIN_PROMETHEUS_PASS}
       AZKIN_PROMETHEUS_API_KEY: ${AZKIN_PROMETHEUS_API_KEY}
+      # Ruta absoluta dentro del contenedor a las subcarpetas de Modos Temáticos — debe coincidir
+      # con el destino del bind mount de solo lectura declarado abajo en `volumes:`.
+      AZKIN_THEME_MODES_PATH: /app/assets/huevo
       # Activa polling de ficheros en bind-mounts sobre Windows/macOS
       CHOKIDAR_USEPOLLING: "true"
     volumes:
@@ -72,6 +75,9 @@ services:
       - ./backend:/app
       # Preserva el node_modules del contenedor (aislado del host)
       - /app/node_modules
+      # Bind mount de solo lectura: permite agregar/quitar carpetas de modos temáticos
+      # (assets/huevo/<id>/*.gif) directo en el host, sin rebuildear la imagen.
+      - ./assets/huevo:/app/assets/huevo:ro
 
   frontend:
     build:

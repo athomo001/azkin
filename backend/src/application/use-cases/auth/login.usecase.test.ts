@@ -16,7 +16,7 @@ function makeViewer(overrides: Partial<IUser> = {}): IUser {
     role: "viewer",
     adminId: "admin-1",
     permissions: [{ type: "group", value: "Netics" }],
-    preferences: { nyanCatMode: false },
+    preferences: { themeMode: null },
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

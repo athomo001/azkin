@@ -23,7 +23,7 @@ export interface IUser {
   resetPasswordExpiresAt?: Date | null; // expiración corta del token de recuperación
   isBlocked?: boolean; // Cuenta bloqueada por otro admin; impide login/refresh
   preferences: {
-    nyanCatMode: boolean; // Activa el easter egg de nyan cat en los gráficos
+    themeMode: string | null; // id del Modo Temático activo (carpeta de assets/huevo/), o null = ninguno
   };
   createdAt: Date;
   updatedAt: Date;

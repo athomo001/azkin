@@ -17,7 +17,7 @@ function makeUser(overrides: Partial<IUser> = {}): IUser {
     passwordHash: "old-hash",
     role: "admin",
     permissions: [],
-    preferences: { nyanCatMode: false },
+    preferences: { themeMode: null },
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -54,8 +54,8 @@ function makeRes(): Response & { statusCode?: number; body?: unknown } {
 
 function makeController(usersRepo: IUserRepository, hasher: IPasswordHasher, auditLog: IAuditLogRepository): UserController {
   // El controller declara 9 use-cases de Viewer/Admin en su constructor además de
-  // usersRepo/hasher/auditLog — los métodos bajo prueba (resetAdminPassword/changeOwnPassword) no
-  // los usan, así que se pasan stubs vacíos sin tipar.
+  // usersRepo/hasher/auditLog/listThemeModes — los métodos bajo prueba
+  // (resetAdminPassword/changeOwnPassword) no los usan, así que se pasan stubs vacíos sin tipar.
   return new UserController(
     {} as never,
     {} as never,
@@ -69,6 +69,7 @@ function makeController(usersRepo: IUserRepository, hasher: IPasswordHasher, aud
     usersRepo,
     hasher,
     auditLog,
+    {} as never,
   );
 }
 

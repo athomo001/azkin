@@ -20,7 +20,7 @@ export class MongooseUserRepository implements IUserRepository {
       adminId: null,
       permissions: [],
       isTvSessionEnabled: false,
-      preferences: { nyanCatMode: false },
+      preferences: { themeMode: null },
     });
     return this.toDomain(doc);
   }
@@ -128,7 +128,7 @@ export class MongooseUserRepository implements IUserRepository {
         value: p.value,
       })),
       isTvSessionEnabled: data.isTvSessionEnabled ?? false,
-      preferences: { nyanCatMode: false },
+      preferences: { themeMode: null },
     });
     return this.toDomain(doc);
   }
@@ -197,7 +197,7 @@ export class MongooseUserRepository implements IUserRepository {
       isTvSessionEnabled: doc.isTvSessionEnabled,
       isBlocked: doc.isBlocked ?? false,
       preferences: {
-        nyanCatMode: doc.preferences?.nyanCatMode ?? false,
+        themeMode: this.resolveThemeMode(doc.preferences),
       },
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
@@ -205,11 +205,25 @@ export class MongooseUserRepository implements IUserRepository {
   }
 
   /**
+   * Compatibilidad hacia atrás (spec/07-modos-tematicos.md §5.4): documentos viejos, previos a la
+   * migración de `nyanCatMode: boolean` a `themeMode: string | null`, no tienen `themeMode`
+   * guardado todavía. Si es el caso y tenían el booleano en `true`, se resuelve como si el modo
+   * activo fuera `'nyancat'` — sin necesidad de correr ninguna migración explícita sobre la
+   * colección.
+   */
+  private resolveThemeMode(preferences?: { nyanCatMode?: boolean; themeMode?: string | null }): string | null {
+    if (preferences?.themeMode === undefined && preferences?.nyanCatMode === true) {
+      return "nyancat";
+    }
+    return preferences?.themeMode ?? null;
+  }
+
+  /**
    * Actualiza las preferencias visuales de un usuario (cualquier rol).
    */
-  async updatePreferences(userId: string, prefs: { nyanCatMode: boolean }): Promise<void> {
+  async updatePreferences(userId: string, prefs: { themeMode: string | null }): Promise<void> {
     await UserModel.findByIdAndUpdate(userId, {
-      $set: { 'preferences.nyanCatMode': prefs.nyanCatMode }
+      $set: { 'preferences.themeMode': prefs.themeMode }
     });
   }
 

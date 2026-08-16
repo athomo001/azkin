@@ -255,7 +255,23 @@ const TRANSLATIONS = {
       'group.detail.subtitle': { es: 'Monitoreo consolidado e historial combinado para el grupo de red.', en: 'Consolidated monitoring and combined history for the network group.' },
       'group.detail.uptime': { es: 'Uptime Consolidado', en: 'Consolidated Uptime' },
       'group.detail.latency': { es: 'Latencia Promedio', en: 'Average Latency' },
-      'group.detail.agents': { es: 'Agentes Activos', en: 'Active Agents' }
+      'group.detail.agents': { es: 'Agentes Activos', en: 'Active Agents' },
+      // Modos Temáticos (ex easter egg NyanCat, ver spec/07-modos-tematicos.md)
+      'themeMode.button': { es: 'Modo Temático', en: 'Theme Mode' },
+      'themeMode.none': { es: 'Ninguno', en: 'None' },
+      'themeMode.active': { es: 'Modo activo', en: 'Active mode' },
+      'settings.tabThemeModes': { es: 'Modos Temáticos', en: 'Theme Modes' },
+      'settings.themeModes.title': { es: 'Modos Temáticos', en: 'Theme Modes' },
+      'settings.themeModes.desc': {
+        es: 'Habilita o deshabilita los modos temáticos disponibles para todos los usuarios. Agregar un modo nuevo no requiere cambios de código: solo una carpeta de GIFs en el servidor.',
+        en: 'Enable or disable the theme modes available to all users. Adding a new mode requires no code changes: just a folder of GIFs on the server.',
+      },
+      'settings.themeModes.noModes': { es: 'No se encontraron modos temáticos.', en: 'No theme modes found.' },
+      'settings.themeModes.filesCount': { es: 'archivos', en: 'files' },
+      'settings.themeModes.save': { es: 'Guardar', en: 'Save' },
+      'settings.themeModes.saving': { es: 'Guardando...', en: 'Saving...' },
+      'settings.themeModes.saved': { es: 'Preferencias de modos temáticos actualizadas.', en: 'Theme mode settings updated.' },
+      'settings.themeModes.saveError': { es: 'Error al guardar los modos temáticos.', en: 'Error saving theme modes.' }
 } as const;
 
 export type TranslationKey = keyof typeof TRANSLATIONS;

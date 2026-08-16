@@ -77,7 +77,7 @@ function makeUsersRepo(seedAdmins: IUser[] = [], seedViewers: IUser[] = []) {
         passwordHash: data.passwordHash,
         role: "admin",
         permissions: [],
-        preferences: { nyanCatMode: false },
+        preferences: { themeMode: null },
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -115,7 +115,7 @@ function makeUsersRepo(seedAdmins: IUser[] = [], seedViewers: IUser[] = []) {
         adminId: data.adminId,
         permissions: data.permissions,
         isTvSessionEnabled: data.isTvSessionEnabled,
-        preferences: { nyanCatMode: false },
+        preferences: { themeMode: null },
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -252,7 +252,7 @@ test("ImportBackupUseCase actualiza (no duplica) un admin existente con el mismo
     passwordHash: "hash-viejo",
     role: "admin",
     permissions: [],
-    preferences: { nyanCatMode: false },
+    preferences: { themeMode: null },
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -290,6 +290,52 @@ test("ImportBackupUseCase rechaza un passwordHash que no tiene forma de hash bcr
 
   assert.equal(result.admins.createdCount, 0);
   assert.equal(result.admins.errors.length, 1);
+});
+
+test("ImportBackupUseCase acepta preferences en formato legado (nyanCatMode) y lo normaliza a themeMode='nyancat'", async () => {
+  const { repo: users, admins } = makeUsersRepo();
+  const { repo: notifications } = makeNotificationsRepo();
+  const monitors = makeMonitorsRepo([]);
+
+  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, auditLog);
+
+  const result = await useCase.execute({
+    userId: "importer-1",
+    monitors: [],
+    admins: [
+      {
+        email: "legado@azkin.test",
+        passwordHash: FAKE_BCRYPT_HASH_A,
+        preferences: { nyanCatMode: true },
+      },
+    ],
+  });
+
+  assert.equal(result.admins.createdCount, 1);
+  assert.equal(result.admins.errors.length, 0);
+  assert.deepEqual(admins[0].preferences, { themeMode: "nyancat" });
+});
+
+test("ImportBackupUseCase acepta preferences en formato actual (themeMode) sin transformarlo", async () => {
+  const { repo: users, admins } = makeUsersRepo();
+  const { repo: notifications } = makeNotificationsRepo();
+  const monitors = makeMonitorsRepo([]);
+
+  const useCase = new ImportBackupUseCase(monitors, scheduler, notifications, users, auditLog);
+
+  await useCase.execute({
+    userId: "importer-1",
+    monitors: [],
+    admins: [
+      {
+        email: "actual@azkin.test",
+        passwordHash: FAKE_BCRYPT_HASH_A,
+        preferences: { themeMode: "sonic" },
+      },
+    ],
+  });
+
+  assert.deepEqual(admins[0].preferences, { themeMode: "sonic" });
 });
 
 test("ImportBackupUseCase acepta un respaldo v1.0 (solo monitors, sin las demás secciones) sin fallar", async () => {

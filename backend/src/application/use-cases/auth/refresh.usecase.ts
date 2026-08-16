@@ -56,7 +56,7 @@ export class RefreshUseCase {
           permissions: user.permissions,
           isTvSessionEnabled: user.isTvSessionEnabled ?? false,
           preferences: {
-            nyanCatMode: user.preferences?.nyanCatMode ?? false,
+            themeMode: user.preferences?.themeMode ?? null,
           },
         },
       };

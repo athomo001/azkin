@@ -16,7 +16,12 @@ export interface UserDoc {
   resetPasswordExpiresAt?: Date | null;
   isBlocked: boolean;
   preferences: {
-    nyanCatMode: boolean;
+    // Campo legado (pre Modos Temáticos, spec/07-modos-tematicos.md) — se mantiene declarado en
+    // el schema SOLO para que documentos viejos con este campo sigan siendo legibles al hacer
+    // `.toDomain()` (fallback de compatibilidad en mongoose-user.repository.ts). Ninguna escritura
+    // nueva lo usa: los writes actuales siempre van por `themeMode`.
+    nyanCatMode?: boolean;
+    themeMode: string | null;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -49,7 +54,10 @@ const userSchema = new Schema<UserDoc>(
     resetPasswordExpiresAt: { type: Date, default: null },
     isBlocked: { type: Boolean, default: false },
     preferences: {
-      nyanCatMode: { type: Boolean, default: false },
+      // Sin `default`: solo debe existir en documentos viejos ya persistidos con este campo (ver
+      // comentario en la interfaz `UserDoc` arriba) — nunca lo escribe código nuevo.
+      nyanCatMode: { type: Boolean },
+      themeMode: { type: String, default: null },
     },
   },
   { timestamps: true, versionKey: false },
