@@ -57,6 +57,64 @@ To integrate external systems (Grafana, scripts, CI/CD) without using a user ses
 
 ---
 
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/Azkin_01_Dashboard_General_modo_claro.png" alt="General Dashboard — light mode" width="100%"/>
+      <br/><strong>General Dashboard — light mode</strong>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/Azkin_02_Dashboard_General_modo_oscuro.png" alt="General Dashboard — dark mode" width="100%"/>
+      <br/><strong>General Dashboard — dark mode</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/Azkin_03_Grafica_con_grupos.png" alt="Group view with real-time latency comparison chart" width="100%"/>
+      <br/><strong>Group view — real-time latency comparison</strong>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/Azkin_09_Dashboard_ingles.png" alt="General Dashboard in English" width="100%"/>
+      <br/><strong>Multi-language support (Spanish/English)</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/Azkin_07_Configuracion_espanol.png" alt="Settings panel in Spanish" width="100%"/>
+      <br/><strong>Configuración — same panel, in Spanish</strong>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/Azkin_08_Configuracion_ingles.png" alt="Settings panel in English" width="100%"/>
+      <br/><strong>Settings — alert channels, viewers, maintenance, Theme Modes and more</strong>
+    </td>
+  </tr>
+</table>
+
+### 🎭 Theme Modes in action
+
+Each mode draws a different GIF per monitor within the same group chart — no more seeing the same character repeated on every line.
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="assets/modo-nyancat.png" alt="NyanCat mode over a single monitor chart" width="100%"/>
+      <br/><strong>NyanCat</strong> (the classic)
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/modo-sonic.png" alt="Sonic mode — a different character per line in the group" width="100%"/>
+      <br/><strong>Sonic</strong> — a different character per line
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/modo-uma.png" alt="Uma Musume mode — a different character per line in the group" width="100%"/>
+      <br/><strong>Uma Musume</strong> — same idea, another GIF set
+    </td>
+  </tr>
+</table>
+
+---
+
 ## 🛠️ Tech Stack
 
 - **Frontend:** Angular 21 (Signals, Standalone Components, ECharts, Tailwind CSS).
