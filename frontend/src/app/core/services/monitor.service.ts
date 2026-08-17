@@ -29,6 +29,7 @@ export interface IMonitor {
   isLocalNetworkDown?: boolean;
   /** El target vive en el mismo servidor físico que Azkin (ver checkers/same-host-fallback.ts). */
   sameHostAsAzkin?: boolean;
+  ignoreTls?: boolean;
 
   // SNMP Fields
   snmpVersion?: 'v1' | 'v2c' | 'v3';
