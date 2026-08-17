@@ -1,5 +1,5 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MonitorService, IMonitor } from '../../core/services/monitor.service';
@@ -90,8 +90,10 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
                     <div class="flex items-center gap-3 p-1.5 hover:bg-zinc-900/60 rounded transition-colors">
                       <input type="checkbox"
                         [checked]="notificationIdsValue.includes(ch.id)"
+                        [indeterminate]="isChannelIndeterminate(ch.id)"
                         (change)="toggleNotificationChannel(ch.id)"
                         [id]="'grp-ch-' + ch.id"
+                        [title]="isChannelIndeterminate(ch.id) ? 'Asignado solo a algunos monitores del grupo' : ''"
                         class="rounded border-zinc-850 text-orange-500 focus:ring-0 cursor-pointer">
                       <label [for]="'grp-ch-' + ch.id" class="text-xs text-zinc-300 font-bold cursor-pointer flex-1 flex items-center justify-between">
                         <span>{{ ch.name }}</span>
@@ -170,7 +172,7 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
     .animate-fade-in { animation: fade-in 0.2s ease-out; }
   `]
 })
-export class GroupBulkEditComponent {
+export class GroupBulkEditComponent implements OnInit {
   private readonly monitorService = inject(MonitorService);
   private readonly notificationService = inject(NotificationService);
 
@@ -188,6 +190,20 @@ export class GroupBulkEditComponent {
   readonly httpMonitorCount = computed(() => this.monitors().filter(m => m.type === 'http').length);
   readonly httpNote = computed(() => `Solo aplica a monitores HTTP — ${this.httpMonitorCount()} de ${this.monitors().length} en este grupo.`);
 
+  /** Por canal: 'all' si todos los monitores del grupo ya lo tienen asignado, 'none' si ninguno, 'partial' si solo algunos. */
+  readonly channelCoverage = computed(() => {
+    const list = this.monitors();
+    const coverage = new Map<string, 'all' | 'none' | 'partial'>();
+    for (const ch of this.notificationChannels()) {
+      const withCount = list.filter(m => (m.notificationIds ?? []).includes(ch.id)).length;
+      coverage.set(ch.id, withCount === 0 ? 'none' : withCount === list.length ? 'all' : 'partial');
+    }
+    return coverage;
+  });
+
+  /** Canales que el usuario ya tocó a mano — deja de mostrarse como "parcial" una vez interactuado. */
+  private readonly touchedChannelIds = new Set<string>();
+
   applyIgnoreTls = false;
   ignoreTlsValue = false;
 
@@ -202,6 +218,22 @@ export class GroupBulkEditComponent {
   integrityProfileValue: 'static' | 'dynamic' = 'static';
   integrityThresholdValue = 0.10;
   integrityIgnoredCssSelectorsValue: string[] = [];
+
+  ngOnInit(): void {
+    // Precarga el checklist con el estado real del grupo, en vez de arrancar siempre en blanco:
+    // un canal que YA está asignado a todos los monitores del grupo debe aparecer marcado
+    // (los parciales se muestran con [indeterminate] en el template, no se marcan aquí).
+    const list = this.monitors();
+    if (list.length > 0) {
+      this.notificationIdsValue = this.notificationChannels()
+        .filter(ch => list.every(m => (m.notificationIds ?? []).includes(ch.id)))
+        .map(ch => ch.id);
+    }
+  }
+
+  isChannelIndeterminate(channelId: string): boolean {
+    return this.channelCoverage().get(channelId) === 'partial' && !this.touchedChannelIds.has(channelId);
+  }
 
   tagsString(): string {
     return this.tagsValue.join(', ');
@@ -220,6 +252,7 @@ export class GroupBulkEditComponent {
   }
 
   toggleNotificationChannel(id: string): void {
+    this.touchedChannelIds.add(id);
     const ids = [...this.notificationIdsValue];
     const idx = ids.indexOf(id);
     if (idx > -1) ids.splice(idx, 1);
