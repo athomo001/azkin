@@ -4,6 +4,12 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.3.1] - 2026-08-17
+
+### Fixed
+
+- **El diagnóstico de "caída de Internet local" (que suprime alertas DOWN para evitar falsos positivos cuando el propio servidor de Azkin pierde conectividad) podía dispararse por un hipo de DNS ajeno al monitor caído:** el chequeo de redundancia intentaba resolver `1.1.1.1` y `8.8.8.8` como si fueran nombres de dominio, pero `dns.resolve()` hace una consulta DNS real y no puede "resolver" un literal de IP — esas dos ramas fallaban siempre (`ENOTFOUND`), dejando la supuesta triple redundancia reducida a un solo punto de falla real: la resolución DNS de `google.com`. Si esa única consulta tenía un hipo momentáneo, Azkin asumía "se cayó tu Internet" y silenciaba la alerta DOWN de un monitor (típicamente uno de red interna) que en realidad sí estaba caído. Ahora usa los hostnames de esos mismos proveedores (`one.one.one.one` de Cloudflare, `dns.google` de Google) en vez de sus IPs, restaurando la redundancia real entre tres proveedores independientes.
+
 ## [1.3.0] - 2026-08-16
 
 ### Added

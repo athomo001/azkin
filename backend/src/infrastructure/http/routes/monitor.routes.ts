@@ -4,7 +4,7 @@ import { MonitorController } from "../controllers/monitor.controller";
 import { asyncHandler } from "../middlewares/async-handler";
 import { requireRole } from "../middlewares/require-role";
 import { validateBody } from "../middlewares/validate";
-import { createMonitorSchema, updateMonitorSchema } from "../schemas/monitor.schema";
+import { createMonitorSchema, updateMonitorSchema, bulkUpdateMonitorsSchema } from "../schemas/monitor.schema";
 
 export function monitorRoutes(controller: MonitorController): Router {
   const router = Router();
@@ -15,6 +15,7 @@ export function monitorRoutes(controller: MonitorController): Router {
   router.post("/bulk-import", requireRole("admin"), asyncHandler(controller.bulkImportCsv));
   router.post("/import-assets", requireRole("admin"), asyncHandler(controller.importAssets));
   router.post("/bulk-assign-notification", requireRole("admin"), asyncHandler(controller.bulkAssignNotification));
+  router.post("/bulk-update", requireRole("admin"), validateBody(bulkUpdateMonitorsSchema), asyncHandler(controller.bulkUpdate));
   router.put("/:id", requireRole("admin"), validateBody(updateMonitorSchema), asyncHandler(controller.update));
   router.delete("/:id", requireRole("admin"), asyncHandler(controller.remove));
   return router;
