@@ -110,6 +110,7 @@ import { BulkImportMonitorsFromCsvUseCase } from "./application/use-cases/backup
 import { ExportMonitorAssetsUseCase } from "./application/use-cases/monitors/export-monitor-assets.usecase";
 import { ImportMonitorAssetsUseCase } from "./application/use-cases/monitors/import-monitor-assets.usecase";
 import { BulkAssignNotificationUseCase } from "./application/use-cases/monitors/bulk-assign-notification.usecase";
+import { BulkUpdateMonitorsUseCase } from "./application/use-cases/monitors/bulk-update-monitors.usecase";
 
 // Use cases de Notificaciones
 import { CreateNotificationUseCase } from "./application/use-cases/notifications/create-notification.usecase";
@@ -335,6 +336,7 @@ export function buildContainer(env: Env): AppContainer {
   const exportMonitorAssets = new ExportMonitorAssetsUseCase(monitors);
   const importMonitorAssets = new ImportMonitorAssetsUseCase(monitors, scheduler, auditLog);
   const bulkAssignNotification = new BulkAssignNotificationUseCase(monitors, scheduler, auditLog);
+  const bulkUpdateMonitors = new BulkUpdateMonitorsUseCase(monitors, scheduler, auditLog);
   const getHistory = new GetHistoryUseCase(monitors, heartbeats);
   const getGroups = new GetGroupsUseCase(monitors);
   const getGroupOverview = new GetGroupOverviewUseCase(monitors, heartbeats);
@@ -430,6 +432,7 @@ export function buildContainer(env: Env): AppContainer {
     exportMonitorAssets,
     importMonitorAssets,
     bulkAssignNotification,
+    bulkUpdateMonitors,
   );
   const statsController = new StatsController(getHistory, getGroups, getGroupOverview, getRecentEvents, getMonitorEvents, getGroupEvents);
   const userController = new UserController(

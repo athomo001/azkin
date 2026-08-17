@@ -9,6 +9,7 @@ import { BulkImportMonitorsFromCsvUseCase } from "../../../application/use-cases
 import { ExportMonitorAssetsUseCase } from "../../../application/use-cases/monitors/export-monitor-assets.usecase";
 import { ImportMonitorAssetsUseCase } from "../../../application/use-cases/monitors/import-monitor-assets.usecase";
 import { BulkAssignNotificationUseCase } from "../../../application/use-cases/monitors/bulk-assign-notification.usecase";
+import { BulkUpdateMonitorsUseCase } from "../../../application/use-cases/monitors/bulk-update-monitors.usecase";
 import { ValidationError } from "../../../domain/errors/domain-error";
 import { toMonitorResponse } from "../presenters/monitor.presenter";
 
@@ -23,6 +24,7 @@ export class MonitorController {
     private readonly exportAssetsUseCase: ExportMonitorAssetsUseCase,
     private readonly importAssetsUseCase: ImportMonitorAssetsUseCase,
     private readonly bulkAssignNotificationUseCase: BulkAssignNotificationUseCase,
+    private readonly bulkUpdateMonitorsUseCase: BulkUpdateMonitorsUseCase,
   ) {}
 
   list = async (req: Request, res: Response): Promise<void> => {
@@ -105,6 +107,16 @@ export class MonitorController {
       monitorIds,
       notificationId,
       action,
+    });
+    res.status(200).json(result);
+  };
+
+  bulkUpdate = async (req: Request, res: Response): Promise<void> => {
+    const { monitorIds, patch } = req.body;
+    const result = await this.bulkUpdateMonitorsUseCase.execute({
+      actorId: req.adminId!,
+      monitorIds,
+      patch,
     });
     res.status(200).json(result);
   };

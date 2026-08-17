@@ -24,10 +24,13 @@ export class NetworkDiagnostics {
     }
 
     try {
-      // Intentar resolver en paralelo con hosts redundantes y fiables
+      // Intentar resolver en paralelo con hosts redundantes y fiables. `dns.resolve()` hace una
+      // consulta DNS real — no puede "resolver" un literal de IP (1.1.1.1/8.8.8.8 fallarían
+      // siempre con ENOTFOUND), así que se usan los hostnames de esos mismos proveedores en vez
+      // de sus IPs, para no reducir la redundancia a un solo punto de falla (google.com).
       const checkPromise = Promise.any([
-        dns.resolve("1.1.1.1").then(() => true),
-        dns.resolve("8.8.8.8").then(() => true),
+        dns.resolve("one.one.one.one").then(() => true), // Cloudflare
+        dns.resolve("dns.google").then(() => true), // Google
         dns.resolve("google.com").then(() => true),
       ]);
 

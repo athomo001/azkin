@@ -28,6 +28,7 @@ import { ToastComponent } from '../../shared/components/toast';
 import { DashboardNavbarComponent } from './dashboard-navbar';
 import { ThemeModeService } from '../../core/services/theme-mode.service';
 import { MonitorFormComponent } from './monitor-form';
+import { GroupBulkEditComponent } from './group-bulk-edit';
 import { BadgeStatusComponent } from '../../shared/components/badge-status';
 import { FederatedComparisonComponent } from '../../shared/components/federated-comparison';
 
@@ -39,7 +40,7 @@ type HistoryRangeOption = {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, SkeletonLoaderComponent, QuickStatsPanelComponent, ConfirmModalComponent, ToastComponent, DashboardNavbarComponent, MonitorFormComponent, BadgeStatusComponent, FederatedComparisonComponent],
+  imports: [CommonModule, RouterModule, FormsModule, SkeletonLoaderComponent, QuickStatsPanelComponent, ConfirmModalComponent, ToastComponent, DashboardNavbarComponent, MonitorFormComponent, GroupBulkEditComponent, BadgeStatusComponent, FederatedComparisonComponent],
   template: `
     <div class="min-h-screen bg-zinc-950 text-white flex flex-col font-sans transition-colors duration-300">
       <app-dashboard-navbar [activeModeId]="themeModeService.activeModeId()" [availableModes]="themeModeService.availableModes()" (logoClick)="resetSelection()" (selectMode)="themeModeService.setActiveMode($event)" />
@@ -536,6 +537,7 @@ type HistoryRangeOption = {
                   <table class="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr class="bg-zinc-950/80 text-zinc-500 border-b border-zinc-900 font-bold uppercase tracking-wider">
+                        <th class="p-3">Monitor</th>
                         <th class="p-3">Estado</th>
                         <th class="p-3">Fecha/Hora</th>
                         <th class="p-3">Mensaje</th>
@@ -543,12 +545,13 @@ type HistoryRangeOption = {
                     </thead>
                     <tbody class="divide-y divide-zinc-900/60">
                       @if (isLoadingEvents()) {
-                        <tr><td colspan="3" class="p-8 text-center text-zinc-600 font-semibold">Cargando...</td></tr>
+                        <tr><td colspan="4" class="p-8 text-center text-zinc-600 font-semibold">Cargando...</td></tr>
                       } @else if (eventsTableRows().length === 0) {
-                        <tr><td colspan="3" class="p-8 text-center text-zinc-600 font-semibold">Sin revisiones en los últimos 30 min.</td></tr>
+                        <tr><td colspan="4" class="p-8 text-center text-zinc-600 font-semibold">Sin revisiones en los últimos 30 min.</td></tr>
                       } @else {
                         @for (ev of eventsTableRows(); track $index) {
                           <tr class="hover:bg-zinc-900/20 transition-colors">
+                            <td class="p-3 font-bold text-zinc-200">{{ ev.monitorName }}</td>
                             <td class="p-3"><app-badge-status [status]="ev.status"></app-badge-status></td>
                             <td class="p-3 text-zinc-400 font-medium">{{ ev.timestamp | date:'HH:mm:ss dd/MM/yyyy' }}</td>
                             <td class="p-3 font-mono text-zinc-500 text-[11px] truncate max-w-xs" [title]="ev.msg || ''">
@@ -588,7 +591,26 @@ type HistoryRangeOption = {
                   </div>
                   <p class="text-xs text-zinc-500 mt-1">{{ lang.t('group.detail.subtitle') }}</p>
                 </div>
+                @if (authService.isAdmin()) {
+                  <div class="flex items-center gap-2">
+                    <button (click)="showGroupBulkEdit.set(true)"
+                      title="Edición masiva del grupo"
+                      class="p-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 hover:border-orange-500/40 text-zinc-400 hover:text-orange-400 transition-all shadow-md">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                      </svg>
+                    </button>
+                  </div>
+                }
               </div>
+
+              @if (showGroupBulkEdit()) {
+                <app-group-bulk-edit
+                  [monitors]="selectedGroup()?.monitors ?? []"
+                  [groupName]="selectedGroupName() ?? ''"
+                  (saved)="onGroupBulkEditSaved()"
+                  (cancel)="showGroupBulkEdit.set(false)" />
+              }
 
               <!-- Cartas de Estadísticas Consolidadas del Grupo -->
               <div class="grid grid-cols-3 gap-4">
@@ -902,6 +924,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly selectedMonitorId = computed(() => this.selectedMonitor()?.id ?? null);
   readonly selectedGroup = signal<any | null>(null);
   readonly selectedGroupName = computed(() => this.selectedGroup()?.group ?? null);
+  readonly showGroupBulkEdit = signal(false);
   readonly isGroupIncidentDrawerOpen = signal(true);
   readonly showMultiRegionView = signal<boolean>(true);
   readonly federatedSeriesMap = signal<Map<string, { label: string; points: [number, number | null][] }>>(new Map());
@@ -983,12 +1006,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // 30 min, independiente de la ventana del gráfico de latencia de arriba.
   private static readonly EVENTS_TABLE_WINDOW_MS = 30 * 60 * 1000;
   readonly eventsExportRangeOptions: HistoryRangeOption[] = [
+    { label: '30m', durationMs: 30 * 60 * 1000 },
+    { label: '1h', durationMs: 60 * 60 * 1000 },
+    { label: '3h', durationMs: 3 * 60 * 60 * 1000 },
     { label: '6h', durationMs: 6 * 60 * 60 * 1000 },
     { label: '12h', durationMs: 12 * 60 * 60 * 1000 },
     { label: '24h', durationMs: 24 * 60 * 60 * 1000 },
     { label: '48h', durationMs: 48 * 60 * 60 * 1000 },
   ];
-  readonly selectedExportRangeMs = signal(this.eventsExportRangeOptions[0].durationMs);
+  readonly selectedExportRangeMs = signal(6 * 60 * 60 * 1000);
   readonly eventsTableRows = signal<MonitorEvent[]>([]);
   readonly isLoadingEvents = signal(false);
   readonly isExportingEvents = signal(false);
@@ -1554,6 +1580,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.loadGroupHistory(g.monitors);
     this.loadEventsTableForGroup(groupName);
+  }
+
+  onGroupBulkEditSaved(): void {
+    this.showGroupBulkEdit.set(false);
+    this.showSuccessToast('Cambios aplicados a los monitores del grupo.');
+    this.monitorService.loadMonitors().subscribe();
   }
 
   private syncSelectedMonitorAndGroupFromService(): void {

@@ -141,3 +141,20 @@ export const updateMonitorSchema = z
   .refine((data) => Object.keys(data).length > 0, {
     message: "at least one field is required",
   });
+
+export const bulkUpdateMonitorsSchema = z.object({
+  monitorIds: z.array(z.string()).min(1),
+  patch: z
+    .object({
+      ignoreTls: z.boolean().optional(),
+      tags: z.array(z.string().max(50)).max(10).optional(),
+      notificationIds: z.array(z.string()).optional(),
+      integrityEnabled: z.boolean().optional(),
+      integrityProfile: z.enum(["static", "dynamic"]).optional(),
+      integrityIgnoredCssSelectors: z.array(z.string()).optional(),
+      integrityThreshold: z.number().min(0).max(1).optional(),
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      message: "at least one field is required",
+    }),
+});

@@ -45,6 +45,12 @@ export interface IMonitor {
   certExpiry?: number | null;
   certExpiryAt?: string | null;
   domainExpiry?: number | null;
+
+  // Integridad Visual / Anti-Defacement
+  integrityEnabled?: boolean;
+  integrityProfile?: 'static' | 'dynamic';
+  integrityIgnoredCssSelectors?: string[];
+  integrityThreshold?: number;
 }
 
 export interface IHeartbeat {
@@ -199,6 +205,14 @@ export class MonitorService {
    */
   bulkAssignNotification(monitorIds: string[], notificationId: string, action: 'add' | 'remove'): Observable<{ updatedCount: number }> {
     return this.http.post<{ updatedCount: number }>(`${this.apiUrl}/monitors/bulk-assign-notification`, { monitorIds, notificationId, action });
+  }
+
+  /**
+   * Aplica el mismo patch (TLS, etiquetas, canales de alerta, Integridad Visual) a varios
+   * monitores a la vez — usado por el panel de edición masiva de un grupo.
+   */
+  bulkUpdate(monitorIds: string[], patch: Partial<IMonitor>): Observable<{ updatedCount: number }> {
+    return this.http.post<{ updatedCount: number }>(`${this.apiUrl}/monitors/bulk-update`, { monitorIds, patch });
   }
 
   /**
