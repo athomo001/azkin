@@ -1885,6 +1885,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
           width: themeGifUrl ? 5 : 2.5,
           color: themeGifUrl && activeMode ? activeMode.accentColor : '#f97316',
         },
+        // Sin esto, la leyenda y el punto de color del tooltip caen al color automático de la
+        // paleta interna de ECharts (independiente de lineStyle.color) en vez de coincidir con la línea.
+        itemStyle: { color: themeGifUrl && activeMode ? activeMode.accentColor : '#f97316' },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: themeGifUrl && activeMode ? `${activeMode.accentColor}33` : 'rgba(249, 115, 22, 0.2)' },
@@ -1909,6 +1912,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
             width: 2.5,
             color,
           },
+          itemStyle: { color },
         });
         idx++;
       }
@@ -2098,6 +2102,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         symbol: 'none',   // No poner símbolo por defecto a nivel de serie
         connectNulls: true, // Conectar puntos aunque haya nulos
         lineStyle: { width: seriesGifUrl ? 4.5 : 2.5, color: lineColor },
+        // Sin esto, la leyenda y el punto de color del tooltip caen al color automático de la
+        // paleta interna de ECharts (independiente de lineStyle.color) en vez de coincidir con la línea.
+        itemStyle: { color: lineColor },
         // Relleno suave bajo cada línea con opacidad del 15% fija
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
