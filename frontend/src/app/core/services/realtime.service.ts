@@ -16,6 +16,10 @@ export class RealtimeService implements OnDestroy {
   private socket: Socket | null = null;
 
   private heartbeatCallbacks: ((hb: any) => void)[] = [];
+  private reconnectCallbacks: (() => void)[] = [];
+  // true entre un 'disconnect' y el siguiente 'connect' — distingue una reconexión real (donde se
+  // pudieron perder heartbeats y hay que resincronizar el estado) del connect inicial al abrir la app.
+  private wasDisconnected = false;
 
   /**
    * Establece la conexión con el servidor de Socket.io.
@@ -31,12 +35,28 @@ export class RealtimeService implements OnDestroy {
       path: '/socket.io',
       auth: { token: token ?? '' },
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
+      // Sin límite de intentos (default de socket.io-client): con un tope bajo, una caída
+      // prolongada (ej. redeploy del backend) dejaba el dashboard congelado para siempre — sin
+      // más heartbeats entrando, sin más reintentos, y sin ningún indicio visible del problema
+      // hasta que alguien recargara la página a mano.
       reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
     });
 
     this.socket.on('connect', () => {
       console.log('[Realtime] Conectado al servidor de eventos:', this.socket?.id);
+      if (this.wasDisconnected) {
+        // Se perdieron heartbeats durante la caída — re-sincronizar el estado en vez de esperar
+        // a que el próximo heartbeat "de paso" lo arregle.
+        this.wasDisconnected = false;
+        this.reconnectCallbacks.forEach((cb) => {
+          try {
+            cb();
+          } catch (e) {
+            console.error('[Realtime] Error en callback de reconexión:', e);
+          }
+        });
+      }
     });
 
     // Escucha el evento heartbeat y actualiza de forma reactiva el Signal de monitores
@@ -74,6 +94,7 @@ export class RealtimeService implements OnDestroy {
 
     this.socket.on('disconnect', (reason: string) => {
       console.warn('[Realtime] Desconectado del servidor:', reason);
+      this.wasDisconnected = true;
     });
 
     this.socket.on('connect_error', (err: Error) => {
@@ -92,6 +113,17 @@ export class RealtimeService implements OnDestroy {
   }
 
   /**
+   * Registra un callback que se ejecuta al recuperar la conexión después de una caída real (no en
+   * el connect inicial) — para resincronizar datos que pudieron perderse mientras estuvo desconectado.
+   */
+  onReconnect(callback: () => void): () => void {
+    this.reconnectCallbacks.push(callback);
+    return () => {
+      this.reconnectCallbacks = this.reconnectCallbacks.filter(cb => cb !== callback);
+    };
+  }
+
+  /**
    * Desconecta el socket activo de forma limpia
    */
   disconnect(): void {
@@ -100,6 +132,8 @@ export class RealtimeService implements OnDestroy {
       this.socket = null;
     }
     this.heartbeatCallbacks = [];
+    this.reconnectCallbacks = [];
+    this.wasDisconnected = false;
   }
 
   /**

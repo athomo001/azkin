@@ -896,6 +896,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private chartResizeObserver?: ResizeObserver;
   private groupChartResizeObserver?: ResizeObserver;
   private unsubscribeHeartbeat: (() => void) | null = null;
+  private unsubscribeReconnect: (() => void) | null = null;
   private monitorSnapshotRefreshId: ReturnType<typeof window.setInterval> | null = null;
   private monitorSnapshotRequest?: Subscription;
 
@@ -1279,6 +1280,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     // Conectar WebSocket y escuchar actualizaciones en tiempo real
     this.realtimeService.connect();
+    // Tras una caída real de la conexión (ej. redeploy del backend), los heartbeats perdidos
+    // durante ese lapso no se recuperan solos — sin esto, el gráfico visible quedaba congelado en
+    // la hora de la última caída hasta que alguien recargaba la página a mano.
+    this.unsubscribeReconnect = this.realtimeService.onReconnect(() => {
+      this.monitorService.loadMonitors().subscribe();
+      this.loadRecentIncidents();
+
+      const group = this.selectedGroup();
+      const monitor = this.selectedMonitor();
+      if (group) {
+        this.loadGroupHistory(group.monitors);
+      } else if (monitor) {
+        this.selectMonitor(monitor);
+      }
+    });
     this.unsubscribeHeartbeat = this.realtimeService.onHeartbeat((hb: any) => {
       this.syncSelectedMonitorAndGroupFromService();
 
@@ -1396,6 +1412,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     document.body.classList.remove('kiosk-mode');
     this.unsubscribeHeartbeat?.();
+    this.unsubscribeReconnect?.();
     this.realtimeService.disconnect();
     this.monitorSnapshotRequest?.unsubscribe();
     if (this.monitorSnapshotRefreshId !== null) {
