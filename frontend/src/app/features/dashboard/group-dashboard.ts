@@ -122,6 +122,9 @@ export class GroupDashboardComponent implements OnInit, OnDestroy {
       smooth: true,
       symbol: 'none',
       lineStyle: { width: 2, color: palette[idx % palette.length] },
+      // Sin esto, la leyenda y el punto de color del tooltip caen al color automático de la
+      // paleta interna de ECharts (independiente de lineStyle.color) en vez de coincidir con la línea.
+      itemStyle: { color: palette[idx % palette.length] },
       // Gradiente de área bajo la curva según el spec de UI/UX
       areaStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
