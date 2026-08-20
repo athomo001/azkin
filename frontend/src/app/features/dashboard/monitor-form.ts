@@ -71,22 +71,23 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
                   <option value="http">HTTP / HTTPS</option>
                   <option value="ping">Ping (ICMP)</option>
                   <option value="port">Puerto (TCP/UDP)</option>
-                  <option value="dns">DNS Resolution</option>
+                  <option value="dns">Servidor DNS</option>
                   <option value="snmp">SNMP Agent</option>
                   <option value="push">{{ lang.t('monitor.modal.pushPassive') }}</option>
                 </select>
               </div>
-              @if (formModel.type !== 'push') {
+              @if (formModel.type === 'dns') {
                 <div>
-                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">
-                    {{ formModel.type === 'dns' ? lang.t('monitor.modal.targetDns') : lang.t('monitor.modal.target') }}
-                  </label>
-                  <input type="text" [(ngModel)]="formModel.target"
-                    [placeholder]="formModel.type === 'dns' ? 'Ej. cloudflare.com' : 'Ej. www.google.com o 8.8.8.8'" required
+                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.dnsResolver') }} *</label>
+                  <input type="text" [(ngModel)]="formModel.dnsResolver" placeholder="Ej. 8.8.8.8 o 1.1.1.1" required
                     class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
-                  @if (formModel.type === 'dns') {
-                    <p class="text-[10px] text-zinc-600 mt-1">{{ lang.t('monitor.modal.targetDnsHint') }}</p>
-                  }
+                  <p class="text-[10px] text-zinc-600 mt-1">{{ lang.t('monitor.modal.dnsResolverHint') }}</p>
+                </div>
+              } @else if (formModel.type !== 'push') {
+                <div>
+                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.target') }}</label>
+                  <input type="text" [(ngModel)]="formModel.target" placeholder="Ej. www.google.com o 8.8.8.8" required
+                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
                 </div>
               }
             </div>
@@ -109,29 +110,11 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
             }
           </div>
 
-          <!-- Configuración del Checker -->
-          <div class="space-y-4">
-            <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec2') }}</h4>
-            <div class="grid grid-cols-3 gap-4">
+          <!-- Configuración específica del tipo elegido: siempre junto al tipo, antes de lo genérico -->
+          @if (formModel.type === 'http') {
+            <div class="space-y-4 animate-fade-in">
+              <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.httpSec') }}</h4>
               <div>
-                <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.interval') }}</label>
-                <input type="number" [(ngModel)]="formModel.interval" min="20" required
-                  class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-              </div>
-              <div>
-                <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.retries') }}</label>
-                <input type="number" [(ngModel)]="formModel.retries" min="0" required
-                  class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-              </div>
-              <div>
-                <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.retryInterval') }}</label>
-                <input type="number" [(ngModel)]="formModel.retryInterval" min="20" required
-                  class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-              </div>
-            </div>
-
-            @if (formModel.type === 'http') {
-              <div class="animate-fade-in">
                 <div class="flex items-center gap-2">
                   <input type="checkbox" [(ngModel)]="formModel.ignoreTls" id="ignoreTls"
                     class="rounded border-zinc-800 text-orange-500 focus:ring-0 cursor-pointer">
@@ -146,7 +129,7 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
                 }
               </div>
 
-              <div class="grid grid-cols-1 @3xl:grid-cols-2 gap-4 mt-4">
+              <div class="grid grid-cols-1 @3xl:grid-cols-2 gap-4">
                 <div>
                   <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.keywordLabel') }}</label>
                   <input type="text" [(ngModel)]="formModel.keyword" [placeholder]="lang.t('monitor.modal.keywordPlaceholder')"
@@ -170,10 +153,9 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
                     class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
                 </div>
               </div>
-            }
-          </div>
+            </div>
+          }
 
-          <!-- Campos de SNMP -->
           @if (formModel.type === 'snmp') {
             <div class="space-y-4 animate-fade-in">
               <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.snmpSec') }}</h4>
@@ -246,6 +228,79 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
             </div>
           }
 
+          @if (formModel.type === 'port') {
+            <div class="space-y-4 animate-fade-in">
+              <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.portSec') }}</h4>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.portNum') }}</label>
+                  <input type="number" [(ngModel)]="formModel.port" placeholder="Ej. 22, 3389, 445..." required
+                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.portProtocol') }}</label>
+                  <select [(ngModel)]="formModel.portProtocol"
+                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                  </select>
+                </div>
+              </div>
+              @if (formModel.portProtocol === 'udp') {
+                <p class="text-[11px] leading-relaxed text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 animate-fade-in">
+                  {{ lang.t('monitor.modal.portProtocolUdpHint') }}
+                </p>
+              }
+            </div>
+          }
+
+          @if (formModel.type === 'dns') {
+            <div class="space-y-4 animate-fade-in">
+              <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.dnsSec') }}</h4>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.targetDns') }}</label>
+                  <input type="text" [(ngModel)]="formModel.target" placeholder="Ej. example.com" required
+                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
+                  <p class="text-[10px] text-zinc-600 mt-1">{{ lang.t('monitor.modal.targetDnsHint') }}</p>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.dnsRecord') }}</label>
+                  <select [(ngModel)]="formModel.dnsRecordType"
+                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                    <option value="A">A (IPv4)</option>
+                    <option value="AAAA">AAAA (IPv6)</option>
+                    <option value="CNAME">CNAME</option>
+                    <option value="MX">MX</option>
+                    <option value="TXT">TXT</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Configuración del Checker -->
+          <div class="space-y-4">
+            <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec2') }}</h4>
+            <div class="grid grid-cols-3 gap-4">
+              <div>
+                <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.interval') }}</label>
+                <input type="number" [(ngModel)]="formModel.interval" min="20" required
+                  class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.retries') }}</label>
+                <input type="number" [(ngModel)]="formModel.retries" min="0" required
+                  class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.retryInterval') }}</label>
+                <input type="number" [(ngModel)]="formModel.retryInterval" min="20" required
+                  class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+              </div>
+            </div>
+          </div>
+
           <!-- Organización -->
           <div class="space-y-4">
             <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.sec3') }}</h4>
@@ -291,59 +346,6 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
               }
             </div>
           </div>
-
-          <!-- Opciones avanzadas de puerto -->
-          @if (formModel.type === 'port') {
-            <div class="space-y-4 animate-fade-in">
-              <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.portSec') }}</h4>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.portNum') }}</label>
-                  <input type="number" [(ngModel)]="formModel.port" placeholder="Ej. 22, 3389, 445..." required
-                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                </div>
-                <div>
-                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.portProtocol') }}</label>
-                  <select [(ngModel)]="formModel.portProtocol"
-                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                    <option value="tcp">TCP</option>
-                    <option value="udp">UDP</option>
-                  </select>
-                </div>
-              </div>
-              @if (formModel.portProtocol === 'udp') {
-                <p class="text-[11px] leading-relaxed text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 animate-fade-in">
-                  {{ lang.t('monitor.modal.portProtocolUdpHint') }}
-                </p>
-              }
-            </div>
-          }
-
-          <!-- Opciones avanzadas de DNS -->
-          @if (formModel.type === 'dns') {
-            <div class="space-y-4 animate-fade-in">
-              <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.dnsSec') }}</h4>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.dnsResolver') }} *</label>
-                  <input type="text" [(ngModel)]="formModel.dnsResolver" placeholder="Ej. 8.8.8.8 o 1.1.1.1" required
-                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
-                  <p class="text-[10px] text-zinc-600 mt-1">{{ lang.t('monitor.modal.dnsResolverHint') }}</p>
-                </div>
-                <div>
-                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.dnsRecord') }}</label>
-                  <select [(ngModel)]="formModel.dnsRecordType"
-                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
-                    <option value="A">A (IPv4)</option>
-                    <option value="AAAA">AAAA (IPv6)</option>
-                    <option value="CNAME">CNAME</option>
-                    <option value="MX">MX</option>
-                    <option value="TXT">TXT</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          }
 
           <!-- Defacement / Integridad Visual y Estructural -->
           @if (formModel.type === 'http') {
@@ -521,13 +523,15 @@ export class MonitorFormComponent implements OnInit {
   }
 
   /**
-   * Al elegir "DNS Resolution" precarga un dominio de prueba estable en Target (si venía vacío)
-   * para que solo haga falta completar Nombre + IP del servidor — ahorra tipeo al dar de alta
-   * muchos servidores DNS internos seguidos.
+   * Al elegir "Servidor DNS" precarga un dominio de prueba neutro (example.com — reservado por
+   * IANA para esto, sin dependencia de ningún proveedor real) en Target si venía vacío, para que
+   * solo haga falta completar Nombre + IP del servidor. No sirve para DNS internos que solo
+   * resuelven nombres propios: en ese caso hay que reemplazarlo por un hostname interno (ver hint
+   * del campo en la sección de configuración específica).
    */
   onTypeChange(type: MonitorType): void {
     if (type === 'dns' && !this.formModel.target.trim()) {
-      this.formModel.target = 'cloudflare.com';
+      this.formModel.target = 'example.com';
     }
   }
 
