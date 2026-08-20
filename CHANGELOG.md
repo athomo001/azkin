@@ -4,6 +4,17 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.4.0] - 2026-08-19
+
+### Added
+
+- **Monitor de Puerto ahora soporta UDP, además de TCP (SSH, RDP, SMB, o cualquier servicio interno sin web, en un único tipo genérico):** el tipo "Port TCP" pasa a llamarse "Puerto (TCP/UDP)" y agrega un selector de protocolo junto al número de puerto (`portProtocol`, `tcp` por defecto — retrocompatible con los monitores existentes). TCP sigue validando con un handshake real (arriba/abajo confiable); UDP no tiene handshake, así que `port.checker.ts` manda un datagrama vacío y decide así: si llega cualquier respuesta, arriba; si el sistema operativo recibe un rechazo ICMP explícito (`ECONNREFUSED`), abajo con certeza; si no pasa nada dentro del timeout, se asume arriba (mismo criterio "open\|filtered" que usan los escáneres de puertos, porque UDP no permite mejor confirmación). El formulario muestra un aviso ámbar explicando esa limitación cuando se elige UDP.
+- **Herramienta de Diagnóstico DNS en el navbar (ícono junto al selector de tema), disponible para cualquier rol logueado:** consulta puntual de resolución DNS (dominio → registro A/AAAA/CNAME/MX/TXT, con servidor DNS opcional a elección) y resolución reversa (IP → hostname), sin crear ni tocar monitores — pensada para revisar un DNS aislado al vuelo, interno o externo, sin pasar por el flujo de "Agregar Monitor". Nuevos endpoints `POST /api/v1/tools/dns-lookup` y `POST /api/v1/tools/dns-reverse`.
+
+### Changed
+
+- **El monitor "DNS Resolution" ahora exige la IP del servidor DNS a monitorear:** antes el campo "Servidor DNS Resolver" era opcional — dejarlo vacío hacía que la consulta se resolviera contra el resolver del propio servidor de Azkin, sin validar nada del servidor DNS interno que se quería vigilar (bug de diseño silencioso: el monitor se creaba "exitosamente" pero no probaba lo que el usuario pensaba). Ahora es obligatorio, tanto en el formulario como en el backend (`createMonitorSchema`), y el campo Target se renombra a "Dominio de Prueba" con un dominio estable precargado automáticamente al elegir el tipo — dar de alta un DNS interno queda en Nombre + IP.
+
 ## [1.3.1] - 2026-08-17
 
 ### Fixed

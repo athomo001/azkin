@@ -16,6 +16,7 @@ export const createMonitorSchema = z
     type: z.enum(["http", "ping", "port", "dns", "push", "snmp"]),
     target: z.string().min(1).max(512).optional(),
     port: z.number().int().min(1).max(65535).optional(),
+    portProtocol: z.enum(["tcp", "udp"]).optional(),
     interval: z.number().int().min(20),
     retries: z.number().int().min(0).default(0),
     retryInterval: z.number().int().min(20).default(60),
@@ -78,6 +79,15 @@ export const createMonitorSchema = z
         path: ["port"],
       });
     }
+    if (data.type === "dns" && !data.dnsResolver) {
+      // Sin esto, la consulta se resuelve contra el resolver del propio servidor de Azkin y no
+      // valida nada del servidor DNS que se quería monitorear — ver dns.checker.ts.
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "dnsResolver is required when type is 'dns'",
+        path: ["dnsResolver"],
+      });
+    }
     if (data.type === "http" && data.target && !isHttpUrl(data.target)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -93,6 +103,7 @@ export const updateMonitorSchema = z
     type: z.enum(["http", "ping", "port", "dns", "push", "snmp"]).optional(),
     target: z.string().min(1).max(512).optional(),
     port: z.number().int().min(1).max(65535).optional(),
+    portProtocol: z.enum(["tcp", "udp"]).optional(),
     interval: z.number().int().min(20).optional(),
     retries: z.number().int().min(0).optional(),
     retryInterval: z.number().int().min(20).optional(),

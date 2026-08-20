@@ -440,8 +440,8 @@ que configures. Qué protocolos/puertos exactos dependen de qué tipos de monito
 |---|---|---|
 | TCP 80/443 (o el puerto propio de cada sitio) | HTTP(S) saliente hacia cada objetivo | Monitor **HTTP/HTTPS** |
 | ICMP (echo request/reply) | Ping saliente | Monitor **Ping** |
-| TCP (el puerto que configures por monitor) | Conexión TCP saliente hacia el puerto vigilado | Monitor **Puerto (TCP)** |
-| UDP/TCP 53 | Consultas DNS — al servidor configurado en el monitor (`dnsResolver`), o al DNS del contenedor si no se especifica ninguno | Monitor **DNS Resolver**, y resolución de nombres en general para el resto de los monitores |
+| TCP o UDP (el puerto y protocolo que configures por monitor, `portProtocol`) | Conexión/datagrama saliente hacia el puerto vigilado (ej. 22 SSH, 3389 RDP, 445 SMB) | Monitor **Puerto (TCP/UDP)** |
+| UDP/TCP 53 | Consultas DNS — al servidor configurado en el monitor (`dnsResolver`, obligatorio) | Monitor **DNS Resolver**, la Herramienta de Diagnóstico DNS del navbar, y resolución de nombres en general para el resto de los monitores |
 | UDP 161 (o el puerto que configures, `snmpPort`) | Consultas SNMP v1/v2c/v3 | Monitor **SNMP** |
 | TCP 587/465/25 (según cómo configures el canal) | Envío de correo SMTP saliente | Canal de notificación **Email**, y el **SMTP de Aplicación** (recuperación de contraseña, `/settings` → Sistema) |
 | TCP 443 (HTTPS saliente) | Llamadas a la API del servicio | Canales **Slack**, **Discord**, **Telegram** y **Webhook genérico** (cada uno llama a su propia URL vía HTTPS — `hooks.slack.com`, `discord.com`, `api.telegram.org`, o el host que definas en un webhook) |

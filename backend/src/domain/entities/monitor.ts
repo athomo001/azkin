@@ -20,6 +20,7 @@ export interface IMonitor {
   type: MonitorType;
   target: string; // URL (http) | host/IP (ping, port, dns) | opcional para tipo "push"
   port?: number; // Requerido solo cuando el tipo es "port"
+  portProtocol?: "tcp" | "udp"; // Solo aplica al tipo "port". Default "tcp" si no viene (monitores creados antes de este campo).
   interval: number; // Segundos entre checks ordinarios (mínimo 20)
   retries: number; // Número de reintentos permitidos ante fallos antes de marcar DOWN
   retryInterval: number; // Segundos entre reintentos en estado PENDING (mínimo 20)

@@ -138,6 +138,10 @@ import { RevokeApiKeyUseCase } from "./application/use-cases/api-keys/revoke-api
 import { DeleteApiKeyUseCase } from "./application/use-cases/api-keys/delete-api-key.usecase";
 import { ListAuditLogUseCase } from "./application/use-cases/audit-log/list-audit-log.usecase";
 
+// Use cases de Herramientas de diagnóstico (DNS Lookup / Reverse, no persistidas)
+import { DnsLookupUseCase } from "./application/use-cases/tools/dns-lookup.usecase";
+import { DnsReverseLookupUseCase } from "./application/use-cases/tools/dns-reverse-lookup.usecase";
+
 // Use cases de Federación de instancias (AZ-049, slice 1: enrollment)
 import { CreateEnrollmentTokenUseCase } from "./application/use-cases/federation/create-enrollment-token.usecase";
 import { JoinFederationUseCase } from "./application/use-cases/federation/join-federation.usecase";
@@ -177,6 +181,7 @@ import { ReportController } from "./infrastructure/http/controllers/report.contr
 import { FederationController } from "./infrastructure/http/controllers/federation.controller";
 import { FederationPeerController } from "./infrastructure/http/controllers/federation-peer.controller";
 import { ThemeModeController } from "./infrastructure/http/controllers/theme-mode.controller";
+import { ToolsController } from "./infrastructure/http/controllers/tools.controller";
 
 import { authRoutes } from "./infrastructure/http/routes/auth.routes";
 import { monitorRoutes } from "./infrastructure/http/routes/monitor.routes";
@@ -192,6 +197,7 @@ import { reportRoutes } from "./infrastructure/http/routes/report.routes";
 import { federationRoutes } from "./infrastructure/http/routes/federation.routes";
 import { federationPeerRoutes } from "./infrastructure/http/routes/federation-peer.routes";
 import { themeModeRoutes } from "./infrastructure/http/routes/theme-mode.routes";
+import { toolsRoutes } from "./infrastructure/http/routes/tools.routes";
 import { makeVerifyPeerSecret } from "./infrastructure/http/middlewares/verify-peer-secret";
 
 import { makeAuthGuard } from "./infrastructure/http/middlewares/auth-guard";
@@ -484,6 +490,11 @@ export function buildContainer(env: Env): AppContainer {
   const listAuditLog = new ListAuditLogUseCase(auditLog, users);
   const auditLogController = new AuditLogController(listAuditLog);
 
+  // Instanciación de Use cases de Herramientas de diagnóstico (DNS Lookup / Reverse)
+  const dnsLookup = new DnsLookupUseCase();
+  const dnsReverseLookup = new DnsReverseLookupUseCase();
+  const toolsController = new ToolsController(dnsLookup, dnsReverseLookup);
+
   // Instanciación de Use cases de Federación de instancias (AZ-049, slice 1: enrollment)
   const createEnrollmentToken = new CreateEnrollmentTokenUseCase(federationTokensRepo, auditLog, resolveOwnUrl);
   const joinFederation = new JoinFederationUseCase(
@@ -657,6 +668,8 @@ export function buildContainer(env: Env): AppContainer {
   app.use("/api/v1/maintenance", authGuard, maintenanceRoutes(maintenanceController));
   app.use("/api/v1/reports", authGuard, reportRoutes(reportController));
   app.use("/api/v1/theme-modes", authGuard, themeModeRoutes(themeModeController));
+  // Sin requireRole: disponible para cualquier rol autenticado, igual que /monitors.
+  app.use("/api/v1/tools", authGuard, toolsRoutes(toolsController));
   // Sin authGuard a nivel de mount: /enrollments es pública (la llama el backend de la instancia
   // remota, no un usuario con sesión); /tokens e /instances aplican authGuard+requireRole("admin")
   // dentro del propio router (ver federation.routes.ts), igual que auth.routes.ts con /login.
