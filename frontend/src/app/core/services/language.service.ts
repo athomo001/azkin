@@ -217,10 +217,16 @@ const TRANSLATIONS = {
       'monitor.modal.snmpPrivProto': { es: 'Protocolo Privacidad', en: 'Privacy Protocol' },
       'monitor.modal.snmpPrivKey': { es: 'Clave Privacidad', en: 'Privacy Key' },
       'monitor.modal.portSec': { es: 'Configuración del Puerto', en: 'Port Configuration' },
-      'monitor.modal.portNum': { es: 'Número de Puerto TCP', en: 'TCP Port Number' },
+      'monitor.modal.portNum': { es: 'Número de Puerto', en: 'Port Number' },
+      'monitor.modal.portProtocol': { es: 'Protocolo', en: 'Protocol' },
+      'monitor.modal.portProtocolUdpHint': { es: 'UDP no tiene confirmación de conexión: si nadie responde dentro del timeout se asume el puerto abierto (mismo criterio que usan los escáneres de puertos). Solo un rechazo explícito de la red se reporta como caído.', en: 'UDP has no connection handshake: if nothing replies within the timeout the port is assumed open (same convention port scanners use). Only an explicit network rejection is reported as down.' },
       'monitor.modal.dnsSec': { es: 'Configuración del Resolutor DNS', en: 'DNS Resolver Configuration' },
-      'monitor.modal.dnsResolver': { es: 'Servidor DNS Resolver', en: 'DNS Resolver Server' },
+      'monitor.modal.dnsResolver': { es: 'IP del Servidor DNS a Monitorear', en: 'DNS Server IP to Monitor' },
+      'monitor.modal.dnsResolverHint': { es: 'Este es el servidor que se vigila. Si lo dejas vacío, el monitor no comprueba nada de tu servidor.', en: 'This is the server being watched. Leaving it empty means the monitor checks nothing about your server.' },
+      'monitor.modal.dnsResolverRequired': { es: 'Ingresa la IP del servidor DNS que quieres monitorear.', en: 'Enter the IP of the DNS server you want to monitor.' },
       'monitor.modal.dnsRecord': { es: 'Tipo de Registro DNS', en: 'DNS Record Type' },
+      'monitor.modal.targetDns': { es: 'Dominio de Prueba (a resolver)', en: 'Test Domain (to resolve)' },
+      'monitor.modal.targetDnsHint': { es: 'Cualquier dominio estable sirve — se usa solo como consulta de prueba contra el servidor de abajo.', en: 'Any stable domain works — used only as the test query against the server below.' },
       'monitor.modal.saving': { es: 'Guardando...', en: 'Saving...' },
       'monitor.modal.saveBtn': { es: 'Guardar Monitor', en: 'Save Monitor' },
       'monitor.modal.deleteTitle': { es: '¿Eliminar Monitor?', en: 'Delete Monitor?' },
@@ -271,7 +277,23 @@ const TRANSLATIONS = {
       'settings.themeModes.save': { es: 'Guardar', en: 'Save' },
       'settings.themeModes.saving': { es: 'Guardando...', en: 'Saving...' },
       'settings.themeModes.saved': { es: 'Preferencias de modos temáticos actualizadas.', en: 'Theme mode settings updated.' },
-      'settings.themeModes.saveError': { es: 'Error al guardar los modos temáticos.', en: 'Error saving theme modes.' }
+      'settings.themeModes.saveError': { es: 'Error al guardar los modos temáticos.', en: 'Error saving theme modes.' },
+
+      // Herramienta de diagnóstico DNS (navbar) — consulta puntual, no crea monitores.
+      'dnsTool.button': { es: 'Herramienta DNS', en: 'DNS Tool' },
+      'dnsTool.title': { es: 'Herramienta de Diagnóstico DNS', en: 'DNS Diagnostic Tool' },
+      'dnsTool.subtitle': { es: 'Consulta puntual — no crea ni modifica monitores.', en: 'One-off query — does not create or modify monitors.' },
+      'dnsTool.tabLookup': { es: 'Resolver', en: 'Resolve' },
+      'dnsTool.tabReverse': { es: 'Reversa (IP → Host)', en: 'Reverse (IP → Host)' },
+      'dnsTool.hostname': { es: 'Dominio / URL', en: 'Domain / URL' },
+      'dnsTool.resolver': { es: 'Servidor DNS (opcional)', en: 'DNS Server (optional)' },
+      'dnsTool.resolverHint': { es: 'Vacío = resolver del servidor de Azkin', en: 'Empty = Azkin server\'s own resolver' },
+      'dnsTool.recordType': { es: 'Tipo de Registro', en: 'Record Type' },
+      'dnsTool.ip': { es: 'Dirección IP', en: 'IP Address' },
+      'dnsTool.submit': { es: 'Consultar', en: 'Query' },
+      'dnsTool.querying': { es: 'Consultando...', en: 'Querying...' },
+      'dnsTool.records': { es: 'Registros encontrados', en: 'Records found' },
+      'dnsTool.hostnames': { es: 'Hosts encontrados', en: 'Hosts found' }
 } as const;
 
 export type TranslationKey = keyof typeof TRANSLATIONS;

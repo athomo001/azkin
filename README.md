@@ -26,8 +26,8 @@ La plataforma soporta múltiples tipos de verificación:
 
 - **HTTP/HTTPS:** Latencia, códigos de respuesta, validación de palabras clave (presencia/ausencia) y detección/bypass inteligente de **Cloudflare WAF**.
 - **Ping (ICMP):** Comprobación de estado a nivel de capa de red.
-- **TCP Port:** Monitoreo de puertos y sockets activos.
-- **DNS Resolver:** Resolución de registros A, AAAA, CNAME, MX y TXT con servidores específicos.
+- **Puerto (TCP/UDP):** Monitoreo genérico de socket — IP/hostname + puerto + protocolo — para servicios internos sin interfaz web (SSH, RDP, SMB, o cualquier caso aislado).
+- **DNS Resolver:** Consulta DNS activa (registros A, AAAA, CNAME, MX, TXT) contra un servidor específico — valida que un servidor DNS interno o externo realmente resuelva nombres, no solo que responda ping.
 - **Push Pasivo:** Agente pasivo (heartbeat remoto hacia Azkin).
 - **SNMP (v1/v2c/v3):** Lectura avanzada de OIDs para equipos de red.
 - **Uptime 24h:** Cálculo de disponibilidad porcentual por monitor y por grupo para seguimiento operativo.
@@ -54,6 +54,7 @@ Para integrar sistemas externos (Grafana, scripts, CI/CD) sin usar una sesión d
 - **Sesión segura:** el access token vive en memoria (nunca en `localStorage`); la sesión se renueva mediante una cookie `HttpOnly` de refresh, rotada en cada uso. Cada token lleva un claim `typ` (`access`/`refresh`) que impide usar uno en lugar del otro, y bloquear/eliminar una cuenta corta su acceso en la siguiente petición (no hay que esperar a que el token expire solo).
 - **Hardening de seguridad:** batch de correcciones de una auditoría de seguridad completa — validación de certificado TLS restaurada en las alertas por email, contraseña actual exigida para cambiar la propia y protección contra IDOR al resetear la de otro Admin, escape de HTML/JSON/Markdown en informes y notificaciones, neutralización de inyección de fórmulas en CSV, credenciales SNMP enmascaradas para Viewers, cabeceras de seguridad (`helmet`) y contenedor backend sin privilegios de root. Detalle completo en [`ISSUES.md`](./ISSUES.md).
 - **Modos Temáticos (plug-in):** easter egg configurable — cada modo es una carpeta de GIFs (`assets/huevo/<id>/`) descubierta en caliente por el backend, sin rebuild ni redeploy para agregar uno nuevo. En un gráfico de grupo, cada monitor sortea un GIF distinto del modo activo en vez de repetir siempre el mismo, priorizando destacar los monitores caídos/degradados. Admin puede habilitar/deshabilitar modos desde `/settings`.
+- **Herramienta de Diagnóstico DNS:** consulta puntual desde el navbar (resolución directa y reversa, con servidor DNS a elección) para revisar un DNS aislado al vuelo sin crear un monitor — no persiste nada, disponible para cualquier rol logueado.
 
 ---
 

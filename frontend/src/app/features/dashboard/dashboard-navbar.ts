@@ -6,6 +6,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { LanguageService } from '../../core/services/language.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { ThemeModeSummary } from '../../core/services/theme-mode.service';
+import { DnsToolsModalComponent } from './dns-tools-modal';
 
 /**
  * Navbar del dashboard: logo (vuelve a Quick Stats), tema/idioma, info de usuario, selector de
@@ -19,7 +20,7 @@ import { ThemeModeSummary } from '../../core/services/theme-mode.service';
 @Component({
   selector: 'app-dashboard-navbar',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, DnsToolsModalComponent],
   template: `
     <nav class="bg-zinc-900/50 backdrop-blur-md border-b border-zinc-800 px-6 py-3 flex items-center justify-between shadow-lg sticky top-0 z-40">
       <div class="flex items-center space-x-3">
@@ -28,6 +29,11 @@ import { ThemeModeSummary } from '../../core/services/theme-mode.service';
         <span class="text-xs text-zinc-500 border border-zinc-800 px-2 py-0.5 rounded bg-zinc-900/80">PROD</span>
       </div>
       <div class="flex items-center space-x-6">
+        <button (click)="isDnsToolOpen.set(true)" class="text-zinc-400 hover:text-orange-500 transition-colors p-1.5 rounded-lg border border-zinc-800 bg-zinc-950/40" [title]="lang.t('dnsTool.button')">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253" />
+          </svg>
+        </button>
         <button (click)="themeService.toggle($event)" class="text-zinc-400 hover:text-orange-500 transition-colors p-1.5 rounded-lg border border-zinc-800 bg-zinc-950/40" title="Cambiar tema">
           @if (themeService.isLightTheme()) {
             <!-- Sun Icon -->
@@ -100,6 +106,10 @@ import { ThemeModeSummary } from '../../core/services/theme-mode.service';
         </button>
       </div>
     </nav>
+
+    @if (isDnsToolOpen()) {
+      <app-dns-tools-modal (close)="isDnsToolOpen.set(false)" />
+    }
   `,
   styles: [`
     @keyframes fade-in {
@@ -122,6 +132,7 @@ export class DashboardNavbarComponent {
   readonly selectMode = output<string | null>();
 
   readonly isThemeMenuOpen = signal(false);
+  readonly isDnsToolOpen = signal(false);
 
   /** Emoji del botón: el del modo activo, o 🎭 (neutral, D3) si no hay ninguno activo. */
   readonly activeModeEmoji = () => {

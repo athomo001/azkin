@@ -66,11 +66,11 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
               </div>
               <div>
                 <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.type') }}</label>
-                <select [(ngModel)]="formModel.type"
+                <select [(ngModel)]="formModel.type" (ngModelChange)="onTypeChange($event)"
                   class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
                   <option value="http">HTTP / HTTPS</option>
                   <option value="ping">Ping (ICMP)</option>
-                  <option value="port">Port TCP</option>
+                  <option value="port">Puerto (TCP/UDP)</option>
                   <option value="dns">DNS Resolution</option>
                   <option value="snmp">SNMP Agent</option>
                   <option value="push">{{ lang.t('monitor.modal.pushPassive') }}</option>
@@ -78,9 +78,15 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
               </div>
               @if (formModel.type !== 'push') {
                 <div>
-                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.target') }}</label>
-                  <input type="text" [(ngModel)]="formModel.target" placeholder="Ej. www.google.com o 8.8.8.8" required
+                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                    {{ formModel.type === 'dns' ? lang.t('monitor.modal.targetDns') : lang.t('monitor.modal.target') }}
+                  </label>
+                  <input type="text" [(ngModel)]="formModel.target"
+                    [placeholder]="formModel.type === 'dns' ? 'Ej. cloudflare.com' : 'Ej. www.google.com o 8.8.8.8'" required
                     class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
+                  @if (formModel.type === 'dns') {
+                    <p class="text-[10px] text-zinc-600 mt-1">{{ lang.t('monitor.modal.targetDnsHint') }}</p>
+                  }
                 </div>
               }
             </div>
@@ -290,11 +296,26 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
           @if (formModel.type === 'port') {
             <div class="space-y-4 animate-fade-in">
               <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.portSec') }}</h4>
-              <div>
-                <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.portNum') }}</label>
-                <input type="number" [(ngModel)]="formModel.port" placeholder="Ej. 80 o 3306" required
-                  class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.portNum') }}</label>
+                  <input type="number" [(ngModel)]="formModel.port" placeholder="Ej. 22, 3389, 445..." required
+                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.portProtocol') }}</label>
+                  <select [(ngModel)]="formModel.portProtocol"
+                    class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white">
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                  </select>
+                </div>
               </div>
+              @if (formModel.portProtocol === 'udp') {
+                <p class="text-[11px] leading-relaxed text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 animate-fade-in">
+                  {{ lang.t('monitor.modal.portProtocolUdpHint') }}
+                </p>
+              }
             </div>
           }
 
@@ -304,9 +325,10 @@ type MonitorType = 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
               <h4 class="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-800 pb-1">{{ lang.t('monitor.modal.dnsSec') }}</h4>
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.dnsResolver') }}</label>
-                  <input type="text" [(ngModel)]="formModel.dnsResolver" placeholder="Ej. 8.8.8.8 o 1.1.1.1"
+                  <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.dnsResolver') }} *</label>
+                  <input type="text" [(ngModel)]="formModel.dnsResolver" placeholder="Ej. 8.8.8.8 o 1.1.1.1" required
                     class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 text-white placeholder-zinc-700">
+                  <p class="text-[10px] text-zinc-600 mt-1">{{ lang.t('monitor.modal.dnsResolverHint') }}</p>
                 </div>
                 <div>
                   <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">{{ lang.t('monitor.modal.dnsRecord') }}</label>
@@ -426,6 +448,7 @@ export class MonitorFormComponent implements OnInit {
       type: 'http' as MonitorType,
       target: '',
       port: 80 as number | undefined,
+      portProtocol: 'tcp' as 'tcp' | 'udp',
       interval: 60,
       retries: 0,
       retryInterval: 60,
@@ -464,6 +487,7 @@ export class MonitorFormComponent implements OnInit {
       type: monitor.type,
       target: monitor.target || '',
       port: monitor.port,
+      portProtocol: (monitor as any).portProtocol || 'tcp',
       interval: monitor.interval,
       retries: monitor.retries || 0,
       retryInterval: 60,
@@ -494,6 +518,17 @@ export class MonitorFormComponent implements OnInit {
       integrityIgnoredCssSelectors: (monitor as any).integrityIgnoredCssSelectors || [],
       notificationIds: monitor.notificationIds || []
     };
+  }
+
+  /**
+   * Al elegir "DNS Resolution" precarga un dominio de prueba estable en Target (si venía vacío)
+   * para que solo haga falta completar Nombre + IP del servidor — ahorra tipeo al dar de alta
+   * muchos servidores DNS internos seguidos.
+   */
+  onTypeChange(type: MonitorType): void {
+    if (type === 'dns' && !this.formModel.target.trim()) {
+      this.formModel.target = 'cloudflare.com';
+    }
   }
 
   tagsString(): string {
@@ -564,6 +599,15 @@ export class MonitorFormComponent implements OnInit {
       }
     }
 
+    // El monitor DNS solo tiene sentido si apunta a un servidor específico — sin esto, la
+    // consulta se resuelve contra el resolver del propio servidor de Azkin y no valida nada
+    // del servidor DNS que se quería monitorear.
+    if (type === 'dns' && !this.formModel.dnsResolver?.trim()) {
+      this.formError.set(this.lang.t('monitor.modal.dnsResolverRequired'));
+      this.isSubmitting.set(false);
+      return;
+    }
+
     // Con 2+ canales activos disponibles, exige una elección explícita en vez de guardar
     // silenciosamente sin ninguno seleccionado — evita monitores que nunca avisan porque
     // el canal se creó después del monitor y nadie volvió a revisarlo (con exactamente 1
@@ -599,6 +643,10 @@ export class MonitorFormComponent implements OnInit {
         integrityProfile: this.formModel.integrityEnabled ? this.formModel.integrityProfile : undefined,
         integrityThreshold: this.formModel.integrityEnabled ? this.formModel.integrityThreshold : undefined,
         integrityIgnoredCssSelectors: this.formModel.integrityEnabled ? this.formModel.integrityIgnoredCssSelectors : undefined
+      });
+    } else if (this.formModel.type === 'port') {
+      Object.assign(payload, {
+        portProtocol: this.formModel.portProtocol
       });
     } else if (this.formModel.type === 'dns') {
       Object.assign(payload, {

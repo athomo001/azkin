@@ -26,8 +26,8 @@ The platform supports multiple types of checks:
 
 - **HTTP/HTTPS:** Latency, response codes, keyword validation (presence/absence), and smart **Cloudflare WAF** detection/bypass.
 - **Ping (ICMP):** Status check at the network layer.
-- **TCP Port:** Monitoring of active ports and sockets.
-- **DNS Resolver:** Resolution of A, AAAA, CNAME, MX, and TXT records with specific servers.
+- **Port (TCP/UDP):** Generic socket monitoring — IP/hostname + port + protocol — for internal services with no web interface (SSH, RDP, SMB, or any one-off case).
+- **DNS Resolver:** Active DNS query (A, AAAA, CNAME, MX, TXT records) against a specific server — confirms an internal or external DNS server actually resolves names, not just that it answers ping.
 - **Passive Push:** Passive agent (remote heartbeat toward Azkin).
 - **SNMP (v1/v2c/v3):** Advanced OID reading for network equipment.
 - **24h Uptime:** Percentage availability calculation per monitor and per group for operational tracking.
@@ -54,6 +54,7 @@ To integrate external systems (Grafana, scripts, CI/CD) without using a user ses
 - **Secure session:** the access token lives in memory (never in `localStorage`); the session is renewed via an `HttpOnly` refresh cookie, rotated on every use. Each token carries a `typ` claim (`access`/`refresh`) that prevents using one in place of the other, and locking/deleting an account cuts off its access on the next request (no need to wait for the token to expire on its own).
 - **Security hardening:** a batch of fixes from a full security audit — restored TLS certificate validation in email alerts, current password required to change your own and IDOR protection when resetting another Admin's password, HTML/JSON/Markdown escaping in reports and notifications, CSV formula-injection neutralization, masked SNMP credentials for Viewers, security headers (`helmet`), and a non-root backend container. Full details in [`ISSUES.md`](./ISSUES.md).
 - **Theme Modes (plug-in):** a configurable easter egg — each mode is a folder of GIFs (`assets/huevo/<id>/`) discovered live by the backend, no rebuild or redeploy needed to add a new one. On a group chart, each monitor draws a different GIF from the active mode instead of always repeating the same one, prioritizing down/degraded monitors. Admins can enable/disable modes from `/settings`.
+- **DNS Diagnostic Tool:** a one-off query from the navbar (forward and reverse resolution, with an optional DNS server to query against) to check a single DNS server on the fly without creating a monitor — persists nothing, available to any logged-in role.
 
 ---
 

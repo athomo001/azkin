@@ -8,6 +8,7 @@ export interface MonitorDoc {
   type: MonitorType;
   target: string;
   port?: number;
+  portProtocol?: "tcp" | "udp";
   interval: number;
   retries: number;
   retryInterval: number;
@@ -74,6 +75,7 @@ const monitorSchema = new Schema<MonitorDoc>(
         return this.type === "port";
       },
     },
+    portProtocol: { type: String, enum: ["tcp", "udp"], default: "tcp" },
     interval: { type: Number, required: true, min: 20, default: 60 },
     retries: { type: Number, required: true, min: 0, default: 0 },
     retryInterval: { type: Number, required: true, min: 20, default: 60 },

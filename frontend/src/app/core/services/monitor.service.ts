@@ -12,6 +12,7 @@ export interface IMonitor {
   type: 'http' | 'ping' | 'port' | 'dns' | 'push' | 'snmp';
   target?: string;
   port?: number;
+  portProtocol?: 'tcp' | 'udp';
   interval: number;
   retries: number;
   timeout: number;

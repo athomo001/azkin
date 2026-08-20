@@ -13,6 +13,7 @@ export interface CreateMonitorInput {
   type: MonitorType;
   target: string;
   port?: number;
+  portProtocol?: "tcp" | "udp";
   interval: number;
   retries: number;
   retryInterval: number;
