@@ -4,6 +4,13 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.4.1] - 2026-08-21
+
+### Fixed
+
+- **Guardar un canal de notificación podía fallar en silencio, sin ningún mensaje al hacer clic en "Actualizar"/"Crear Canal":** `onSaveChannel()` (`alerts-panel.ts`) llamaba a `notificationService.update()`/`.create()` con un `subscribe()` que solo definía `next`, sin `error` — si el backend rechazaba el guardado (por ejemplo, una plantilla de email sin asunto, que el schema de validación exige junto al cuerpo), la excepción quedaba como un error no controlado en la consola del navegador y el formulario se quedaba tal cual, dando la sensación de que el botón no hacía nada. Ahora ambos casos muestran un toast con el motivo real del rechazo; de paso, `extractApiErrorMessage()` deja de mostrar el genérico "Validation failed" y usa el mensaje específico de cada campo (ej. "La plantilla de email para el evento DOWN requiere un asunto").
+- **El asunto y el cuerpo de la plantilla de mensaje aparecían vacíos al abrir "Editar Canal" o cambiar de evento, sin ninguna plantilla precargada para editar:** Azkin ya usaba una plantilla por defecto por tipo de evento (título + cuerpo con las variables disponibles) como respaldo al momento de enviar una alerta si el canal no tenía una guardada, pero el formulario nunca la consultaba — el admin no tenía forma de ver ese contenido por defecto ni de partir de él para personalizarlo. Ahora, al editar un canal o cambiar el evento seleccionado en el selector de plantilla, el asunto y el cuerpo se precargan con la plantilla por defecto si el evento no tiene una guardada; para canales de email con una plantilla guardada solo con cuerpo (sin asunto, la causa más común del primer bug de esta entrada), el asunto también se completa automáticamente con el título por defecto.
+
 ## [1.4.0] - 2026-08-19
 
 ### Added

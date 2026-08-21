@@ -22,6 +22,37 @@ export interface INotificationChannel {
   templates: Partial<Record<AlertEventType, INotificationTemplate>>;
 }
 
+const DEFAULT_TITLES: Record<AlertEventType, string> = {
+  DOWN: 'ALERTA DE CAÍDA (DOWN)',
+  RECOVERED: 'ALERTA RESTABLECIDA (UP)',
+  DEGRADED: 'ALERTA DE DEGRADACIÓN (RESPUESTA LENTA/ANÓMALA)',
+  LATENCY_HIGH: 'ALERTA DE LATENCIA ALTA',
+  DEFACEMENT: 'ALERTA DE DEFACEMENT',
+};
+
+const DEFAULT_BODY =
+  '🚨 *{{status}}* 🚨\n\n*Monitor:* {{monitor}}\n*Objetivo:* {{url}}\n*Estado:* {{previousStatus}} ➡️ {{status}}\n*Detalle:* {{detail}}\n*Ping:* {{ping}} ms\n*Fecha/Hora:* {{datetime}}';
+
+const DEFAULT_WEBHOOK_BODY = JSON.stringify({
+  event: 'monitor.status_changed',
+  monitor: { id: '{{monitorId}}', name: '{{monitor}}', type: '{{monitorType}}', target: '{{url}}' },
+  transition: { from: '{{previousStatus}}', to: '{{status}}' },
+  heartbeat: { timestamp: '{{datetime}}', ping: '{{ping}}', msg: '{{detail}}' },
+});
+
+/**
+ * Espeja backend/src/infrastructure/notifier/default-templates.ts — misma plantilla que el
+ * notifier usa como fallback en runtime si el canal no tiene una plantilla guardada para el
+ * evento. Se usa acá para precargarla visiblemente en el formulario de edición (antes el campo
+ * quedaba vacío y el admin no sabía que existía un mensaje por defecto que podía modificar).
+ */
+export function defaultTemplateFor(eventType: AlertEventType, channelType: INotificationChannel['type']): INotificationTemplate {
+  if (channelType === 'webhook') {
+    return { body: DEFAULT_WEBHOOK_BODY };
+  }
+  return { subject: DEFAULT_TITLES[eventType], body: DEFAULT_BODY };
+}
+
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
   private readonly http = inject(HttpClient);
