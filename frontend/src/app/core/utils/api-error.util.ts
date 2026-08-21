@@ -11,6 +11,16 @@ import { HttpErrorResponse } from '@angular/common/http';
 export function extractApiErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof HttpErrorResponse) {
     const body = err.error;
+    // Los errores de Zod (validateBody middleware) llegan como `error.message: "Validation failed"`
+    // + `error.details: ZodIssue[]`, cada uno con un `.message` específico y legible en español
+    // (ver notification.schema.ts). Priorizarlos evita mostrar el genérico "Validation failed".
+    const details = body?.error?.details;
+    if (Array.isArray(details) && details.length > 0) {
+      const issueMessages = details
+        .map((issue: any) => issue?.message)
+        .filter((msg: unknown): msg is string => typeof msg === 'string' && msg.length > 0);
+      if (issueMessages.length > 0) return issueMessages.join(' | ');
+    }
     if (typeof body?.error?.message === 'string') return body.error.message;
     if (typeof body?.message === 'string') return body.message;
   }

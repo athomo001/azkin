@@ -2,7 +2,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { NotificationService, INotificationChannel, AlertEventType, ALERT_EVENT_TYPES, INotificationTemplate } from '../../core/services/notification.service';
+import { NotificationService, INotificationChannel, AlertEventType, ALERT_EVENT_TYPES, INotificationTemplate, defaultTemplateFor } from '../../core/services/notification.service';
 import { LanguageService } from '../../core/services/language.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
@@ -155,7 +155,7 @@ import { EmojiPickerComponent } from '../../shared/components/emoji-picker';
               <!-- Plantillas por evento con cheatsheet de variables y selector de emojis -->
               <div class="space-y-2 border-t border-zinc-850 pt-4">
                 <span class="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">{{ lang.t('settings.alerts.templateLabel') }}</span>
-                <select [(ngModel)]="channelForm.activeTemplateEvent"
+                <select [(ngModel)]="channelForm.activeTemplateEvent" (ngModelChange)="onTemplateEventChange()"
                   class="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500">
                   @for (evt of alertEventTypes; track evt) {
                     <option [value]="evt">{{ evt }}</option>
@@ -373,6 +373,31 @@ export class AlertsPanelComponent {
     this.channelForm.templates = { ...this.channelForm.templates, [evt]: { ...existing, subject } };
   }
 
+  onTemplateEventChange(): void {
+    this.ensureTemplateSeeded(this.channelForm.activeTemplateEvent);
+  }
+
+  /**
+   * Precarga la plantilla por defecto (misma que usa el notifier como fallback en runtime,
+   * ver default-templates.ts) en el evento activo si todavía no tiene una guardada — así el
+   * admin la ve y puede modificarla en vez de encontrar el campo vacío. Para email también
+   * completa el asunto si el usuario ya había guardado solo el cuerpo: el backend rechaza el
+   * guardado de una plantilla de email sin asunto (notification.schema.ts) y antes ese campo
+   * quedaba vacío sin que nada lo indicara.
+   */
+  private ensureTemplateSeeded(evt: AlertEventType): void {
+    const existing = this.channelForm.templates[evt];
+    const defaults = defaultTemplateFor(evt, this.channelForm.type);
+
+    if (!existing) {
+      this.channelForm.templates = { ...this.channelForm.templates, [evt]: { ...defaults } };
+      return;
+    }
+    if (this.channelForm.type === 'email' && !existing.subject) {
+      this.channelForm.templates = { ...this.channelForm.templates, [evt]: { ...existing, subject: defaults.subject } };
+    }
+  }
+
   templateBodyPlaceholder(): string {
     return this.channelForm.type === 'webhook'
       ? '{"monitor": "{{monitor}}", "status": "{{status}}"}'
@@ -439,6 +464,7 @@ export class AlertsPanelComponent {
     this.channelForm.smtpUsername = '';
     this.channelForm.smtpPassword = '';
     this.channelForm.smtpFrom = '';
+    this.ensureTemplateSeeded(this.channelForm.activeTemplateEvent);
   }
 
   resetChannelForm(): void {
@@ -469,6 +495,7 @@ export class AlertsPanelComponent {
       activeTemplateEvent: 'DOWN',
       isActive: channel.isActive,
     };
+    this.ensureTemplateSeeded('DOWN');
   }
 
   onSaveChannel(): void {
@@ -505,14 +532,16 @@ export class AlertsPanelComponent {
         next: () => {
           this.resetChannelForm();
           this.showToastFeedback('Canal de notificación actualizado.');
-        }
+        },
+        error: (err) => this.showToastFeedback(extractApiErrorMessage(err, 'Error al actualizar el canal.'))
       });
     } else {
       this.notificationService.create(payload).subscribe({
         next: () => {
           this.resetChannelForm();
           this.showToastFeedback('Canal de notificación creado.');
-        }
+        },
+        error: (err) => this.showToastFeedback(extractApiErrorMessage(err, 'Error al crear el canal.'))
       });
     }
   }
