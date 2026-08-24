@@ -32,12 +32,21 @@ import { extractApiErrorMessage } from '../../core/utils/api-error.util';
             <form (submit)="onSubmit(); $event.preventDefault()" class="space-y-4">
               <div>
                 <label class="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                  {{ lang.t('auth.resetPassword.token') }}
+                </label>
+                <input type="text" name="token" [(ngModel)]="token" required
+                  [placeholder]="lang.t('auth.resetPassword.tokenPlaceholder')"
+                  class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2.5 text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500 transition-colors font-mono text-sm">
+                <p class="text-[11px] text-zinc-500 mt-1">{{ lang.t('auth.resetPassword.tokenHint') }}</p>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
                   {{ lang.t('auth.resetPassword.newPassword') }}
                 </label>
                 <input type="password" name="newPassword" [(ngModel)]="newPassword" required minlength="8"
                   class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2.5 text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500 transition-colors">
               </div>
-              <button type="submit" [disabled]="isLoading() || !token"
+              <button type="submit" [disabled]="isLoading() || !token || !newPassword"
                 class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 font-semibold rounded-lg py-3 mt-4 transition-all shadow-lg active:scale-95 duration-200">
                 {{ isLoading() ? lang.t('auth.resetPassword.btnLoading') : lang.t('auth.resetPassword.btn') }}
               </button>
@@ -76,10 +85,6 @@ export class ResetPasswordComponent implements OnInit {
 
   ngOnInit(): void {
     this.token = this.route.snapshot.queryParamMap.get('token') ?? '';
-    if (!this.token) {
-      this.toastType.set('error');
-      this.toast.set(this.lang.t('auth.resetPassword.missingToken'));
-    }
   }
 
   onSubmit(): void {
