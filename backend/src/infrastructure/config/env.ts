@@ -150,7 +150,11 @@ export const env: Env = {
     password: raw.AZKIN_SMTP_PASSWORD,
     from: raw.AZKIN_SMTP_FROM,
   },
-  appUrl: raw.AZKIN_APP_URL,
+  // Si no se configuró explícitamente, se deriva de AZKIN_CORS_ORIGIN cuando esta ya es un
+  // dominio real (no '*') — evita pedir la misma URL pública dos veces en el .env. Nunca se
+  // deriva del request en sí (Host header): eso abriría password-reset poisoning (un atacante
+  // podría falsificar el header y hacer que el link del correo apunte a un dominio propio).
+  appUrl: raw.AZKIN_APP_URL || (raw.AZKIN_CORS_ORIGIN !== "*" ? raw.AZKIN_CORS_ORIGIN : undefined),
   themeModesPath: raw.AZKIN_THEME_MODES_PATH,
 };
 
@@ -158,6 +162,12 @@ export const env: Env = {
 // no bloquea el arranque (puede ser intencional en desarrollo), pero deja rastro visible.
 if (env.corsOrigin === "*") {
   console.warn("[env] AZKIN_CORS_ORIGIN='*' permite cualquier origen. No usar en producción.");
+}
+if (!env.appUrl) {
+  console.warn(
+    "[env] AZKIN_APP_URL no configurado ni derivable de AZKIN_CORS_ORIGIN ('*'): el correo de " +
+      "'recuperar contraseña' caerá a un modo degradado sin link/botón clicable (solo el token en texto plano).",
+  );
 }
 if (!env.prometheusApiKey && !(env.prometheusUser && env.prometheusPass)) {
   console.warn("[env] /metrics quedará inaccesible: no hay AZKIN_PROMETHEUS_API_KEY ni AZKIN_PROMETHEUS_USER+PASS configurados.");
