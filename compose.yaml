@@ -76,6 +76,10 @@ services:
       AZKIN_DEGRADED_LATENCY_MS: ${AZKIN_DEGRADED_LATENCY_MS:-5000}
       AZKIN_ACCELERATED_INTERVAL_SECONDS: ${AZKIN_ACCELERATED_INTERVAL_SECONDS:-15}
       AZKIN_CORS_ORIGIN: ${AZKIN_CORS_ORIGIN}
+      # URL pública del frontend — sin esto, el correo de "recuperar contraseña" no puede armar
+      # un link/botón clicable y cae a un modo degradado (solo el token en texto plano). Ver
+      # AZKIN_APP_URL en .env.example.
+      AZKIN_APP_URL: ${AZKIN_APP_URL}
       # Seeder del primer administrador — leído directamente del .env raíz
       AZKIN_FIRST_ADMIN_NAME: ${AZKIN_FIRST_ADMIN_NAME}
       AZKIN_FIRST_ADMIN_EMAIL: ${AZKIN_FIRST_ADMIN_EMAIL}
