@@ -4,6 +4,16 @@ Todos los cambios notables de **Azkin** se documentan aquí.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.5.0] - 2026-08-24
+
+### Added
+
+- **El correo de recuperación de contraseña ahora es HTML, con logo, botón de acción y link de respaldo visible:** hasta ahora `forgot-password` mandaba solo texto plano con el link/token pelado. Ahora incluye el logo de Azkin como imagen inline (referenciada por `cid`, no en base64 `data:` — Outlook de escritorio no renderiza imágenes `data:`), un botón "Restablecer contraseña" con el patrón "bulletproof button" (tabla + `bgcolor`, para que sobreviva al motor de renderizado de Word que usa Outlook) y, debajo, el mismo enlace visible en texto plano por si el botón no se ve o no es clicable en el cliente de correo del destinatario. El puerto `IMailer` gana soporte de `cid` en adjuntos; el logo se inyecta como `Buffer` desde `composition-root.ts` (cargado una sola vez) para no acoplar la capa de aplicación a una ruta de archivo física, y un paso post-build (`backend/scripts/copy-assets.js`) copia el PNG a `dist/` ya que `tsc` no mueve binarios.
+
+### Fixed
+
+- **Las tarjetas del panel "Webs con incidencia ahora" eran ilegibles en tema oscuro:** `incidentTitleClass()`/`incidentTargetClass()` (`quick-stats-panel.ts`) fijaban el texto en `text-black`/`text-zinc-700`/`text-zinc-600` — colores pensados para un fondo claro que la tarjeta nunca tuvo, ya que usa fondos oscuros translúcidos (`bg-rose-500/10`, `bg-orange-500/10`, `bg-amber-500/10`). El texto quedaba casi invisible sobre esos fondos. Ahora usa `text-white`/`text-zinc-300`/`text-zinc-400`, consistentes con el resto del tema oscuro de la app.
+
 ## [1.4.1] - 2026-08-21
 
 ### Fixed

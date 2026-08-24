@@ -5,6 +5,8 @@ import { IMailer } from "../../ports/services/mailer";
 import { IAuditLogRepository } from "../../ports/repositories/audit-log-repository";
 
 const TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutos
+const LOGO_CID = "azkin-logo";
+const HTML_ESCAPE_MAP: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
 export interface RequestPasswordResetInput {
   email: string;
@@ -13,6 +15,49 @@ export interface RequestPasswordResetInput {
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char]);
+}
+
+/**
+ * HTML del correo de recuperación: logo (referenciado por `cid`, no base64 — Outlook de
+ * escritorio no renderiza imágenes `data:`), botón CTA con el patrón "bulletproof button"
+ * (tabla + `bgcolor`) para que sobreviva al motor de Word de Outlook, y debajo el link en texto
+ * plano visible como respaldo si el botón no se ve o no es clicable en el cliente de correo.
+ */
+function buildResetHtml(resetLink: string): string {
+  const safeLink = escapeHtml(resetLink);
+  return `
+    <div style="font-family: Arial, sans-serif; color:#18181b; max-width:480px; margin:0 auto;">
+      <div style="background:#09090b; padding:20px 24px; border-radius:12px 12px 0 0; text-align:center;">
+        <img src="cid:${LOGO_CID}" width="40" height="40" alt="Azkin" style="display:block; margin:0 auto;" />
+      </div>
+      <div style="border:1px solid #e4e4e7; border-top:none; border-radius:0 0 12px 12px; padding:28px 24px;">
+        <h2 style="margin:0 0 8px; font-size:18px;">Recuperación de contraseña</h2>
+        <p style="color:#52525b; font-size:13px; line-height:1.6;">
+          Solicitaste recuperar tu contraseña en Azkin. Este enlace vence en 30 minutos.
+        </p>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0;">
+          <tr>
+            <td bgcolor="#10b981" style="border-radius:8px;">
+              <a href="${safeLink}" style="display:inline-block; padding:13px 30px; font-family:Arial,sans-serif; font-size:14px; font-weight:bold; color:#ffffff; text-decoration:none; border-radius:8px;">
+                Restablecer contraseña
+              </a>
+            </td>
+          </tr>
+        </table>
+        <p style="color:#71717a; font-size:12px; line-height:1.5;">
+          ¿El botón no funciona? Copia y pega este enlace en tu navegador:<br />
+          <a href="${safeLink}" style="color:#10b981; word-break:break-all;">${safeLink}</a>
+        </p>
+        <p style="color:#a1a1aa; font-size:11px; margin-top:24px;">
+          Si no fuiste tú, ignora este mensaje — tu contraseña seguirá siendo la misma.
+        </p>
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -25,6 +70,8 @@ export class RequestPasswordResetUseCase {
     private readonly users: IUserRepository,
     private readonly mailer: IMailer,
     private readonly auditLog: IAuditLogRepository,
+    /** Logo inline (cid) para el correo HTML; si no se inyecta, el correo cae a solo texto plano. */
+    private readonly logo?: Buffer,
   ) {}
 
   async execute(input: RequestPasswordResetInput): Promise<void> {
@@ -48,6 +95,11 @@ export class RequestPasswordResetUseCase {
       text: resetLink
         ? `Solicitaste recuperar tu contraseña. Este enlace vence en 30 minutos:\n${resetLink}\n\nSi no fuiste tú, ignora este mensaje.`
         : `Solicitaste recuperar tu contraseña. Tu token (vence en 30 minutos): ${token}\n\nSi no fuiste tú, ignora este mensaje.`,
+      html: resetLink ? buildResetHtml(resetLink) : undefined,
+      attachments:
+        resetLink && this.logo
+          ? [{ filename: "logo-azkin.png", content: this.logo, contentType: "image/png", cid: LOGO_CID }]
+          : undefined,
     });
 
     await this.auditLog.record({

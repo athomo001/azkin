@@ -49,6 +49,7 @@ import { InMemoryScheduler } from "./infrastructure/scheduler/in-memory-schedule
 // que lo use desde que se eliminó el listener HTTPS nativo del backend.
 import { encryptPrivateKey, decryptPrivateKey } from "./infrastructure/security/tls-key-cipher";
 import { SmtpMailer } from "./infrastructure/notifier/smtp-mailer";
+import { loadAzkinLogo } from "./infrastructure/assets/load-logo";
 import { ResolveAppSmtpConfig } from "./application/services/resolve-app-smtp-config";
 import { ResolveMonitoringEngineConfig } from "./application/services/resolve-monitoring-engine-config";
 import { ResolveDefaultAlertRecipients } from "./application/services/resolve-default-alert-recipients";
@@ -331,7 +332,7 @@ export function buildContainer(env: Env): AppContainer {
   const register = new RegisterUseCase(users, hasher, tokens);
   const login = new LoginUseCase(users, hasher, tokens, auditLog);
   const refresh = new RefreshUseCase(users, tokens);
-  const requestPasswordReset = new RequestPasswordResetUseCase(users, mailer, auditLog);
+  const requestPasswordReset = new RequestPasswordResetUseCase(users, mailer, auditLog, loadAzkinLogo());
   const resetPassword = new ResetPasswordUseCase(users, hasher, auditLog);
   const createMonitor = new CreateMonitorUseCase(monitors, scheduler, auditLog);
   const listMonitors = new ListMonitorsUseCase(monitors, heartbeats);
