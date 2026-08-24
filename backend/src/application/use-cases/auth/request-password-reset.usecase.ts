@@ -30,33 +30,45 @@ function escapeHtml(value: string): string {
 function buildResetHtml(resetLink: string): string {
   const safeLink = escapeHtml(resetLink);
   return `
-    <div style="font-family: Arial, sans-serif; color:#18181b; max-width:480px; margin:0 auto;">
-      <div style="background:#09090b; padding:20px 24px; border-radius:12px 12px 0 0; text-align:center;">
-        <img src="cid:${LOGO_CID}" width="40" height="40" alt="Azkin" style="display:block; margin:0 auto;" />
-      </div>
-      <div style="border:1px solid #e4e4e7; border-top:none; border-radius:0 0 12px 12px; padding:28px 24px;">
-        <h2 style="margin:0 0 8px; font-size:18px;">Recuperación de contraseña</h2>
-        <p style="color:#52525b; font-size:13px; line-height:1.6;">
-          Solicitaste recuperar tu contraseña en Azkin. Este enlace vence en 30 minutos.
-        </p>
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0;">
-          <tr>
-            <td bgcolor="#10b981" style="border-radius:8px;">
-              <a href="${safeLink}" style="display:inline-block; padding:13px 30px; font-family:Arial,sans-serif; font-size:14px; font-weight:bold; color:#ffffff; text-decoration:none; border-radius:8px;">
-                Restablecer contraseña
-              </a>
-            </td>
-          </tr>
-        </table>
-        <p style="color:#71717a; font-size:12px; line-height:1.5;">
-          ¿El botón no funciona? Copia y pega este enlace en tu navegador:<br />
-          <a href="${safeLink}" style="color:#10b981; word-break:break-all;">${safeLink}</a>
-        </p>
-        <p style="color:#a1a1aa; font-size:11px; margin-top:24px;">
-          Si no fuiste tú, ignora este mensaje — tu contraseña seguirá siendo la misma.
-        </p>
-      </div>
-    </div>
+    <!DOCTYPE html>
+    <html lang="es">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="color-scheme" content="light only" />
+        <meta name="supported-color-schemes" content="light only" />
+        <title>Azkin</title>
+      </head>
+      <body style="margin:0; padding:0; background:#f4f4f5;">
+        <div style="font-family: Arial, sans-serif; color:#18181b; max-width:480px; margin:0 auto; padding:24px 12px;">
+          <div style="background:#09090b; padding:20px 24px; border-radius:12px 12px 0 0; text-align:center;">
+            <img src="cid:${LOGO_CID}" width="40" height="40" alt="Azkin" style="display:block; margin:0 auto;" />
+          </div>
+          <div style="border:1px solid #e4e4e7; border-top:none; border-radius:0 0 12px 12px; padding:28px 24px; background:#ffffff;">
+            <h2 style="margin:0 0 8px; font-size:18px; color:#18181b;">Recuperación de contraseña</h2>
+            <p style="color:#52525b; font-size:13px; line-height:1.6;">
+              Solicitaste recuperar tu contraseña en Azkin. Este enlace vence en 30 minutos.
+            </p>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0;">
+              <tr>
+                <td bgcolor="#10b981" style="background-color:#10b981; border-radius:8px; mso-padding-alt:13px 30px;">
+                  <a href="${safeLink}" target="_blank" style="display:block; padding:13px 30px; font-family:Arial,sans-serif; font-size:14px; font-weight:bold; text-decoration:none; border-radius:8px; background-color:#10b981;">
+                    <span style="color:#ffffff !important;">Restablecer contraseña</span>
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="color:#71717a; font-size:12px; line-height:1.5;">
+              ¿El botón no funciona? Copia y pega este enlace en tu navegador:<br />
+              <a href="${safeLink}" style="color:#10b981; word-break:break-all;">${safeLink}</a>
+            </p>
+            <p style="color:#a1a1aa; font-size:11px; margin-top:24px;">
+              Si no fuiste tú, ignora este mensaje — tu contraseña seguirá siendo la misma.
+            </p>
+          </div>
+        </div>
+      </body>
+    </html>
   `;
 }
 
@@ -94,7 +106,7 @@ export class RequestPasswordResetUseCase {
       subject: "Recuperación de contraseña — Azkin",
       text: resetLink
         ? `Solicitaste recuperar tu contraseña. Este enlace vence en 30 minutos:\n${resetLink}\n\nSi no fuiste tú, ignora este mensaje.`
-        : `Solicitaste recuperar tu contraseña. Tu token (vence en 30 minutos): ${token}\n\nSi no fuiste tú, ignora este mensaje.`,
+        : `Solicitaste recuperar tu contraseña en Azkin. Andá a la sección "Restablecer contraseña" (/reset-password) y pegá este código en el campo "Token de recuperación" (vence en 30 minutos):\n${token}\n\nSi no fuiste tú, ignora este mensaje.`,
       html: resetLink ? buildResetHtml(resetLink) : undefined,
       attachments:
         resetLink && this.logo
