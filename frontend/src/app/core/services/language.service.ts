@@ -112,6 +112,8 @@ const TRANSLATIONS = {
       'auth.forgotPassword.btn': { es: 'Enviar instrucciones', en: 'Send instructions' },
       'auth.forgotPassword.btnLoading': { es: 'Enviando...', en: 'Sending...' },
       'auth.forgotPassword.sent': { es: 'Si el correo existe en el sistema, recibirás instrucciones para recuperar tu contraseña en breve.', en: 'If the email exists in the system, you will receive recovery instructions shortly.' },
+      'auth.forgotPassword.haveTokenBtn': { es: 'Ya tengo el código del correo →', en: 'I already have the code from the email →' },
+      'auth.forgotPassword.haveToken': { es: '¿Ya tenés un código?', en: 'Already have a code?' },
       'auth.forgotPassword.backToLogin': { es: 'Volver al inicio de sesión', en: 'Back to login' },
       'auth.resetPassword.subtitle': { es: 'Ingresa tu nueva contraseña.', en: 'Enter your new password.' },
       'auth.resetPassword.token': { es: 'Token de recuperación', en: 'Recovery token' },

@@ -42,9 +42,17 @@ import { LanguageService } from '../../core/services/language.service';
             </form>
           } @else {
             <p class="text-zinc-300 text-sm">{{ lang.t('auth.forgotPassword.sent') }}</p>
+            <a routerLink="/reset-password"
+              class="block w-full text-center bg-emerald-600 hover:bg-emerald-500 font-semibold rounded-lg py-3 mt-4 transition-all shadow-lg active:scale-95 duration-200">
+              {{ lang.t('auth.forgotPassword.haveTokenBtn') }}
+            </a>
           }
 
           <p class="text-zinc-500 text-xs text-center mt-6">
+            @if (!submitted()) {
+              <a routerLink="/reset-password" class="text-emerald-500 hover:underline">{{ lang.t('auth.forgotPassword.haveToken') }}</a>
+              <span class="text-zinc-700 mx-2">·</span>
+            }
             <a routerLink="/login" class="text-emerald-500 hover:underline">{{ lang.t('auth.forgotPassword.backToLogin') }}</a>
           </p>
         </div>
