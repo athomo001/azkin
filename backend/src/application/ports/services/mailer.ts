@@ -3,6 +3,8 @@ export interface SendMailAttachment {
   filename: string;
   content: Buffer;
   contentType?: string;
+  /** Content-ID para referenciar el adjunto como imagen inline en `html` (ej. `<img src="cid:logo">`). */
+  cid?: string;
 }
 
 export interface SendMailInput {

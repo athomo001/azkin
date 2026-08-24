@@ -249,13 +249,13 @@ export class QuickStatsPanelComponent {
 
   incidentTitleClass(): string {
     return this.isTvRelaxedIncidentList()
-      ? 'text-sm text-black truncate font-extrabold leading-tight block'
-      : 'text-[13px] text-black truncate font-extrabold leading-tight block';
+      ? 'text-sm text-white truncate font-extrabold leading-tight block'
+      : 'text-[13px] text-white truncate font-extrabold leading-tight block';
   }
 
   incidentTargetClass(): string {
     return this.isTvRelaxedIncidentList()
-      ? 'text-[11px] text-zinc-700 truncate block'
-      : 'text-[10px] text-zinc-600 truncate block';
+      ? 'text-[11px] text-zinc-300 truncate block'
+      : 'text-[10px] text-zinc-400 truncate block';
   }
 }

@@ -43,6 +43,7 @@ export class SmtpMailer implements IMailer {
           filename: a.filename,
           content: a.content,
           contentType: a.contentType,
+          cid: a.cid,
         })),
       });
     } catch (err) {
