@@ -1,16 +1,23 @@
 // Azkin — Autor: Athan Espinoza (GitHub: athomo001)
 import { INotifier, NotificationEvent } from "../../application/ports/services/notifier";
 import { INotificationRepository } from "../../application/ports/repositories/notification-repository";
-import { IAuditLogRepository } from "../../application/ports/repositories/audit-log-repository";
+import { IAuditLogRepository, IIncidentAlertLookup } from "../../application/ports/repositories/audit-log-repository";
 import { INotification, SlackConfig, DiscordConfig, TelegramConfig, WebhookConfig, EmailConfig } from "../../domain/entities/notification";
 import { MonitorStatus } from "../../domain/value-objects/monitor-status";
+import { AlertEventType } from "../../domain/value-objects/alert-event-type";
 import { renderTemplate, TemplateContext, escapeJsonStringValue, escapeTelegramMarkdown } from "./template-renderer";
 import { defaultTemplateFor } from "./default-templates";
 import { logger } from "../logger";
 import { getErrorMessage } from "../../application/services/get-error-message";
 import nodemailer from "nodemailer";
 
-type EmailAuditAction = "NOTIFICATION_EMAIL_SENT" | "NOTIFICATION_EMAIL_FAILED";
+type NotificationAuditAction =
+  | "NOTIFICATION_EMAIL_SENT"
+  | "NOTIFICATION_EMAIL_FAILED"
+  | "NOTIFICATION_SENT"
+  | "NOTIFICATION_FAILED";
+
+const OUTAGE_EVENTS: ReadonlySet<AlertEventType> = new Set<AlertEventType>(["DOWN", "DEGRADED"]);
 
 /**
  * Notificador multicanal (Strategy Pattern).
@@ -18,9 +25,15 @@ type EmailAuditAction = "NOTIFICATION_EMAIL_SENT" | "NOTIFICATION_EMAIL_FAILED";
  * Captura excepciones a nivel de canal para evitar que el fallo de una integración afecte a los checkers.
  */
 export class MultichannelNotifier implements INotifier {
+  // Pares `monitorId:notificationId` con un aviso de caída enviado y aún sin RECOVERED.
+  private readonly openIncidents = new Set<string>();
+
   constructor(
     private readonly notificationRepo: INotificationRepository,
     private readonly auditLog: IAuditLogRepository,
+    // Respaldo persistente de `openIncidents`: tras un reinicio el Set arranca vacío, y sin esto
+    // el RECOVERED de una caída ya avisada antes del reinicio se descartaría.
+    private readonly incidentLookup?: IIncidentAlertLookup,
   ) {}
 
   async notify(event: NotificationEvent): Promise<void> {
@@ -39,6 +52,16 @@ export class MultichannelNotifier implements INotifier {
     if (!isSubscribed && !event.isTest) {
       return;
     }
+
+    if (!event.isTest && !(await this.trackIncident(event, config))) {
+      return;
+    }
+
+    // Campos que identifican el aviso en auditoría (base de `findLastIncidentAlert`). Los envíos de
+    // prueba no los llevan: no deben abrir ni cerrar un incidente real.
+    const alertAudit: Record<string, unknown> = event.isTest
+      ? { isTest: true }
+      : { monitorId: event.monitor.id, monitorName: event.monitor.name, alertEvent: event.eventType };
 
     const context: TemplateContext = {
       monitor: event.monitor.name,
@@ -79,13 +102,50 @@ export class MultichannelNotifier implements INotifier {
           await this.sendWebhook(config, renderTemplate(template.body, context, escapeJsonStringValue));
           break;
         case "email":
-          await this.sendEmail(config, title, message);
+          await this.sendEmail(config, title, message, alertAudit);
           break;
         default:
           logger.warn(`Tipo de notificación no soportado en runtime: ${config.type}`);
+          return;
+      }
+      // El correo registra su propia auditoría (con destinatarios/remitente) dentro de sendEmail.
+      if (config.type !== "email") {
+        await this.recordAudit("NOTIFICATION_SENT", config, title, [], alertAudit);
       }
     } catch (err) {
       logger.error(`Error al enviar alerta por el canal ${config.type} (${config.id}): ${getErrorMessage(err)}`);
+      if (config.type !== "email") {
+        await this.recordAudit("NOTIFICATION_FAILED", config, title, [], { ...alertAudit, error: getErrorMessage(err) });
+      }
+    }
+  }
+
+  /**
+   * Un RECOVERED solo sale si este canal recibió antes un aviso de caída (DOWN/DEGRADED) de este
+   * monitor: sin esto, un canal no suscrito a DEGRADED recibía "ALERTA RESTABLECIDA" tras cada
+   * oscilación UP→DEGRADED→UP (basta un beat lento) sin ninguna alerta previa. Se rastrea por canal
+   * y no por `event.from`, para que UP→DOWN→DEGRADED→UP sí cierre el DOWN ya avisado. Devuelve
+   * false si el aviso debe descartarse.
+   */
+  private async trackIncident(event: NotificationEvent, config: INotification): Promise<boolean> {
+    const incidentKey = `${event.monitor.id}:${config.id}`;
+    if (event.eventType === "RECOVERED") {
+      return this.openIncidents.delete(incidentKey) || this.hasOpenIncidentInAudit(event, config);
+    }
+    if (OUTAGE_EVENTS.has(event.eventType)) {
+      this.openIncidents.add(incidentKey);
+    }
+    return true;
+  }
+
+  private async hasOpenIncidentInAudit(event: NotificationEvent, config: INotification): Promise<boolean> {
+    if (!this.incidentLookup) return false;
+    try {
+      const last = await this.incidentLookup.findLastIncidentAlert(event.monitor.id, config.id);
+      return last !== null && OUTAGE_EVENTS.has(last);
+    } catch (err) {
+      logger.warn(`[AUDIT] No se pudo consultar el último aviso del monitor ${event.monitor.id}: ${getErrorMessage(err)}`);
+      return false;
     }
   }
 
@@ -162,7 +222,12 @@ export class MultichannelNotifier implements INotifier {
     }
   }
 
-  private async sendEmail(config: INotification, subject: string, body: string): Promise<void> {
+  private async sendEmail(
+    config: INotification,
+    subject: string,
+    body: string,
+    alertAudit: Record<string, unknown>,
+  ): Promise<void> {
     const conf = config.config as unknown as EmailConfig;
 
     // Obtener los destinatarios (soporta campo email, emailRecipient, o array emails)
@@ -176,7 +241,8 @@ export class MultichannelNotifier implements INotifier {
     }
 
     if (recipientList.length === 0) {
-      await this.recordEmailAudit("NOTIFICATION_EMAIL_FAILED", config, subject, recipientList, {
+      await this.recordAudit("NOTIFICATION_EMAIL_FAILED", config, subject, recipientList, {
+        ...alertAudit,
         reason: "Destinatarios de correo faltantes en la configuración",
       });
       throw new Error("Destinatarios de correo faltantes en la configuración");
@@ -208,12 +274,14 @@ export class MultichannelNotifier implements INotifier {
           subject,
           text: body,
         });
-        await this.recordEmailAudit("NOTIFICATION_EMAIL_SENT", config, subject, recipientList, {
+        await this.recordAudit("NOTIFICATION_EMAIL_SENT", config, subject, recipientList, {
+          ...alertAudit,
           from,
         });
         logger.info(`[SMTP] Alerta de correo enviada exitosamente a ${recipientList.join(", ")}`);
       } catch (err) {
-        await this.recordEmailAudit("NOTIFICATION_EMAIL_FAILED", config, subject, recipientList, {
+        await this.recordAudit("NOTIFICATION_EMAIL_FAILED", config, subject, recipientList, {
+          ...alertAudit,
           from,
           error: getErrorMessage(err),
         });
@@ -222,7 +290,8 @@ export class MultichannelNotifier implements INotifier {
         this.logMockEmail(from, recipientList, subject, body);
       }
     } else {
-      await this.recordEmailAudit("NOTIFICATION_EMAIL_FAILED", config, subject, recipientList, {
+      await this.recordAudit("NOTIFICATION_EMAIL_FAILED", config, subject, recipientList, {
+        ...alertAudit,
         from,
         reason: "SMTP no configurado",
       });
@@ -230,8 +299,8 @@ export class MultichannelNotifier implements INotifier {
     }
   }
 
-  private async recordEmailAudit(
-    action: EmailAuditAction,
+  private async recordAudit(
+    action: NotificationAuditAction,
     notification: INotification,
     subject: string,
     recipients: string[],
@@ -253,7 +322,7 @@ export class MultichannelNotifier implements INotifier {
         },
       });
     } catch (err) {
-      logger.warn(`[AUDIT] No se pudo registrar el envío de correo: ${getErrorMessage(err)}`);
+      logger.warn(`[AUDIT] No se pudo registrar el envío de la alerta: ${getErrorMessage(err)}`);
     }
   }
 

@@ -22,4 +22,7 @@ const auditLogSchema = new Schema<AuditLogDoc>(
   { timestamps: { createdAt: true, updatedAt: false }, versionKey: false },
 );
 
+// Consulta del notificador: último aviso de incidente de un monitor en un canal (findLastIncidentAlert).
+auditLogSchema.index({ "metadata.monitorId": 1, targetIds: 1, createdAt: -1 });
+
 export const AuditLogModel = model<AuditLogDoc>("AuditLog", auditLogSchema);

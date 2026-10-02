@@ -308,7 +308,7 @@ export function buildContainer(env: Env): AppContainer {
 
   // Tiempo real + alertas
   const publisher = new SocketIoGateway(io, tokens);
-  const notifier = new MultichannelNotifier(notifications, auditLog);
+  const notifier = new MultichannelNotifier(notifications, auditLog, auditLog);
 
   // Checkers + concurrencia
   const limit = pLimit(env.checkConcurrency);
