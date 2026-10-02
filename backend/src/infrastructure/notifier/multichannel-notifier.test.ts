@@ -244,6 +244,109 @@ test("MultichannelNotifier envía y renderiza la plantilla cuando el canal está
   }
 });
 
+test("MultichannelNotifier solo envía RECOVERED si el canal recibió antes un aviso de caída", async () => {
+  const channel = makeChannel({ events: ["DOWN", "RECOVERED"] });
+  const repo: INotificationRepository = {
+    create: async () => channel,
+    findAll: async () => [channel],
+    findById: async () => channel,
+    update: async () => channel,
+    delete: async () => true,
+  };
+
+  const calls: string[] = [];
+  const originalFetch = global.fetch;
+  global.fetch = (async (_url: string, init?: RequestInit) => {
+    calls.push(init?.body as string);
+    return new Response(null, { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const notifier = new MultichannelNotifier(repo);
+    // UP → DEGRADED → UP: el DEGRADED se filtra (no suscrito), así que el RECOVERED tampoco sale.
+    await notifier.notify(makeEvent({ eventType: "DEGRADED", from: MonitorStatus.UP, to: MonitorStatus.DEGRADED }));
+    await notifier.notify(makeEvent({ eventType: "RECOVERED", from: MonitorStatus.DEGRADED, to: MonitorStatus.UP }));
+    assert.equal(calls.length, 0, "sin un aviso de caída previo no debe llegar el restablecimiento");
+
+    // UP → DOWN → DEGRADED → UP: el DOWN sí se avisó, así que el RECOVERED debe cerrarlo.
+    await notifier.notify(makeEvent({ eventType: "DOWN", from: MonitorStatus.UP, to: MonitorStatus.DOWN }));
+    await notifier.notify(makeEvent({ eventType: "DEGRADED", from: MonitorStatus.DOWN, to: MonitorStatus.DEGRADED }));
+    await notifier.notify(makeEvent({ eventType: "RECOVERED", from: MonitorStatus.DEGRADED, to: MonitorStatus.UP }));
+    assert.equal(calls.length, 2, "DOWN y su RECOVERED deben llegar");
+
+    // Un segundo RECOVERED sin caída nueva no debe repetirse.
+    await notifier.notify(makeEvent({ eventType: "RECOVERED", from: MonitorStatus.DOWN, to: MonitorStatus.UP }));
+    assert.equal(calls.length, 2, "el incidente ya se cerró; no debe enviarse otro restablecimiento");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("MultichannelNotifier tras un reinicio usa la auditoría para decidir si envía RECOVERED", async () => {
+  const channel = makeChannel({ events: ["DOWN", "RECOVERED"] });
+  const repo: INotificationRepository = {
+    create: async () => channel,
+    findAll: async () => [channel],
+    findById: async () => channel,
+    update: async () => channel,
+    delete: async () => true,
+  };
+  const { repo: auditLog } = makeAuditLog();
+
+  let calls = 0;
+  const originalFetch = global.fetch;
+  global.fetch = (async () => {
+    calls += 1;
+    return new Response(null, { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const recovered = makeEvent({ eventType: "RECOVERED", from: MonitorStatus.DOWN, to: MonitorStatus.UP });
+
+    // El último aviso registrado fue un DOWN: el incidente sigue abierto y el RECOVERED debe salir.
+    const afterDown = new MultichannelNotifier(repo, auditLog, { findLastIncidentAlert: async () => "DOWN" });
+    await afterDown.notify(recovered);
+    assert.equal(calls, 1);
+
+    // El último aviso registrado ya fue un RECOVERED (o no hay ninguno): no se envía.
+    const afterRecovered = new MultichannelNotifier(repo, auditLog, { findLastIncidentAlert: async () => "RECOVERED" });
+    await afterRecovered.notify(recovered);
+    const withoutHistory = new MultichannelNotifier(repo, auditLog, { findLastIncidentAlert: async () => null });
+    await withoutHistory.notify(recovered);
+    assert.equal(calls, 1);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("MultichannelNotifier registra en auditoría el monitor y el evento de cada aviso", async () => {
+  const channel = makeChannel({ events: ["DOWN"] });
+  const repo: INotificationRepository = {
+    create: async () => channel,
+    findAll: async () => [channel],
+    findById: async () => channel,
+    update: async () => channel,
+    delete: async () => true,
+  };
+  const { repo: auditLog, recorded } = makeAuditLog();
+
+  const originalFetch = global.fetch;
+  global.fetch = (async () => new Response(null, { status: 200 })) as typeof fetch;
+
+  try {
+    const notifier = new MultichannelNotifier(repo, auditLog);
+    await notifier.notify(makeEvent({ eventType: "DOWN" }));
+
+    assert.equal(recorded.length, 1);
+    assert.equal(recorded[0].action, "NOTIFICATION_SENT");
+    assert.deepEqual(recorded[0].targetIds, ["notif-1"]);
+    assert.equal(recorded[0].metadata.monitorId, "monitor-1");
+    assert.equal(recorded[0].metadata.alertEvent, "DOWN");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("MultichannelNotifier (AZ-058): un nombre de monitor con comillas no rompe el JSON del webhook", async () => {
   const channel = makeChannel({ events: ["DOWN"] });
   const repo: INotificationRepository = {
